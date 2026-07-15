@@ -1,0 +1,2012 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>RDG AI Impact Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+<style>
+:root{
+  --bg:#0d0f18;--surface:#141720;--surface2:#1a1f30;--border:#252d4a;
+  --text:#eef0fb;--muted:#8890b8;
+  --y25:#ff9f2e;      /* vivid amber — 2025 */
+  --y26:#3d8ef8;      /* vivid blue — 2026 */
+  --ai:#b06ef5;       /* vivid purple — AI */
+  --human:#22d98e;    /* vivid green — Human */
+  --red:#ff5c6a;--green:#22d98e;
+  --c-mila:#3d8ef8;   /* blue */
+  --c-casa:#b06ef5;   /* purple */
+  --c-avacg:#22d98e;  /* green */
+  --c-avawp:#ff9f2e;  /* amber */
+  --c-claudie:#f43f8e;/* pink */
+  --radius:10px;--shadow:0 2px 12px rgba(0,0,0,.5);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;font-size:14px;min-height:100vh}
+
+/* ── NAV ── */
+.nav{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;gap:32px;height:52px;position:sticky;top:0;z-index:100}
+.nav-brand{font-weight:700;font-size:15px;color:var(--text);white-space:nowrap}
+.nav-brand span{color:var(--ai);margin-right:6px}
+.tabs{display:flex;gap:2px;margin-left:auto}
+.tab-btn{padding:6px 16px;border:none;background:none;color:var(--muted);cursor:pointer;font-size:13px;border-radius:6px;transition:.15s}
+.tab-btn:hover{background:var(--surface2);color:var(--text)}
+.tab-btn.active{background:var(--surface2);color:var(--y26);font-weight:600}
+
+/* ── FILTERS ── */
+.filters{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.filter-group{display:flex;align-items:center;gap:8px}
+.filter-label{color:var(--muted);font-size:12px;font-weight:500;white-space:nowrap}
+select,input[type=number]{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:6px;font-size:13px;outline:none}
+select:focus,input:focus{border-color:var(--y26)}
+.filter-sep{width:1px;height:20px;background:var(--border)}
+.last-update{margin-left:auto;color:var(--muted);font-size:11px}
+
+/* ── LAYOUT ── */
+.page{display:none;padding:20px 24px;max-width:1600px;margin:0 auto}
+.page.active{display:block}
+
+/* ── KPI CARDS ── */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;position:relative}
+.kpi-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.kpi-value{font-size:26px;font-weight:700;line-height:1}
+.kpi-sub{font-size:12px;color:var(--muted);margin-top:4px}
+.kpi-badge{position:absolute;top:12px;right:12px;font-size:11px;font-weight:600;padding:2px 7px;border-radius:20px}
+.badge-up{background:rgba(74,222,128,.15);color:var(--green)}
+.badge-dn{background:rgba(248,113,113,.15);color:var(--red)}
+.badge-neu{background:rgba(167,139,250,.15);color:var(--ai)}
+.kpi-split{display:flex;gap:12px;margin-top:6px}
+.kpi-split-item{font-size:11px}
+.kpi-split-item b{display:block;font-size:15px;font-weight:700}
+
+/* ── CHART GRID ── */
+.chart-row{display:grid;gap:16px;margin-bottom:16px}
+.chart-row.cols-2{grid-template-columns:1fr 1fr}
+.chart-row.cols-3{grid-template-columns:1fr 1fr 1fr}
+.chart-row.cols-1{grid-template-columns:1fr}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.chart-card h3{font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px}
+.chart-card p{font-size:11px;color:var(--muted);margin-bottom:12px}
+.chart-wrap{position:relative}
+
+/* ── TABLES ── */
+.table-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px;overflow-x:auto}
+.table-card h3{font-size:13px;font-weight:600;margin-bottom:12px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{padding:8px 10px;text-align:right;color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;border-bottom:1px solid var(--border);white-space:nowrap}
+thead th:first-child{text-align:left}
+tbody tr{border-bottom:1px solid rgba(42,48,80,.5)}
+tbody tr:hover{background:var(--surface2)}
+tbody td{padding:8px 10px;text-align:right;white-space:nowrap}
+tbody td:first-child{text-align:left;font-weight:600}
+.up{color:var(--green)}.dn{color:var(--red)}.neu{color:var(--ai)}
+.pill{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600}
+.pill-ai{background:rgba(167,139,250,.2);color:var(--ai)}
+.pill-h{background:rgba(52,211,153,.2);color:var(--human)}
+
+/* ── BY RESTAURANT ── */
+.rest-selector{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+.rest-btn{padding:7px 16px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);border-radius:20px;cursor:pointer;font-size:13px;transition:.15s}
+.rest-btn:hover,.rest-btn.active{background:var(--y26);border-color:var(--y26);color:#fff;font-weight:600}
+.golive-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(167,139,250,.15);border:1px solid rgba(167,139,250,.3);color:var(--ai);padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;margin-bottom:16px}
+
+/* ── LEGEND ── */
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)}
+.legend-dot{width:10px;height:10px;border-radius:50%}
+.legend-line{width:20px;height:2px}
+
+/* ── SECTION HEADING ── */
+.section-head{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin:20px 0 12px;display:flex;align-items:center;gap:8px}
+.section-head::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* ── PERIOD SUMMARY (below charts) ── */
+.period-summary{margin-top:12px;border-top:1px solid var(--border);padding-top:12px}
+.period-summary table{font-size:12px;width:100%}
+.period-summary th,.period-summary td{padding:8px 12px;text-align:center}
+.period-summary th:first-child,.period-summary td:first-child{text-align:left}
+.period-summary .period-label{font-weight:600;color:var(--muted)}
+.period-summary th{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600}
+.heat{display:inline-block;padding:3px 10px;border-radius:6px;font-weight:700;font-size:13px;min-width:52px}
+.heat-good{background:rgba(52,211,153,.18);color:#34d399}
+.heat-mid{background:rgba(251,191,36,.15);color:#fbbf24}
+.heat-bad{background:rgba(248,113,113,.18);color:#f87171}
+.heat-na{color:var(--muted)}
+.stat-note{font-size:10px;color:var(--muted);margin-top:8px;font-style:italic}
+
+/* ── INSIGHT SUMMARY ── */
+.insight-banner{background:linear-gradient(135deg,rgba(61,142,248,.12),rgba(176,110,245,.10));border:1px solid rgba(61,142,248,.28);border-radius:var(--radius);padding:14px 18px;margin-bottom:18px;display:flex;gap:12px;align-items:flex-start}
+.insight-banner .insight-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--ai);margin-bottom:4px}
+.insight-banner .insight-text{font-size:13px;line-height:1.55;color:var(--text)}
+.insight-banner .insight-mark{color:var(--ai);font-size:16px;line-height:1.2;flex-shrink:0}
+
+/* ── LOADING ── */
+.loading{text-align:center;padding:80px;color:var(--muted);font-size:15px}
+.error{text-align:center;padding:40px;color:var(--red)}
+
+/* ── CONVERSATION BUILDING ── */
+.conv-build{max-width:720px;margin:48px auto;padding:36px 40px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);text-align:center}
+.conv-build .pulse{width:56px;height:56px;margin:0 auto 20px;border-radius:50%;background:rgba(176,110,245,.15);border:2px solid rgba(176,110,245,.45);display:flex;align-items:center;justify-content:center;font-size:22px;animation:convPulse 1.6s ease-in-out infinite}
+@keyframes convPulse{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(176,110,245,.35)}50%{transform:scale(1.06);box-shadow:0 0 0 14px rgba(176,110,245,0)}}
+.conv-build h2{font-size:22px;font-weight:700;margin-bottom:8px;background:linear-gradient(90deg,#3d8ef8,#b06ef5);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.conv-build .status{font-size:14px;color:var(--ai);font-weight:600;margin-bottom:14px}
+.conv-build p{font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:10px}
+.conv-build .scope{margin-top:18px;padding:12px 16px;background:var(--surface2);border-radius:10px;font-size:12px;color:var(--text);text-align:left}
+.conv-build .scope b{color:var(--ai)}
+
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <div class="nav-brand"><span>◆</span>RDG AI Impact Dashboard</div>
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('overview')">Overview</button>
+    <button class="tab-btn" onclick="showTab('byrest')">By Restaurant</button>
+    <button class="tab-btn" onclick="showTab('calls')">Call Center</button>
+    <button class="tab-btn" onclick="showTab('reservations')">Reservations</button>
+    <button class="tab-btn" onclick="showTab('conversation')">Conversation</button>
+  </div>
+</nav>
+
+<!-- FILTERS -->
+<div class="filters">
+  <div class="filter-group">
+    <span class="filter-label">Location</span>
+    <select id="f-location" onchange="applyFilters()">
+      <option value="all">All Restaurants</option>
+      <option value="mila">MILA</option>
+      <option value="casa_neos">Casa Neos</option>
+      <option value="ava_cg">AVA CG</option>
+      <option value="ava_wp">AVA WP</option>
+      <option value="claudie">Claudie</option>
+    </select>
+  </div>
+  <div class="filter-sep"></div>
+  <div class="filter-group">
+    <span class="filter-label">Week</span>
+    <input type="number" id="f-wk-from" min="11" max="52" value="11" style="width:60px" onchange="applyFilters()"/>
+    <span class="filter-label">→</span>
+    <input type="number" id="f-wk-to" min="1" max="52" value="28" style="width:60px" onchange="applyFilters()"/>
+  </div>
+  <div class="filter-sep"></div>
+  <div class="filter-group">
+    <span class="filter-label">Compare</span>
+    <select id="f-year" onchange="applyFilters()">
+      <option value="both">2025 vs 2026</option>
+      <option value="2026">2026 only</option>
+      <option value="2025">2025 only</option>
+    </select>
+  </div>
+  <div class="last-update" id="last-update">Loading…</div>
+</div>
+
+<!-- PAGES -->
+<div id="page-overview" class="page active"><div class="loading">Loading data…</div></div>
+<div id="page-byrest"   class="page"><div class="loading">Loading data…</div></div>
+<div id="page-calls"    class="page"><div class="loading">Loading data…</div></div>
+<div id="page-reservations" class="page"><div class="loading">Loading data…</div></div>
+<div id="page-conversation" class="page"><div class="loading">Loading data…</div></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════════
+let D = null;          // raw /api/compare response
+let F = {};            // current filter state
+const CHARTS = {};     // chart instances keyed by canvas id
+
+const RESTS = [
+  {id:'mila',      label:'MILA',      color:'#3d8ef8', goLive:23},
+  {id:'casa_neos', label:'Casa Neos', color:'#b06ef5', goLive:23},
+  {id:'ava_cg',    label:'AVA CG',    color:'#22d98e', goLive:19},
+  {id:'ava_wp',    label:'AVA WP',    color:'#ff9f2e', goLive:23},
+  {id:'claudie',   label:'Claudie',   color:'#f43f8e', goLive:20},
+];
+// Analysis window — W1–W10 excluded (incomplete TalkDesk / booking alignment in early 2025)
+const ANALYSIS_START_WEEK = 11;
+
+// ═══════════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════════
+async function loadCompare() {
+  // Local Express server first; GitHub Pages falls back to static compare.json
+  try {
+    const r = await fetch('/api/compare');
+    if (r.ok) {
+      const j = await r.json();
+      if (j?.ok !== false && Array.isArray(j.rows26)) return j;
+    }
+  } catch (_) { /* static host */ }
+  const r2 = await fetch('./compare.json');
+  if (!r2.ok) throw new Error('Could not load /api/compare or ./compare.json');
+  return r2.json();
+}
+
+async function init() {
+  try {
+    D = await loadCompare();
+    document.getElementById('f-wk-from').value = ANALYSIS_START_WEEK;
+    document.getElementById('f-wk-to').value = D.cutoff;
+    document.getElementById('last-update').textContent = `Updated W${D.cutoff} · Analysis from W${ANALYSIS_START_WEEK}`;
+    F = { location:'all', wkFrom:ANALYSIS_START_WEEK, wkTo:D.cutoff, year:'both' };
+    renderAll();
+  } catch(e) {
+    document.querySelectorAll('.page').forEach(p => p.innerHTML = `<div class="error">Error loading data: ${e.message}</div>`);
+  }
+}
+
+function applyFilters() {
+  F.location = document.getElementById('f-location').value;
+  F.wkFrom   = Math.max(ANALYSIS_START_WEEK, +document.getElementById('f-wk-from').value || ANALYSIS_START_WEEK);
+  F.wkTo     = +document.getElementById('f-wk-to').value || D.cutoff;
+  F.year     = document.getElementById('f-year').value;
+  renderAll();
+}
+
+function renderAll() {
+  renderOverview();
+  renderByRest();
+  renderCalls();
+  renderReservations();
+  renderConversation();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════════════════════
+function filtered(rows, year=null) {
+  if (!rows) return [];
+  return rows.filter(r => {
+    if (F.location !== 'all' && r.restaurantId !== F.location) return false;
+    if (r.week < F.wkFrom || r.week > F.wkTo) return false;
+    if (year && r.year !== year) return false;
+    return true;
+  });
+}
+
+// Week-only filter — ignores location dropdown (used in All Restaurants comparison)
+function filteredWeeks(rows) {
+  if (!rows) return [];
+  return rows.filter(r => r.week >= F.wkFrom && r.week <= F.wkTo);
+}
+
+// Metric formulas (same for 2025 & 2026):
+//   Human Calls = total calls where agent ≠ If-No-Answer Agent and agent ≠ empty  → callsHuman
+//   AI Calls    = total calls where agent = If-No-Answer Agent only               → callsAI
+//   Human Conv% = Phone/In-House bookings ÷ Human Calls
+//   AI Conv%    = Phone/AI bookings ÷ AI Calls
+//   Total Conv% = (Phone/In-House + Phone/AI) ÷ (Human Calls + AI Calls)
+
+function humanConvRate(row) {
+  if (!row) return null;
+  const h = row.callsHuman || 0;
+  return h > 0 ? row.bookingsPhoneHuman / h * 100 : null;
+}
+function humanConvRateAgg(rows) {
+  const books = sum(rows, 'bookingsPhoneHuman');
+  const h = sum(rows, 'callsHuman');
+  return h > 0 ? books / h * 100 : 0;
+}
+function aiConvRate(row) {
+  if (!row) return null;
+  const ai = row.callsAI || 0;
+  return ai > 0 ? (row.bookingsPhoneAI || 0) / ai * 100 : null;
+}
+function aiConvRateAgg(rows) {
+  const books = sum(rows, 'bookingsPhoneAI');
+  const ai = sum(rows, 'callsAI');
+  return ai > 0 ? books / ai * 100 : 0;
+}
+function totalConvRate(row) {
+  if (!row) return null;
+  const denom = (row.callsHuman || 0) + (row.callsAI || 0);
+  return denom > 0 ? ((row.bookingsPhoneHuman||0) + (row.bookingsPhoneAI||0)) / denom * 100 : null;
+}
+function totalConvRateAgg(rows) {
+  const books = sum(rows,'bookingsPhoneHuman') + sum(rows,'bookingsPhoneAI');
+  const denom = sum(rows,'callsHuman') + sum(rows,'callsAI');
+  return denom > 0 ? books / denom * 100 : 0;
+}
+
+// Hostie transfer rate: "Transferred to Host" = TRUE ÷ total Hostie AI calls (by location)
+function hostieTransferRate(row) {
+  if (!row) return null;
+  const ai = row.hostieAiCalls || 0;
+  return ai > 0 ? (row.hostieTransferred || 0) / ai * 100 : null;
+}
+function hostieTransferRateAgg(rows) {
+  const ai = sum(rows, 'hostieAiCalls');
+  const tr = sum(rows, 'hostieTransferred');
+  return ai > 0 ? tr / ai * 100 : null;
+}
+function hostieResolveRateAgg(rows) {
+  const ai = sum(rows, 'hostieAiCalls');
+  const res = sum(rows, 'hostieAiResolved');
+  return ai > 0 ? res / ai * 100 : null;
+}
+function fmtHostiePct(v) {
+  return v != null && !isNaN(v) ? v.toFixed(1) + '%' : '—';
+}
+
+function insightBanner(text) {
+  if (!text) return '';
+  return `<div class="insight-banner"><div class="insight-mark">◆</div><div><div class="insight-label">AI Impact Snapshot</div><div class="insight-text">${text}</div></div></div>`;
+}
+
+function signedPct(cur, prior) {
+  if (!(prior > 0)) return null;
+  return ((cur - prior) / prior) * 100;
+}
+function fmtSigned(v, unit='%') {
+  if (v == null || isNaN(v)) return '—';
+  const sign = v > 0 ? '+' : '';
+  return `${sign}${v.toFixed(1)}${unit}`;
+}
+
+/** One-sentence overview of AI impact for the current filter window */
+function buildOverviewInsight(r26, r25) {
+  const b26 = sum(r26,'bookingsTotal'), b25 = sum(r25,'bookingsTotal');
+  const bVar = signedPct(b26, b25);
+  const phone26 = sum(r26,'bookingsPhoneHuman') + sum(r26,'bookingsPhoneAI');
+  const phone25 = sum(r25,'bookingsPhoneHuman');
+  const phoneVar = signedPct(phone26, phone25);
+  const a26 = abnRate(r26), a25 = abnRate(r25);
+  const abnDelta = (a25 != null && a26 != null) ? (a25 - a26) : null; // positive = improved
+  const c26 = sum(r26,'callsTotal'), cAI = sum(r26,'callsAI');
+  const aiShare = c26 > 0 ? (cAI / c26 * 100) : null;
+  const bAI = sum(r26,'bookingsPhoneAI');
+  const transfer = hostieTransferRateAgg(r26);
+  const bookDir = bVar == null ? 'mixed' : bVar >= 0 ? 'up' : 'down';
+  const abnText = abnDelta == null ? '' :
+    (abnDelta >= 0
+      ? `Abandoned rate improved ${abnDelta.toFixed(1)}pp (${a25.toFixed(1)}% → ${a26.toFixed(1)}%).`
+      : `Abandoned rate worsened ${Math.abs(abnDelta).toFixed(1)}pp (${a25.toFixed(1)}% → ${a26.toFixed(1)}%).`);
+  return `W${F.wkFrom}–W${F.wkTo}: total reservations are <b>${fmtSigned(bVar)}</b> YoY and phone bookings are <b>${fmtSigned(phoneVar)}</b> YoY. ` +
+    `AI handles <b>${aiShare != null ? aiShare.toFixed(1) : '—'}%</b> of TalkDesk calls and drove <b>${bAI.toLocaleString()}</b> Phone/AI bookings, with a Hostie transfer rate of <b>${fmtHostiePct(transfer)}</b>. ` +
+    `${abnText} Overall reservation momentum is <b>${bookDir}</b> vs 2025 for this window — AI is reducing abandon + handling volume; whether that lifts total covers depends on OT Network and walk-ins too.`;
+}
+
+/** One-sentence location insight (uses go-live for post-AI view when available) */
+function buildRestInsight(rest, r26, r25) {
+  const post26 = r26.filter(r => r.isPostAI);
+  const postWeeks = new Set(post26.map(r => r.week));
+  const post25 = r25.filter(r => postWeeks.has(r.week));
+  const scope26 = post26.length ? post26 : r26;
+  const scope25 = post26.length ? post25 : r25;
+  const label = post26.length ? `Since AI live (W${rest.goLive}+)` : `W${F.wkFrom}–W${F.wkTo}`;
+
+  const b26 = sum(scope26,'bookingsTotal'), b25 = sum(scope25,'bookingsTotal');
+  const bVar = signedPct(b26, b25);
+  const phone26 = sum(scope26,'bookingsPhoneHuman') + sum(scope26,'bookingsPhoneAI');
+  const phone25 = sum(scope25,'bookingsPhoneHuman');
+  const phoneVar = signedPct(phone26, phone25);
+  const bAI = sum(scope26,'bookingsPhoneAI');
+  const a26 = abnRate(scope26), a25 = abnRate(scope25);
+  const abnDelta = (a25 != null && a26 != null) ? (a25 - a26) : null;
+  const transfer = hostieTransferRateAgg(scope26);
+  const aiConv = aiConvRateAgg(scope26);
+  const bookDir = bVar == null ? 'unclear (limited 2025 baseline)' : bVar >= 0 ? 'up' : 'down';
+  const abnText = abnDelta == null ? '' :
+    (abnDelta >= 0
+      ? `abandoned improved ${abnDelta.toFixed(1)}pp`
+      : `abandoned worsened ${Math.abs(abnDelta).toFixed(1)}pp`);
+  return `${label}: <b>${rest.label}</b> total reservations are <b>${fmtSigned(bVar)}</b> vs same weeks in 2025; phone bookings <b>${fmtSigned(phoneVar)}</b> YoY with <b>${bAI.toLocaleString()}</b> Phone/AI books (AI conv <b>${aiConv.toFixed(1)}%</b>). ` +
+    `Hostie transfer rate is <b>${fmtHostiePct(transfer)}</b>${abnText ? `; ${abnText}` : ''}. Net view: reservations are <b>${bookDir}</b> vs last year in the AI window — pair this with OT Network mix below to see if AI is the driver or a substitute for human phone.`;
+}
+
+// Period slices for summary tables (Last Week, MTD ~4 wks, YTD)
+function periodRows(rows, period) {
+  const lw = D.lastWeek, cutoff = D.cutoff;
+  if (period === 'lw') return rows.filter(r => r.week === lw);
+  if (period === 'mtd') return rows.filter(r => r.week > cutoff - 4 && r.week <= cutoff);
+  return rows; // ytd (already filtered W1–cutoff)
+}
+
+function abnRate(rows) {
+  const t = sum(rows,'callsTotal'), a = sum(rows,'callsAbandoned');
+  return t > 0 ? a/t*100 : null;
+}
+function abnRateFmt(rows) {
+  const v = abnRate(rows);
+  return v != null ? v.toFixed(1)+'%' : '—';
+}
+
+// Heat coloring: green = good, red = bad
+function heatConv(v) {
+  if (v == null || isNaN(v)) return '<span class="heat-na">—</span>';
+  const cls = v >= 42 ? 'heat-good' : v >= 32 ? 'heat-mid' : 'heat-bad';
+  return `<span class="heat ${cls}">${v.toFixed(1)}%</span>`;
+}
+function heatAbn(v) {
+  if (v == null || isNaN(v)) return '<span class="heat-na">—</span>';
+  const cls = v <= 15 ? 'heat-good' : v <= 28 ? 'heat-mid' : 'heat-bad';
+  return `<span class="heat ${cls}">${v.toFixed(1)}%</span>`;
+}
+function heatYoY(cur, prior, higherIsBetter) {
+  if (cur == null || prior == null || isNaN(cur) || isNaN(prior)) return heatConv(cur);
+  const better = higherIsBetter ? cur >= prior : cur <= prior;
+  const cls = better ? 'heat-good' : 'heat-bad';
+  const arrow = cur > prior ? '▲' : cur < prior ? '▼' : '—';
+  return `<span class="heat ${cls}">${cur.toFixed(1)}% <span style="font-size:9px;opacity:.8">${arrow}</span></span>`;
+}
+
+function buildConvSummaryTable(r26, r25) {
+  const periods = [
+    { key:'lw', label:`Last Week (W${D.lastWeek})` },
+    { key:'mtd', label:'MTD (last 4 wks)' },
+    { key:'ytd', label:`YTD (W${ANALYSIS_START_WEEK}–W${D.cutoff})` },
+  ];
+  const rows = periods.map(p => {
+    const s26 = periodRows(r26, p.key), s25 = periodRows(r25, p.key);
+    const h25 = humanConvRateAgg(s25), h26 = humanConvRateAgg(s26);
+    const ai = aiConvRateAgg(s26), tot = totalConvRateAgg(s26);
+    return `<tr>
+      <td class="period-label">${p.label}</td>
+      <td>${heatConv(h25)}</td>
+      <td>${heatYoY(h26, h25, true)}</td>
+      <td>${heatConv(ai)}</td>
+      <td>${heatConv(tot)}</td>
+    </tr>`;
+  }).join('');
+  return `<div class="period-summary">
+    <table>
+      <thead><tr>
+        <th></th>
+        <th>Human Conv % 2025</th>
+        <th>Human Conv % 2026</th>
+        <th>AI Conv % 2026</th>
+        <th>Total Conv % 2026</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="stat-note">Human Calls = total calls answered by a real agent (excl. If-No-Answer &amp; empty) · AI Calls = If-No-Answer Agent only · Human Conv % = Phone/In-House ÷ Human Calls · AI Conv % = Phone/AI ÷ AI Calls · Total Conv % = (Phone/In-House + Phone/AI) ÷ (Human + AI calls)</div>
+  </div>`;
+}
+
+function buildCallsSummaryTable(r26, r25) {
+  const periods = [
+    { key:'lw', label:`Last Week (W${D.lastWeek})` },
+    { key:'mtd', label:'MTD (last 4 wks)' },
+    { key:'ytd', label:`YTD (W${ANALYSIS_START_WEEK}–W${D.cutoff})` },
+  ];
+  const rows = periods.map(p => {
+    const s26 = periodRows(r26, p.key), s25 = periodRows(r25, p.key);
+    const t25 = sum(s25,'callsTotal'), t26 = sum(s26,'callsTotal');
+    const delta = t25 > 0 ? ((t26-t25)/t25*100) : 0;
+    const cls = delta >= 0 ? 'heat-good' : 'heat-bad';
+    return `<tr>
+      <td class="period-label">${p.label}</td>
+      <td>${t25.toLocaleString()}</td>
+      <td><span class="heat ${cls}">${t26.toLocaleString()}</span></td>
+      <td style="color:var(--human)">${sum(s25,'callsHuman').toLocaleString()}</td>
+      <td style="color:var(--human)">${sum(s26,'callsHuman').toLocaleString()}</td>
+      <td style="color:var(--ai)">${sum(s25,'callsAI').toLocaleString()}</td>
+      <td style="color:var(--ai)">${sum(s26,'callsAI').toLocaleString()}</td>
+    </tr>`;
+  }).join('');
+  return `<div class="period-summary">
+    <table>
+      <thead><tr>
+        <th></th><th>Total Calls 2025</th><th>Total Calls 2026</th><th>Human 2025</th><th>Human 2026</th><th>AI 2025</th><th>AI 2026</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+
+function buildAbnSummaryTable(r26, r25) {
+  const periods = [
+    { key:'lw', label:`Last Week (W${D.lastWeek})` },
+    { key:'mtd', label:'MTD (last 4 wks)' },
+    { key:'ytd', label:`YTD (W${ANALYSIS_START_WEEK}–W${D.cutoff})` },
+  ];
+  const rows = periods.map(p => {
+    const s26 = periodRows(r26, p.key), s25 = periodRows(r25, p.key);
+    const a25 = abnRate(s25), a26 = abnRate(s26);
+    return `<tr>
+      <td class="period-label">${p.label}</td>
+      <td>${heatAbn(a25)}</td>
+      <td>${heatYoY(a26, a25, false)}</td>
+    </tr>`;
+  }).join('');
+  return `<div class="period-summary">
+    <table>
+      <thead><tr>
+        <th></th><th>Abandoned % 2025</th><th>Abandoned % 2026</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="stat-note">Abandoned % = abandoned calls ÷ total TalkDesk calls (inbound + abandoned + outbound)</div>
+  </div>`;
+}
+
+function buildPhoneSummaryTable(r26, r25) {
+  const periods = [
+    { key:'lw', label:`Last Week (W${D.lastWeek})` },
+    { key:'mtd', label:'MTD (last 4 wks)' },
+    { key:'ytd', label:`YTD (W${ANALYSIS_START_WEEK}–W${D.cutoff})` },
+  ];
+  const rows = periods.map(p => {
+    const s26 = periodRows(r26, p.key), s25 = periodRows(r25, p.key);
+    const p25 = sum(s25,'bookingsPhoneHuman');
+    const p26 = sum(s26,'bookingsPhoneHuman') + sum(s26,'bookingsPhoneAI');
+    const delta = p25 > 0 ? ((p26-p25)/p25*100) : 0;
+    const cls = delta >= 0 ? 'heat-good' : 'heat-bad';
+    return `<tr>
+      <td class="period-label">${p.label}</td>
+      <td>${p25.toLocaleString()}</td>
+      <td><span class="heat ${cls}">${p26.toLocaleString()}</span></td>
+      <td style="color:var(--ai)">${sum(s26,'bookingsPhoneAI').toLocaleString()}</td>
+    </tr>`;
+  }).join('');
+  return `<div class="period-summary">
+    <table>
+      <thead><tr>
+        <th></th><th>Phone Books 2025</th><th>Total Phone 2026</th><th>via AI 2026</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+
+function sum(rows, field) { return rows.reduce((s,r) => s + (r[field]||0), 0); }
+
+function pct(num, den) { return den > 0 ? (num/den*100).toFixed(1)+'%' : '—'; }
+
+function fmt(n) { return n == null ? '—' : n >= 1000 ? (n/1000).toFixed(1)+'k' : String(n); }
+
+function yoyBadge(v26, v25) {
+  if (!v25) return '';
+  const d = (v26-v25)/v25*100;
+  const cls = d > 0 ? 'badge-up' : d < 0 ? 'badge-dn' : 'badge-neu';
+  const sign = d > 0 ? '▲' : '▼';
+  return `<span class="kpi-badge ${cls}">${sign}${Math.abs(d).toFixed(1)}%</span>`;
+}
+
+function mergeChartOptions(base, extra) {
+  const out = { ...base, ...extra };
+  if (base.scales || extra.scales) {
+    out.scales = { ...(base.scales || {}) };
+    for (const key of Object.keys(extra.scales || {})) {
+      out.scales[key] = { ...(base.scales?.[key] || {}), ...extra.scales[key] };
+    }
+  }
+  if (base.plugins || extra.plugins) {
+    out.plugins = { ...base.plugins, ...extra.plugins };
+    if (base.plugins?.annotation || extra.plugins?.annotation) {
+      out.plugins.annotation = { ...(base.plugins?.annotation || {}), ...(extra.plugins?.annotation || {}) };
+    }
+  }
+  return out;
+}
+
+// YoY variance bars may be negative — let Chart.js auto-scale
+const Y_AUTO = { scales: { y: { min: undefined } } };
+
+function mkChart(id, type, data, options={}) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  if (CHARTS[id]) { CHARTS[id].destroy(); delete CHARTS[id]; }
+  const defaults = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y?.toLocaleString() ?? ctx.parsed}` } },
+    },
+    scales: {
+      x: { grid: { color: 'rgba(42,48,80,.5)' }, ticks: { color: '#7b82a6', maxRotation: 0 } },
+      y: { min: 0, grid: { color: 'rgba(42,48,80,.5)' }, ticks: { color: '#7b82a6' } },
+    },
+  };
+  CHARTS[id] = new Chart(canvas, { type, data, options: mergeChartOptions(defaults, options) });
+  return CHARTS[id];
+}
+
+function weekLabels(rows) {
+  const wks = [...new Set(rows.map(r=>r.week))].sort((a,b)=>a-b);
+  return wks.map(w => 'W'+w);
+}
+
+function aggByWeek(rows, field) {
+  const map = {};
+  rows.forEach(r => { map[r.week] = (map[r.week]||0) + (r[field]||0); });
+  return map;
+}
+
+function getWeeks() {
+  const wks = new Set();
+  (D.rows26||[]).forEach(r => { if(r.week>=F.wkFrom && r.week<=F.wkTo) wks.add(r.week); });
+  (D.rows25||[]).forEach(r => { if(r.week>=F.wkFrom && r.week<=F.wkTo) wks.add(r.week); });
+  return [...wks].sort((a,b)=>a-b);
+}
+
+function annoGoLive(goLiveWeek, weeks) {
+  const idx = weeks.indexOf(goLiveWeek);
+  if (idx < 0) return {};
+  return { 'go-live': { type:'line', xMin:idx, xMax:idx, borderColor:'rgba(167,139,250,.8)', borderWidth:2, borderDash:[4,3],
+    label:{ content:'AI Live', display:true, color:'#a78bfa', font:{size:10}, position:'start' }}};
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  OVERVIEW
+// ═══════════════════════════════════════════════════════════════
+function renderOverview() {
+  const r26 = filtered(D.rows26);
+  const r25 = filtered(D.rows25);
+  const weeks = getWeeks();
+
+  const c26=sum(r26,'callsTotal'), c25=sum(r25,'callsTotal');
+  const cAI=sum(r26,'callsAI'), cHum=sum(r26,'callsHuman');
+  const b26=sum(r26,'bookingsTotal'), b25=sum(r25,'bookingsTotal');
+  const bAI=sum(r26,'bookingsPhoneAI'), bHum=sum(r26,'bookingsPhoneHuman');
+  // Human conv = Phone/InHouse bookings ÷ callsHuman (Excel AU/AV: total − IfNoAnswer − empty agent)
+  const conv26 = pct(bHum, cHum);
+  const conv25Calls = sum(r25,'callsHuman'); const conv25Books = sum(r25,'bookingsPhoneHuman');
+  const conv25 = pct(conv25Books, conv25Calls);
+  const aiPct = c26 > 0 ? (cAI/c26*100).toFixed(1) : '0';
+  const transferPct = fmtHostiePct(hostieTransferRateAgg(r26));
+
+  document.getElementById('page-overview').innerHTML = `
+  ${insightBanner(buildOverviewInsight(r26, r25))}
+  <div class="kpi-row">
+    <div class="kpi">
+      <div class="kpi-label">Total Calls — 2026 YTD</div>
+      <div class="kpi-value">${fmt(c26)}</div>
+      ${yoyBadge(c26,c25)}
+      <div class="kpi-split">
+        <div class="kpi-split-item" style="color:var(--ai)"><b>${fmt(cAI)}</b>AI Handled</div>
+        <div class="kpi-split-item" style="color:var(--human)"><b>${fmt(cHum)}</b>Human</div>
+      </div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Total Calls — 2025 YTD</div>
+      <div class="kpi-value">${fmt(c25)}</div>
+      <div class="kpi-sub">Same week range W${F.wkFrom}–W${F.wkTo}</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">AI Share of Calls</div>
+      <div class="kpi-value" style="color:var(--ai)">${aiPct}%</div>
+      <div class="kpi-sub">${fmt(cAI)} of ${fmt(c26)} total calls</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Total Bookings — 2026</div>
+      <div class="kpi-value">${fmt(b26)}</div>
+      ${yoyBadge(b26,b25)}
+      <div class="kpi-split">
+        <div class="kpi-split-item" style="color:var(--ai)"><b>${fmt(bAI)}</b>Phone/AI</div>
+        <div class="kpi-split-item" style="color:var(--human)"><b>${fmt(bHum)}</b>Phone/In-House</div>
+      </div>
+    </div>
+      <div class="kpi">
+      <div class="kpi-label">Human Conv % 2026</div>
+      <div class="kpi-value" style="color:var(--human)">${conv26}</div>
+      <div class="kpi-sub">2025: ${conv25} · Phone/InHouse ÷ Human Calls</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">AI Conv % 2026</div>
+      <div class="kpi-value" style="color:var(--ai)">${pct(bAI, cAI)}</div>
+      <div class="kpi-sub">Phone/AI bookings ÷ AI-handled calls</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Total Conv % 2026</div>
+      <div class="kpi-value" style="color:#f43f8e">${pct(sum(r26,'bookingsPhoneHuman')+bAI, cHum+cAI)}</div>
+      <div class="kpi-sub">(Phone/InHouse + Phone/AI) ÷ (Human + AI calls)</div>
+    </div>
+  </div>
+
+  <div class="section-head">Call Volume Trends</div>
+  <div class="chart-row cols-1"><div class="chart-card">
+    <h3>Total Calls — Weekly Trend (2025 vs 2026)</h3>
+    <p>All locations combined · 2025 = human-only baseline · 2026 includes AI</p>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-line" style="background:var(--y25)"></div>2025 Total</div>
+      <div class="legend-item"><div class="legend-line" style="background:var(--y26)"></div>2026 Total</div>
+      <div class="legend-item"><div class="legend-line" style="background:var(--ai)"></div>2026 AI Handled</div>
+      <div class="legend-item"><div class="legend-line" style="background:var(--human)"></div>2026 Human</div>
+    </div>
+    <div class="chart-wrap" style="height:240px"><canvas id="ov-calls-trend"></canvas></div>
+  </div></div>
+
+  <div class="chart-row cols-2">
+    <div class="chart-card">
+      <h3>Total Reservations — 2025 vs 2026</h3>
+      <p>All sources combined by week</p>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-line" style="background:var(--y25)"></div>2025</div>
+        <div class="legend-item"><div class="legend-line" style="background:var(--y26)"></div>2026</div>
+      </div>
+      <div class="chart-wrap" style="height:200px"><canvas id="ov-books-trend"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Conversion Rates — 2025 vs 2026</h3>
+      <p>Human, AI, and total phone booking rates weekly</p>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-line" style="background:#ff9f2e"></div>2025 Human</div>
+        <div class="legend-item"><div class="legend-line" style="background:#22d98e"></div>2026 Human</div>
+        <div class="legend-item"><div class="legend-line" style="background:#b06ef5"></div>2026 AI</div>
+        <div class="legend-item"><div class="legend-line" style="background:#f43f8e"></div>2026 Total</div>
+      </div>
+      <div class="chart-wrap" style="height:200px"><canvas id="ov-conv-trend"></canvas></div>
+    </div>
+  </div>
+
+  <div class="chart-row cols-2">
+    <div class="chart-card">
+      <h3>Abandoned Call Rate — 2025 vs 2026</h3>
+      <p>Calls abandoned ÷ total calls — AI impact on abandonment</p>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-line" style="background:var(--y25)"></div>2025</div>
+        <div class="legend-item"><div class="legend-line" style="background:var(--y26)"></div>2026</div>
+      </div>
+      <div class="chart-wrap" style="height:200px"><canvas id="ov-abn-trend"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Phone Bookings — 2025 vs 2026</h3>
+      <p>Phone/In-House vs Phone/AI weekly bookings</p>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-line" style="background:var(--y25)"></div>2025 Phone</div>
+        <div class="legend-item"><div class="legend-line" style="background:var(--human)"></div>2026 Human</div>
+        <div class="legend-item"><div class="legend-line" style="background:var(--ai)"></div>2026 AI</div>
+      </div>
+      <div class="chart-wrap" style="height:200px"><canvas id="ov-phone-trend"></canvas></div>
+    </div>
+  </div>
+
+  <div class="section-head">Exercise — Calls + Reservations by Source (2025 vs 2026)</div>
+  <div class="chart-row cols-1">
+    <div class="chart-card">
+      <h3>Exercise</h3>
+      <p>Grouped stacks: 2025 vs 2026 reservations by source · lines = total call volume both years · weekly W${F.wkFrom}–W${F.wkTo}</p>
+      <div class="chart-wrap" style="height:340px"><canvas id="ov-exercise"></canvas></div>
+    </div>
+  </div>
+
+  <div class="section-head">YoY Impact by Location</div>
+  <div class="chart-row cols-3">
+    <div class="chart-card">
+      <h3>Calls Volume Variance %</h3>
+      <p>2026 vs 2025 — same weeks</p>
+      <div class="chart-wrap" style="height:200px"><canvas id="ov-yoy-calls"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Bookings Variance %</h3>
+      <p>2026 vs 2025 — total bookings</p>
+      <div class="chart-wrap" style="height:200px"><canvas id="ov-yoy-books"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Abandoned Rate Change</h3>
+      <p>2025 rate minus 2026 rate (positive = improvement)</p>
+      <div class="chart-wrap" style="height:200px"><canvas id="ov-yoy-abn"></canvas></div>
+    </div>
+  </div>
+
+  <div class="section-head">Last Week Snapshot — W${D.lastWeek}</div>
+  <div class="table-card">
+    <h3>W${D.lastWeek} Performance by Location</h3>
+    <table>
+      <thead><tr>
+        <th>Location</th>
+        <th>Total Calls</th><th>AI Calls</th><th>Human Calls</th><th>Abandoned</th>
+        <th>Phone/AI Books</th><th>Phone/InHouse Books</th><th>OT Network</th>
+        <th>Human Conv%</th><th>Hostie Transfer %</th>
+      </tr></thead>
+      <tbody id="lw-table"></tbody>
+    </table>
+  </div>
+
+  <div class="section-head">Location Summary</div>
+  <div class="table-card">
+    <h3>All Locations — YTD W${F.wkFrom}–W${F.wkTo}</h3>
+    <table>
+      <thead><tr>
+        <th>Location</th><th>AI Live</th>
+        <th>Calls 2026</th><th>Calls 2025</th><th>Calls Var</th>
+        <th>AI Calls</th><th>AI Share</th>
+        <th>Books 2026</th><th>Books 2025</th><th>Books Var</th>
+        <th>Human Conv 2026</th><th>Human Conv 2025</th>
+        <th>Hostie Transfer %</th>
+      </tr></thead>
+      <tbody id="ov-table"></tbody>
+    </table>
+  </div>
+  `;
+
+  // build charts after DOM insert
+  requestAnimationFrame(() => {
+    buildOvCallsTrend(weeks, r26, r25);
+    buildOvBooksTrend(weeks, r26, r25);
+    buildOvConvTrend(weeks, r26, r25);
+    buildOvAbnTrend(weeks, r26, r25);
+    buildOvPhoneTrend(weeks, r26, r25);
+    buildOvYoyBars();
+    buildExerciseChart('ov-exercise', weeks, filteredWeeks(D.rows26), filteredWeeks(D.rows25));
+    buildOvTable(filteredWeeks(D.rows26), filteredWeeks(D.rows25));
+    buildLwTable();
+  });
+}
+
+/** Exercise: total call volume (lines) + reservations by source (2025 vs 2026 stacked bars) */
+function buildExerciseChart(canvasId, weeks, r26, r25, rest=null) {
+  const src = [
+    { key: 'bookingsOTNetwork', label: 'OT Network', c25: 'rgba(61,142,248,.35)', c26: 'rgba(61,142,248,.85)' },
+    { key: 'bookingsPhoneHuman', label: 'Phone/InHouse', c25: 'rgba(34,217,142,.35)', c26: 'rgba(34,217,142,.85)' },
+    { key: 'bookingsPhoneAI', label: 'Phone/AI', c25: 'rgba(176,110,245,.25)', c26: 'rgba(176,110,245,.9)' },
+    { key: 'bookingsYourNetwork', label: 'Your Network', c25: 'rgba(244,63,142,.3)', c26: 'rgba(244,63,142,.8)' },
+    { key: 'bookingsWalkIn', label: 'Walk-in', c25: 'rgba(255,159,46,.3)', c26: 'rgba(255,159,46,.8)' },
+  ];
+  const calls25 = aggByWeek(r25, 'callsTotal');
+  const calls26 = aggByWeek(r26, 'callsTotal');
+  const m25 = Object.fromEntries(src.map(s => [s.key, aggByWeek(r25, s.key)]));
+  const m26 = Object.fromEntries(src.map(s => [s.key, aggByWeek(r26, s.key)]));
+  const datasets = [
+    ...src.map(s => ({
+      label: `2025 ${s.label}`,
+      data: weeks.map(w => m25[s.key][w] || 0),
+      backgroundColor: s.c25, stack: 'y25', yAxisID: 'y',
+    })),
+    ...src.map(s => ({
+      label: `2026 ${s.label}`,
+      data: weeks.map(w => m26[s.key][w] || 0),
+      backgroundColor: s.c26, stack: 'y26', yAxisID: 'y',
+    })),
+    {
+      label: 'Total Calls 2025', type: 'line',
+      data: weeks.map(w => calls25[w] || 0),
+      borderColor: '#ff9f2e', borderDash: [5, 3], tension: .3, borderWidth: 2.5,
+      pointRadius: 0, pointHoverRadius: 4, yAxisID: 'y1', fill: false,
+    },
+    {
+      label: 'Total Calls 2026', type: 'line',
+      data: weeks.map(w => calls26[w] || 0),
+      borderColor: '#fff', tension: .3, borderWidth: 2.5,
+      pointRadius: 2, pointHoverRadius: 5, yAxisID: 'y1', fill: false,
+    },
+  ];
+  const opts = {
+    scales: {
+      x: { stacked: true },
+      y: { stacked: true, position: 'left', min: 0, title: { display: true, text: 'Reservations by source', color: '#8890b8' }, ticks: { color: '#8890b8' } },
+      y1: { position: 'right', min: 0, grid: { drawOnChartArea: false }, title: { display: true, text: 'Total calls', color: '#fff' }, ticks: { color: '#fff' } },
+    },
+    plugins: {
+      legend: { display: true, labels: { color: '#8890b8', boxWidth: 10, font: { size: 10 } } },
+    },
+  };
+  if (rest) opts.plugins.annotation = { annotations: goLiveAnno(rest, weeks) };
+  mkChart(canvasId, 'bar', { labels: weeks.map(w => 'W' + w), datasets }, opts);
+}
+
+function buildOvCallsTrend(weeks, r26, r25) {
+  const map26 = aggByWeek(r26, 'callsTotal');
+  const map26ai = aggByWeek(r26, 'callsAI');
+  const map26h = aggByWeek(r26, 'callsHuman');
+  const map25 = aggByWeek(r25, 'callsTotal');
+  mkChart('ov-calls-trend','line',{
+    labels: weeks.map(w=>'W'+w),
+    datasets:[
+      {label:'2025 Total',data:weeks.map(w=>map25[w]||0),borderColor:'#ff9f2e',backgroundColor:'rgba(255,159,46,.10)',tension:.3,fill:true,borderWidth:2.5,pointRadius:0,pointHoverRadius:4},
+      {label:'2026 Total',data:weeks.map(w=>map26[w]||0),borderColor:'#3d8ef8',backgroundColor:'rgba(61,142,248,.10)',tension:.3,fill:true,borderWidth:2.5,pointRadius:0,pointHoverRadius:4},
+      {label:'2026 AI',data:weeks.map(w=>map26ai[w]||0),borderColor:'#b06ef5',backgroundColor:'rgba(176,110,245,.08)',tension:.3,fill:true,borderWidth:2,borderDash:[5,3],pointRadius:0,pointHoverRadius:4},
+      {label:'2026 Human',data:weeks.map(w=>map26h[w]||0),borderColor:'#22d98e',tension:.3,fill:false,borderWidth:2,borderDash:[2,4],pointRadius:0,pointHoverRadius:4},
+    ]
+  });
+}
+
+function buildOvBooksTrend(weeks, r26, r25) {
+  const m26 = aggByWeek(r26,'bookingsTotal'), m25 = aggByWeek(r25,'bookingsTotal');
+  mkChart('ov-books-trend','line',{
+    labels:weeks.map(w=>'W'+w),
+    datasets:[
+      {label:'2025',data:weeks.map(w=>m25[w]||0),borderColor:'#ff9f2e',backgroundColor:'rgba(255,159,46,.12)',tension:.3,fill:true,borderWidth:2.5,pointRadius:0,pointHoverRadius:4},
+      {label:'2026',data:weeks.map(w=>m26[w]||0),borderColor:'#3d8ef8',backgroundColor:'rgba(61,142,248,.12)',tension:.3,fill:true,borderWidth:2.5,pointRadius:0,pointHoverRadius:4},
+    ]
+  });
+}
+
+function buildOvConvTrend(weeks, r26, r25) {
+  // Excel AU/AV: Human Conv = Phone/InHouse ÷ callsHuman (humanAnswered — excl IfNoAnswer + empty)
+  const m26 = {}, m25 = {};
+  const bmap26=aggByWeek(r26,'bookingsPhoneHuman'), hmap26=aggByWeek(r26,'callsHuman');
+  const bmap25=aggByWeek(r25,'bookingsPhoneHuman'), hmap25=aggByWeek(r25,'callsHuman');
+  weeks.forEach(w => {
+    const h26=hmap26[w]||0; m26[w]=h26>0?+(bmap26[w]||0)/h26*100:null;
+    const h25=hmap25[w]||0; m25[w]=h25>0?+(bmap25[w]||0)/h25*100:null;
+  });
+  // AX = AI conv, AY = total conv
+  const maiConv={}, mtotConv={};
+  const aimap26=aggByWeek(r26,'callsAI'), baimap26=aggByWeek(r26,'bookingsPhoneAI');
+  weeks.forEach(w=>{
+    const ai=aimap26[w]||0; maiConv[w]=ai>0?+(baimap26[w]||0)/ai*100:null;
+    const h=hmap26[w]||0; const totD=h+ai; mtotConv[w]=totD>0?+((bmap26[w]||0)+(baimap26[w]||0))/totD*100:null;
+  });
+  mkChart('ov-conv-trend','line',{
+    labels:weeks.map(w=>'W'+w),
+    datasets:[
+      {label:'2025 Human',data:weeks.map(w=>m25[w]),borderColor:'#ff9f2e',tension:.3,fill:false,borderWidth:2.5,spanGaps:true,pointRadius:0,pointHoverRadius:4},
+      {label:'2026 Human',data:weeks.map(w=>m26[w]),borderColor:'#22d98e',tension:.3,fill:false,borderWidth:2.5,spanGaps:true,pointRadius:0,pointHoverRadius:4},
+      {label:'2026 AI',data:weeks.map(w=>maiConv[w]),borderColor:'#b06ef5',tension:.3,fill:false,borderWidth:2,borderDash:[5,3],spanGaps:true,pointRadius:0,pointHoverRadius:4},
+      {label:'2026 Total',data:weeks.map(w=>mtotConv[w]),borderColor:'#f43f8e',tension:.3,fill:false,borderWidth:2,borderDash:[3,3],spanGaps:true,pointRadius:0,pointHoverRadius:4},
+    ]
+  },{scales:{y:{ticks:{callback:v=>v?.toFixed(1)+'%'}}}});
+}
+
+function buildOvAbnTrend(weeks, r26, r25) {
+  const arate = (rs) => {
+    const map = {}; const am = aggByWeek(rs,'callsAbandoned'); const tm = aggByWeek(rs,'callsTotal');
+    weeks.forEach(w => { const t=tm[w]||0; map[w] = t>0 ? +(am[w]||0)/t*100 : null; });
+    return map;
+  };
+  const m26 = arate(r26), m25 = arate(r25);
+  mkChart('ov-abn-trend','line',{
+    labels:weeks.map(w=>'W'+w),
+    datasets:[
+      {label:'2025 Abandoned%',data:weeks.map(w=>m25[w]),borderColor:'#ff9f2e',tension:.3,fill:false,borderWidth:2.5,spanGaps:true,pointRadius:0,pointHoverRadius:4},
+      {label:'2026 Abandoned%',data:weeks.map(w=>m26[w]),borderColor:'#3d8ef8',tension:.3,fill:false,borderWidth:2.5,spanGaps:true,pointRadius:0,pointHoverRadius:4},
+    ]
+  },{scales:{y:{ticks:{callback:v=>v?.toFixed(1)+'%'}}}});
+}
+
+function buildOvPhoneTrend(weeks, r26, r25) {
+  const m25h = aggByWeek(r25,'bookingsPhoneHuman');
+  const m26h = aggByWeek(r26,'bookingsPhoneHuman');
+  const m26ai = aggByWeek(r26,'bookingsPhoneAI');
+  mkChart('ov-phone-trend','line',{
+    labels:weeks.map(w=>'W'+w),
+    datasets:[
+      {label:'2025 Phone',data:weeks.map(w=>m25h[w]||0),borderColor:'#ff9f2e',tension:.3,fill:false,borderWidth:2.5,pointRadius:0,pointHoverRadius:4},
+      {label:'2026 Human',data:weeks.map(w=>m26h[w]||0),borderColor:'#22d98e',tension:.3,fill:false,borderWidth:2.5,pointRadius:0,pointHoverRadius:4},
+      {label:'2026 AI',data:weeks.map(w=>m26ai[w]||0),borderColor:'#b06ef5',tension:.3,fill:false,borderWidth:2.5,borderDash:[5,3],pointRadius:0,pointHoverRadius:4},
+    ]
+  });
+}
+
+function buildOvYoyBars() {
+  const labels = RESTS.map(r=>r.label);
+  const varPct = (field26, field25, restId) => {
+    const r26 = filteredWeeks(D.rows26).filter(r=>r.restaurantId===restId);
+    const r25 = filteredWeeks(D.rows25).filter(r=>r.restaurantId===restId);
+    const v26 = sum(r26, field26), v25 = sum(r25, field25);
+    return v25 > 0 ? +(v26-v25)/v25*100 : 0;
+  };
+
+  const callsVar   = RESTS.map(r => varPct('callsTotal','callsTotal',r.id));
+  const booksVar   = RESTS.map(r => varPct('bookingsTotal','bookingsTotal',r.id));
+  const abnImprove = RESTS.map(r => {
+    const r26 = filteredWeeks(D.rows26).filter(x=>x.restaurantId===r.id);
+    const r25 = filteredWeeks(D.rows25).filter(x=>x.restaurantId===r.id);
+    const a25 = sum(r25,'callsAbandoned'), t25 = sum(r25,'callsTotal');
+    const a26 = sum(r26,'callsAbandoned'), t26 = sum(r26,'callsTotal');
+    const rate25 = t25>0 ? a25/t25*100 : 0, rate26 = t26>0 ? a26/t26*100 : 0;
+    return +(rate25-rate26).toFixed(1);
+  });
+
+  const barOpts = mergeChartOptions(Y_AUTO, {scales:{y:{ticks:{callback:v=>v.toFixed(1)+'%'}}},plugins:{legend:{display:false}}});
+
+  mkChart('ov-yoy-calls','bar',{labels,datasets:[{
+    label:'Calls Var%',data:callsVar,
+    backgroundColor:callsVar.map(v=>v>=0?'rgba(74,222,128,.6)':'rgba(248,113,113,.6)'),
+    borderRadius:4
+  }]}, barOpts);
+
+  mkChart('ov-yoy-books','bar',{labels,datasets:[{
+    label:'Books Var%',data:booksVar,
+    backgroundColor:booksVar.map(v=>v>=0?'rgba(74,222,128,.6)':'rgba(248,113,113,.6)'),
+    borderRadius:4
+  }]}, barOpts);
+
+  mkChart('ov-yoy-abn','bar',{labels,datasets:[{
+    label:'Abn Rate Improvement (pp)',data:abnImprove,
+    backgroundColor:abnImprove.map(v=>v>=0?'rgba(74,222,128,.6)':'rgba(248,113,113,.6)'),
+    borderRadius:4
+  }]}, mergeChartOptions(Y_AUTO, {scales:{y:{ticks:{callback:v=>v.toFixed(1)+'pp'}}},plugins:{legend:{display:false}}}));
+}
+
+function buildOvTable(r26all, r25all) {
+  const tbody = document.getElementById('ov-table');
+  if (!tbody) return;
+  tbody.innerHTML = RESTS.map(rest => {
+    const r26 = r26all.filter(r=>r.restaurantId===rest.id);
+    const r25 = r25all.filter(r=>r.restaurantId===rest.id);
+    const c26=sum(r26,'callsTotal'), c25=sum(r25,'callsTotal');
+    const cAI=sum(r26,'callsAI'), cHum=sum(r26,'callsHuman');
+    const b26=sum(r26,'bookingsTotal'), b25=sum(r25,'bookingsTotal');
+    const bH26=sum(r26,'bookingsPhoneHuman'), bH25=sum(r25,'bookingsPhoneHuman');
+    const cHum25=sum(r25,'callsHuman');
+    const cVar = c25>0 ? ((c26-c25)/c25*100).toFixed(1) : '—';
+    const bVar = b25>0 ? ((b26-b25)/b25*100).toFixed(1) : '—';
+    const cVarCls = parseFloat(cVar)>=0?'up':'dn';
+    const bVarCls = parseFloat(bVar)>=0?'up':'dn';
+  const convH26 = cHum>0?(bH26/cHum*100).toFixed(1):'—';
+  const convH25 = cHum25>0?(bH25/cHum25*100).toFixed(1):'—';
+  const transfRate = fmtHostiePct(hostieTransferRateAgg(r26));
+    return `<tr>
+      <td><span style="color:${rest.color}">●</span> ${rest.label}</td>
+      <td><span class="pill pill-ai">W${rest.goLive}</span></td>
+      <td>${c26.toLocaleString()}</td><td>${c25.toLocaleString()}</td>
+      <td class="${cVarCls}">${cVar}%</td>
+      <td>${cAI.toLocaleString()}</td><td>${c26>0?(cAI/c26*100).toFixed(1):0}%</td>
+      <td>${b26.toLocaleString()}</td><td>${b25.toLocaleString()}</td>
+      <td class="${bVarCls}">${bVar}%</td>
+      <td>${convH26}%</td><td>${convH25}%</td>
+      <td>${transfRate}</td>
+    </tr>`;
+  }).join('');
+}
+
+function buildLwTable() {
+  const tbody = document.getElementById('lw-table');
+  if (!tbody) return;
+  const lw = D.lastWeek;
+  const rows26lw = (D.rows26||[]).filter(r=>r.week===lw);
+  tbody.innerHTML = RESTS.map(rest => {
+    const r = rows26lw.find(x=>x.restaurantId===rest.id);
+    if (!r) return `<tr><td><span style="color:${rest.color}">●</span> ${rest.label}</td><td colspan="9" style="color:var(--muted)">No data</td></tr>`;
+    const convH = r.callsHuman>0?(r.bookingsPhoneHuman/r.callsHuman*100).toFixed(1):0;
+    const tr = hostieTransferRate(r);
+    return `<tr>
+      <td><span style="color:${rest.color}">●</span> ${rest.label}</td>
+      <td>${r.callsTotal.toLocaleString()}</td>
+      <td>${r.callsAI.toLocaleString()} <span class="pill pill-ai">${r.callsTotal>0?(r.callsAI/r.callsTotal*100).toFixed(0):0}%</span></td>
+      <td>${r.callsHuman.toLocaleString()}</td>
+      <td>${r.callsAbandoned.toLocaleString()}</td>
+      <td>${r.bookingsPhoneAI}</td>
+      <td>${r.bookingsPhoneHuman}</td>
+      <td>${r.bookingsOTNetwork.toLocaleString()}</td>
+      <td>${convH}%</td>
+      <td>${fmtHostiePct(tr)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  BY RESTAURANT
+// ═══════════════════════════════════════════════════════════════
+let activeRest = 'all';
+
+function renderByRest() {
+  const pg = document.getElementById('page-byrest');
+  pg.innerHTML = `
+    <div class="rest-selector" id="rest-btns"></div>
+    <div id="rest-content"></div>
+  `;
+  const btns = document.getElementById('rest-btns');
+  // "All" button first
+  const allBtn = document.createElement('button');
+  allBtn.className = 'rest-btn' + (activeRest==='all'?' active':'');
+  allBtn.textContent = 'All Restaurants';
+  allBtn.style.background = activeRest==='all' ? 'linear-gradient(90deg,#3d8ef8,#b06ef5)' : '';
+  allBtn.style.borderColor = activeRest==='all' ? 'transparent' : '';
+  allBtn.style.color = activeRest==='all' ? '#fff' : '';
+  allBtn.onclick = () => { activeRest='all'; renderByRest(); };
+  btns.appendChild(allBtn);
+
+  RESTS.forEach(r => {
+    const b = document.createElement('button');
+    b.className = 'rest-btn' + (r.id===activeRest?' active':'');
+    if (r.id===activeRest) { b.style.background=r.color; b.style.borderColor='transparent'; b.style.color='#fff'; }
+    b.textContent = r.label;
+    b.onclick = () => { activeRest=r.id; renderByRest(); };
+    btns.appendChild(b);
+  });
+
+  if (activeRest === 'all') renderAllRestComparison();
+  else renderRestDetail(activeRest);
+}
+
+function renderAllRestComparison() {
+  // Use week-only filter — All Restaurants view must show all locations regardless of Location dropdown
+  const r26 = filteredWeeks(D.rows26);
+  const r25 = filteredWeeks(D.rows25);
+  const weeks = getWeeks();
+
+  document.getElementById('rest-content').innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+      <h2 style="font-size:20px;font-weight:700;background:linear-gradient(90deg,#3d8ef8,#b06ef5);-webkit-background-clip:text;-webkit-text-fill-color:transparent">All Restaurants — Comparison</h2>
+    </div>
+    ${insightBanner(buildOverviewInsight(r26, r25))}
+    <div class="kpi-row" style="grid-template-columns:repeat(5,1fr)">
+      ${RESTS.map(rest=>{
+        const rows26=r26.filter(r=>r.restaurantId===rest.id), rows25=r25.filter(r=>r.restaurantId===rest.id);
+        const c26=sum(rows26,'callsTotal'), c25=sum(rows25,'callsTotal');
+        const cAI=sum(rows26,'callsAI');
+        const b26=sum(rows26,'bookingsTotal');
+        const convH=humanConvRateAgg(rows26).toFixed(1);
+        const cVar=c25>0?((c26-c25)/c25*100).toFixed(1):'—';
+        return `<div class="kpi" style="border-top:3px solid ${rest.color}">
+          <div class="kpi-label">${rest.label} <span class="pill pill-ai">W${rest.goLive}</span></div>
+          <div class="kpi-value" style="color:${rest.color}">${fmt(c26)}</div>
+          <div class="kpi-sub">Calls · <span class="${parseFloat(cVar)>=0?'up':'dn'}">${cVar}%</span> YoY</div>
+          <div class="kpi-split" style="margin-top:6px">
+            <div class="kpi-split-item"><b style="color:#b06ef5">${fmt(cAI)}</b>AI</div>
+            <div class="kpi-split-item"><b style="color:#22d98e">${convH}%</b>Conv</div>
+            <div class="kpi-split-item"><b style="color:#3d8ef8">${fmt(b26)}</b>Books</div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+
+    <div class="section-head">Exercise — Calls + Reservations by Source (2025 vs 2026)</div>
+    <div class="chart-row cols-1">
+      <div class="chart-card">
+        <h3>Exercise — All Restaurants</h3>
+        <p>Grouped stacks: 2025 vs 2026 reservations by source · lines = total call volume both years</p>
+        <div class="chart-wrap" style="height:340px"><canvas id="all-exercise"></canvas></div>
+      </div>
+    </div>
+
+    <div class="section-head">Total Calls — All Locations 2026</div>
+    <div class="chart-row cols-1"><div class="chart-card">
+      <h3>Weekly Calls by Restaurant — 2026</h3>
+      <p>Each restaurant as a separate line with its color</p>
+      <div class="legend">${RESTS.map(r=>`<div class="legend-item"><div class="legend-line" style="background:${r.color}"></div>${r.label}</div>`).join('')}</div>
+      <div class="chart-wrap" style="height:240px"><canvas id="all-calls-2026"></canvas></div>
+    </div></div>
+
+    <div class="chart-row cols-2">
+      <div class="chart-card">
+        <h3>Weekly Calls — 2025 (dashed) vs 2026 (solid)</h3>
+        <p>Baseline vs current year per restaurant</p>
+        <div class="chart-wrap" style="height:220px"><canvas id="all-calls-yoy"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Human Conversion Rate — All Restaurants 2026</h3>
+        <p>Phone/InHouse bookings ÷ human-answered calls · weekly</p>
+        <div class="chart-wrap" style="height:220px"><canvas id="all-conv-2026"></canvas></div>
+      </div>
+    </div>
+
+    <div class="chart-row cols-2">
+      <div class="chart-card">
+        <h3>Phone/AI Bookings — All Restaurants 2026</h3>
+        <p>AI-assisted phone bookings per restaurant per week</p>
+        <div class="chart-wrap" style="height:220px"><canvas id="all-ai-books"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>AI Transfer Rate — All Restaurants 2026</h3>
+        <p>Hostie: % of AI conversations transferred to host (Transferred to Host = TRUE)</p>
+        <div class="chart-wrap" style="height:220px"><canvas id="all-transfer"></canvas></div>
+      </div>
+    </div>
+
+    <div class="section-head">YoY Impact Summary</div>
+    <div class="chart-row cols-3">
+      <div class="chart-card">
+        <h3>Calls Variance % by Location</h3>
+        <div class="chart-wrap" style="height:200px"><canvas id="all-yoy-calls"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Bookings Variance % by Location</h3>
+        <div class="chart-wrap" style="height:200px"><canvas id="all-yoy-books"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Human Conv Rate 2025 vs 2026</h3>
+        <div class="chart-wrap" style="height:200px"><canvas id="all-yoy-conv"></canvas></div>
+      </div>
+    </div>
+  `;
+
+  requestAnimationFrame(() => {
+    buildExerciseChart('all-exercise', weeks, r26, r25);
+
+    const ds26 = RESTS.map(rest=>({
+      label:rest.label,
+      data:weeks.map(w=>r26.find(x=>x.restaurantId===rest.id&&x.week===w)?.callsTotal||0),
+      borderColor:rest.color,backgroundColor:rest.color+'22',tension:.3,fill:false,borderWidth:2.5,pointRadius:0,pointHoverRadius:4
+    }));
+    mkChart('all-calls-2026','line',{labels:weeks.map(w=>'W'+w),datasets:ds26});
+
+    const dsYoY = RESTS.flatMap(rest=>[
+      {label:rest.label+' 25',data:weeks.map(w=>r25.find(x=>x.restaurantId===rest.id&&x.week===w)?.callsTotal||0),
+        borderColor:rest.color,tension:.3,fill:false,borderWidth:1.5,borderDash:[4,3],pointRadius:0},
+      {label:rest.label+' 26',data:weeks.map(w=>r26.find(x=>x.restaurantId===rest.id&&x.week===w)?.callsTotal||0),
+        borderColor:rest.color,tension:.3,fill:false,borderWidth:2.5,pointRadius:0}
+    ]);
+    mkChart('all-calls-yoy','line',{labels:weeks.map(w=>'W'+w),datasets:dsYoY});
+
+    const dsConv = RESTS.map(rest=>({
+      label:rest.label,
+      data:weeks.map(w=>{const r=r26.find(x=>x.restaurantId===rest.id&&x.week===w);return humanConvRate(r);}),
+      borderColor:rest.color,tension:.3,fill:false,borderWidth:2.5,pointRadius:0,pointHoverRadius:4,spanGaps:true
+    }));
+    mkChart('all-conv-2026','line',{labels:weeks.map(w=>'W'+w),datasets:dsConv},{scales:{y:{ticks:{callback:v=>v?.toFixed(0)+'%'}}}});
+
+    const dsAIBooks = RESTS.map(rest=>({
+      label:rest.label,
+      data:weeks.map(w=>r26.find(x=>x.restaurantId===rest.id&&x.week===w)?.bookingsPhoneAI||0),
+      borderColor:rest.color,backgroundColor:rest.color+'33',tension:.3,fill:true,borderWidth:2,pointRadius:0,pointHoverRadius:4
+    }));
+    mkChart('all-ai-books','line',{labels:weeks.map(w=>'W'+w),datasets:dsAIBooks});
+
+    const dsTransfer = RESTS.map(rest=>({
+      label:rest.label,
+      data:weeks.map(w=>{const r=r26.find(x=>x.restaurantId===rest.id&&x.week===w);return hostieTransferRate(r);}),
+      borderColor:rest.color,tension:.3,fill:false,borderWidth:2,pointRadius:0,pointHoverRadius:4,spanGaps:true
+    }));
+    mkChart('all-transfer','line',{labels:weeks.map(w=>'W'+w),datasets:dsTransfer},{scales:{y:{min:0,max:100,ticks:{callback:v=>v?.toFixed(0)+'%'}}}});
+
+    // YoY bars
+    const labels=RESTS.map(r=>r.label), colors=RESTS.map(r=>r.color+'cc');
+    const callsVar=RESTS.map(rest=>{const r26r=r26.filter(x=>x.restaurantId===rest.id),r25r=r25.filter(x=>x.restaurantId===rest.id);const c26=sum(r26r,'callsTotal'),c25=sum(r25r,'callsTotal');return c25>0?+((c26-c25)/c25*100).toFixed(1):0;});
+    const booksVar=RESTS.map(rest=>{const r26r=r26.filter(x=>x.restaurantId===rest.id),r25r=r25.filter(x=>x.restaurantId===rest.id);const b26=sum(r26r,'bookingsTotal'),b25=sum(r25r,'bookingsTotal');return b25>0?+((b26-b25)/b25*100).toFixed(1):0;});
+    const convComp=RESTS.flatMap(rest=>[
+      {g:'2025 '+rest.label,v:()=>{const r=r25.filter(x=>x.restaurantId===rest.id);const h=sum(r,'callsHuman'),b=sum(r,'bookingsPhoneHuman');return h>0?+(b/h*100).toFixed(1):0;}},
+      {g:'2026 '+rest.label,v:()=>{const r=r26.filter(x=>x.restaurantId===rest.id);const h=sum(r,'callsHuman'),b=sum(r,'bookingsPhoneHuman');return h>0?+(b/h*100).toFixed(1):0;}}
+    ]);
+
+    mkChart('all-yoy-calls','bar',{labels,datasets:[{label:'Calls Var%',data:callsVar,backgroundColor:callsVar.map((v,i)=>RESTS[i].color+'cc'),borderRadius:5}]},mergeChartOptions(Y_AUTO,{scales:{y:{ticks:{callback:v=>v+'%'}}},plugins:{legend:{display:false}}}));
+    mkChart('all-yoy-books','bar',{labels,datasets:[{label:'Books Var%',data:booksVar,backgroundColor:booksVar.map((v,i)=>RESTS[i].color+'cc'),borderRadius:5}]},mergeChartOptions(Y_AUTO,{scales:{y:{ticks:{callback:v=>v+'%'}}},plugins:{legend:{display:false}}}));
+    mkChart('all-yoy-conv','bar',{
+      labels:RESTS.flatMap(r=>[r.label+' 25',r.label+' 26']),
+      datasets:[{label:'Conv%',data:RESTS.flatMap(rest=>{
+        const r25r=r25.filter(x=>x.restaurantId===rest.id), r26r=r26.filter(x=>x.restaurantId===rest.id);
+        const h25=sum(r25r,'callsHuman'),b25=sum(r25r,'bookingsPhoneHuman');
+        const h26=sum(r26r,'callsHuman'),b26=sum(r26r,'bookingsPhoneHuman');
+        return [h25>0?+(b25/h25*100).toFixed(1):0, h26>0?+(b26/h26*100).toFixed(1):0];
+      }),backgroundColor:RESTS.flatMap(r=>['#ff9f2eaa',r.color+'cc']),borderRadius:4}]
+    },{scales:{y:{ticks:{callback:v=>v+'%'}}},plugins:{legend:{display:false}}});
+  });
+}
+
+function renderRestDetail(restId) {
+  const rest = RESTS.find(r=>r.id===restId);
+  // Week filter only — ignore global Location dropdown (user picks restaurant via tab buttons)
+  const r26 = filteredWeeks(D.rows26).filter(r=>r.restaurantId===restId);
+  const r25 = filteredWeeks(D.rows25).filter(r=>r.restaurantId===restId);
+  const weeks = getWeeks();
+
+  const c26=sum(r26,'callsTotal'), c25=sum(r25,'callsTotal');
+  const cAI=sum(r26,'callsAI'), cHum=sum(r26,'callsHuman');
+  const b26=sum(r26,'bookingsTotal'), b25=sum(r25,'bookingsTotal');
+  const bH26=sum(r26,'bookingsPhoneHuman'), bH25=sum(r25,'bookingsPhoneHuman');
+  const bAI26=sum(r26,'bookingsPhoneAI');
+  const cHum25=sum(r25,'callsHuman');
+  const convH26 = cHum>0 ? (bH26/cHum*100).toFixed(1) : '—';
+  const convH25 = cHum25>0 ? (bH25/cHum25*100).toFixed(1) : '—';
+  const cVar = c25>0 ? ((c26-c25)/c25*100).toFixed(1) : '—';
+  const bVar = b25>0 ? ((b26-b25)/b25*100).toFixed(1) : '—';
+
+  document.getElementById('rest-content').innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+      <h2 style="font-size:20px;font-weight:700;color:${rest.color}">${rest.label}</h2>
+      <div class="golive-badge">◆ AI Live W${rest.goLive} · 2026</div>
+    </div>
+    ${insightBanner(buildRestInsight(rest, r26, r25))}
+
+    <div class="kpi-row" style="grid-template-columns:repeat(6,1fr)">
+      <div class="kpi"><div class="kpi-label">Calls 2026</div><div class="kpi-value">${fmt(c26)}</div>${yoyBadge(c26,c25)}</div>
+      <div class="kpi"><div class="kpi-label">AI Calls</div><div class="kpi-value" style="color:var(--ai)">${fmt(cAI)}</div><div class="kpi-sub">${c26>0?(cAI/c26*100).toFixed(1):0}% of total</div></div>
+      <div class="kpi"><div class="kpi-label">Bookings 2026</div><div class="kpi-value">${fmt(b26)}</div>${yoyBadge(b26,b25)}</div>
+      <div class="kpi"><div class="kpi-label">Phone/AI Books</div><div class="kpi-value" style="color:var(--ai)">${bAI26}</div><div class="kpi-sub">AI-assisted bookings</div></div>
+      <div class="kpi"><div class="kpi-label">Human Conv %</div><div class="kpi-value" style="color:var(--human)">${convH26}%</div><div class="kpi-sub">2025: ${convH25}% · Phone/In-House ÷ Human Calls</div></div>
+      <div class="kpi"><div class="kpi-label">AI Conv %</div><div class="kpi-value" style="color:var(--ai)">${aiConvRateAgg(r26).toFixed(1)}%</div><div class="kpi-sub">Phone/AI bookings ÷ AI calls</div></div>
+      <div class="kpi"><div class="kpi-label">Total Conv %</div><div class="kpi-value" style="color:#f43f8e">${totalConvRateAgg(r26).toFixed(1)}%</div><div class="kpi-sub">All phone bookings ÷ all handled calls</div></div>
+    </div>
+
+    <div class="section-head">Exercise — Calls + Reservations by Source (2025 vs 2026)</div>
+    <div class="chart-row cols-1">
+      <div class="chart-card">
+        <h3>Exercise — ${rest.label}</h3>
+        <p>Grouped stacks: 2025 vs 2026 reservations by source · lines = total call volume · vertical line = AI go-live</p>
+        <div class="chart-wrap" style="height:340px"><canvas id="rc-exercise-${restId}"></canvas></div>
+      </div>
+    </div>
+
+    <div class="section-head">Call Volume</div>
+    <div class="chart-row cols-1">
+      <div class="chart-card">
+        <h3>Total Calls Handled — Weekly</h3>
+        <p>2025 (human only) vs 2026 (human + AI) · vertical line = AI go-live</p>
+        <div class="chart-wrap" style="height:280px"><canvas id="rc-calls-${restId}"></canvas></div>
+        ${buildCallsSummaryTable(r26, r25)}
+      </div>
+    </div>
+
+    <div class="section-head">Conversion Rates</div>
+    <div class="chart-row cols-2">
+      <div class="chart-card">
+        <h3>Conversion Rate — 2025 vs 2026</h3>
+        <p>Human, AI, and total phone booking rates by week</p>
+        <p class="stat-note" style="margin-bottom:8px">Human Conv % = Phone/In-House ÷ Human Calls · AI Conv % = Phone/AI ÷ AI Calls · Total Conv % = (Phone/In-House + Phone/AI) ÷ (Human + AI calls)</p>
+        <div class="legend" style="margin-bottom:8px">
+          <div class="legend-item"><div class="legend-line" style="background:#ff9f2e"></div>2025 Human</div>
+          <div class="legend-item"><div class="legend-line" style="background:#22d98e"></div>2026 Human</div>
+          <div class="legend-item"><div class="legend-line" style="background:#b06ef5"></div>2026 AI</div>
+          <div class="legend-item"><div class="legend-line" style="background:#f43f8e"></div>2026 Total</div>
+        </div>
+        <div class="chart-wrap" style="height:220px"><canvas id="rc-conv-${restId}"></canvas></div>
+        ${buildConvSummaryTable(r26, r25)}
+      </div>
+      <div class="chart-card">
+        <h3>Phone Bookings — 2025 vs 2026</h3>
+        <p>Human phone vs AI phone bookings per week</p>
+        <div class="chart-wrap" style="height:220px"><canvas id="rc-phone-${restId}"></canvas></div>
+        ${buildPhoneSummaryTable(r26, r25)}
+      </div>
+    </div>
+
+    <div class="section-head">Reservation Sources</div>
+    <div class="chart-row cols-2">
+      <div class="chart-card">
+        <h3>Bookings by Source — 2026 YTD Mix</h3>
+        <p>Percentage breakdown of reservation sources</p>
+        <div class="chart-wrap" style="height:220px"><canvas id="rc-src-pie-${restId}"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Bookings by Source — Weekly Trend</h3>
+        <p>OpenTable Network, Phone/AI, Phone/InHouse, Walk-in, Web</p>
+        <div class="chart-wrap" style="height:220px"><canvas id="rc-src-trend-${restId}"></canvas></div>
+      </div>
+    </div>
+
+    <div class="section-head">AI Performance (Hostie)</div>
+    <div class="kpi-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:12px" id="rc-hostie-kpis-${restId}"></div>
+    <div class="chart-row cols-2">
+      <div class="chart-card">
+        <h3>AI Call Volume &amp; Transfer Rate — Weekly</h3>
+        <p>Hostie AI conversations (bars) and transfer rate % (line) · Transferred to Host = TRUE ÷ total Hostie calls</p>
+        <div class="chart-wrap" style="height:220px"><canvas id="rc-ai-${restId}"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Pre-AI vs Post-AI — Avg Weekly Metrics</h3>
+        <p>Direct before/after comparison for this location</p>
+        <div class="chart-wrap" style="height:220px"><canvas id="rc-prepost-${restId}"></canvas></div>
+      </div>
+    </div>
+
+    <div class="section-head">Abandoned Calls</div>
+    <div class="chart-row cols-1">
+      <div class="chart-card">
+        <h3>Abandoned Call Rate — Weekly</h3>
+        <p>Abandoned calls ÷ total TalkDesk calls · lower is better</p>
+        <div class="chart-wrap" style="height:220px"><canvas id="rc-abn-${restId}"></canvas></div>
+        ${buildAbnSummaryTable(r26, r25)}
+      </div>
+    </div>
+
+    <div class="section-head">Weekly Detail Table — Matches Excel "By Restaurant" Tab</div>
+    <div class="table-card">
+      <h3>${rest.label} — Week-by-Week (W${F.wkFrom}–W${F.wkTo})</h3>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:10px">Human Calls = total calls answered by a real agent (excl. If-No-Answer &amp; empty) · Human Conv % = Phone/In-House ÷ Human Calls · AI Conv % = Phone/AI ÷ AI Calls · Total Conv % = (Phone/In-House + Phone/AI) ÷ (Human + AI calls)</p>
+      <table>
+        <thead><tr>
+          <th>Week</th><th>AI?</th>
+          <th>Total 2025</th><th>Human Calls 2025</th><th>AI Calls 2025</th>
+          <th>Total 2026</th><th>Human Calls 2026</th><th>AI Calls 2026</th>
+          <th>Books 2025</th><th>Books 2026</th><th>Phone/AI</th><th>OT Net</th>
+          <th>Human Conv % 2025</th><th>Human Conv % 2026</th><th>AI Conv % 2026</th><th>Total Conv % 2026</th>
+          <th>Calls Var%</th>
+        </tr></thead>
+        <tbody id="rc-table-${restId}"></tbody>
+      </table>
+    </div>
+  `;
+
+  requestAnimationFrame(() => {
+    buildExerciseChart(`rc-exercise-${restId}`, weeks, r26, r25, rest);
+    buildRcCalls(restId, rest, weeks, r26, r25);
+    buildRcAbn(restId, rest, weeks, r26, r25);
+    buildRcConv(restId, rest, weeks, r26, r25);
+    buildRcPhone(restId, rest, weeks, r26, r25);
+    buildRcSrcPie(restId, r26);
+    buildRcSrcTrend(restId, rest, weeks, r26);
+    buildRcHostieKpis(restId, rest, r26);
+    buildRcAI(restId, rest, weeks, r26);
+    buildRcPrePost(restId, rest, r26);
+    buildRcTable(restId, rest, weeks, r26, r25);
+  });
+}
+
+function goLiveAnno(rest, weeks) {
+  return annoGoLive(rest.goLive, weeks);
+}
+
+function buildRcCalls(id, rest, weeks, r26, r25) {
+  const m26=aggByWeek(r26,'callsTotal'), m25=aggByWeek(r25,'callsTotal');
+  mkChart(`rc-calls-${id}`,'line',{
+    labels:weeks.map(w=>'W'+w),
+    datasets:[
+      {label:'2025',data:weeks.map(w=>m25[w]||0),borderColor:'#ff9f2e',backgroundColor:'rgba(255,159,46,.10)',tension:.3,fill:true,borderWidth:2.5,pointRadius:0,pointHoverRadius:4},
+      {label:'2026',data:weeks.map(w=>m26[w]||0),borderColor:rest.color,backgroundColor:rest.color+'18',tension:.3,fill:true,borderWidth:2.5,pointRadius:0,pointHoverRadius:4},
+    ]
+  },{plugins:{annotation:{annotations:goLiveAnno(rest,weeks)}}});
+}
+
+function buildRcAbn(id, rest, weeks, r26, r25) {
+  const rate = (rs, w) => { const t=aggByWeek(rs,'callsTotal')[w]||0, a=aggByWeek(rs,'callsAbandoned')[w]||0; return t>0?a/t*100:null; };
+  mkChart(`rc-abn-${id}`,'line',{
+    labels:weeks.map(w=>'W'+w),
+    datasets:[
+      {label:'2025 Abn%',data:weeks.map(w=>rate(r25,w)),borderColor:'#ff9f2e',tension:.3,fill:false,borderWidth:2.5,spanGaps:true,pointRadius:0,pointHoverRadius:4},
+      {label:'2026 Abn%',data:weeks.map(w=>rate(r26,w)),borderColor:rest.color,tension:.3,fill:false,borderWidth:2.5,spanGaps:true,pointRadius:0,pointHoverRadius:4},
+    ]
+  },{scales:{y:{ticks:{callback:v=>v?.toFixed(1)+'%'}}},plugins:{annotation:{annotations:goLiveAnno(rest,weeks)}}});
+}
+
+function buildRcConv(id, rest, weeks, r26, r25) {
+  const conv26h = w => { const r=r26.find(x=>x.week===w); return humanConvRate(r); };
+  const conv26ai = w => { const r=r26.find(x=>x.week===w); return aiConvRate(r); };
+  const conv26tot = w => { const r=r26.find(x=>x.week===w); return totalConvRate(r); };
+  const conv25 = w => { const r=r25.find(x=>x.week===w); return humanConvRate(r); };
+  mkChart(`rc-conv-${id}`,'line',{
+    labels:weeks.map(w=>'W'+w),
+    datasets:[
+      {label:'2025 Human',data:weeks.map(conv25),borderColor:'#ff9f2e',tension:.3,fill:false,borderWidth:2.5,spanGaps:true,pointRadius:0,pointHoverRadius:4},
+      {label:'2026 Human',data:weeks.map(conv26h),borderColor:'#22d98e',tension:.3,fill:false,borderWidth:2.5,spanGaps:true,pointRadius:0,pointHoverRadius:4},
+      {label:'2026 AI',data:weeks.map(conv26ai),borderColor:'#b06ef5',tension:.3,fill:false,borderWidth:2,borderDash:[5,3],spanGaps:true,pointRadius:0,pointHoverRadius:4},
+      {label:'2026 Total',data:weeks.map(conv26tot),borderColor:'#f43f8e',tension:.3,fill:false,borderWidth:2,borderDash:[3,3],spanGaps:true,pointRadius:0,pointHoverRadius:4},
+    ]
+  },{scales:{y:{ticks:{callback:v=>v?.toFixed(1)+'%'}}},plugins:{annotation:{annotations:goLiveAnno(rest,weeks)}}});
+}
+
+function buildRcPhone(id, rest, weeks, r26, r25) {
+  const m25h=aggByWeek(r25,'bookingsPhoneHuman'), m26h=aggByWeek(r26,'bookingsPhoneHuman'), m26ai=aggByWeek(r26,'bookingsPhoneAI');
+  mkChart(`rc-phone-${id}`,'bar',{
+    labels:weeks.map(w=>'W'+w),
+    datasets:[
+      {label:'2025 Phone',data:weeks.map(w=>m25h[w]||0),backgroundColor:'rgba(255,159,46,.55)',stack:'s25'},
+      {label:'2026 Human',data:weeks.map(w=>m26h[w]||0),backgroundColor:'rgba(34,217,142,.55)',stack:'s26'},
+      {label:'2026 AI',data:weeks.map(w=>m26ai[w]||0),backgroundColor:'rgba(176,110,245,.65)',stack:'s26'},
+    ]
+  },{scales:{x:{stacked:true},y:{stacked:false}},plugins:{annotation:{annotations:goLiveAnno(rest,weeks)}}});
+}
+
+function buildRcSrcPie(id, r26) {
+  const ot=sum(r26,'bookingsOTNetwork'), ph=sum(r26,'bookingsPhoneHuman'),
+        ai=sum(r26,'bookingsPhoneAI'), wk=sum(r26,'bookingsWalkIn'), web=sum(r26,'bookingsYourNetwork');
+  mkChart(`rc-src-pie-${id}`,'doughnut',{
+    labels:['OT Network','Phone/InHouse','Phone/AI','Walk-in','Your Network'],
+    datasets:[{data:[ot,ph,ai,wk,web],backgroundColor:['#3d8ef8','#22d98e','#b06ef5','#ff9f2e','#f43f8e'],borderWidth:0,hoverOffset:6}]
+  },{plugins:{legend:{display:true,position:'right',labels:{color:'#8890b8',font:{size:11},padding:10}}}});
+}
+
+function buildRcSrcTrend(id, rest, weeks, r26) {
+  const mot=aggByWeek(r26,'bookingsOTNetwork'), mph=aggByWeek(r26,'bookingsPhoneHuman'),
+        mai=aggByWeek(r26,'bookingsPhoneAI'), mwk=aggByWeek(r26,'bookingsWalkIn');
+  mkChart(`rc-src-trend-${id}`,'line',{
+    labels:weeks.map(w=>'W'+w),
+    datasets:[
+      {label:'OT Network',data:weeks.map(w=>mot[w]||0),borderColor:'#3d8ef8',backgroundColor:'rgba(61,142,248,.12)',tension:.3,fill:true,borderWidth:2,pointRadius:0,pointHoverRadius:4},
+      {label:'Phone/InHouse',data:weeks.map(w=>mph[w]||0),borderColor:'#22d98e',tension:.3,fill:false,borderWidth:2,pointRadius:0,pointHoverRadius:4},
+      {label:'Phone/AI',data:weeks.map(w=>mai[w]||0),borderColor:'#b06ef5',tension:.3,fill:false,borderWidth:2.5,borderDash:[5,3],pointRadius:0,pointHoverRadius:4},
+      {label:'Walk-in',data:weeks.map(w=>mwk[w]||0),borderColor:'#ff9f2e',tension:.3,fill:false,borderWidth:1.5,pointRadius:0},
+    ]
+  },{plugins:{annotation:{annotations:goLiveAnno(rest,weeks)}}});
+}
+
+function buildRcHostieKpis(id, rest, r26) {
+  const el = document.getElementById(`rc-hostie-kpis-${id}`);
+  if (!el) return;
+  const post = r26.filter(r=>r.isPostAI);
+  if (!post.length) { el.innerHTML = `<div style="color:var(--muted);font-size:12px;padding:12px">AI not yet live for this location</div>`; return; }
+
+  const totalAI    = sum(post, 'hostieAiCalls');
+  const totalTransferred = sum(post, 'hostieTransferred');
+  const totalCalls = sum(post, 'callsTotal');
+  const transferRate = fmtHostiePct(hostieTransferRateAgg(post));
+  const resolvedRate = fmtHostiePct(hostieResolveRateAgg(post));
+  // AI conv rate
+  const bAI = sum(post,'bookingsPhoneAI');
+  const aiConv = sum(post,'callsAI') > 0 ? (bAI/sum(post,'callsAI')*100).toFixed(1) : '—';
+
+  el.innerHTML = `
+    <div class="kpi" style="border-top:3px solid var(--ai)">
+      <div class="kpi-label">AI Calls (Post Go-Live)</div>
+      <div class="kpi-value" style="color:var(--ai)">${totalAI.toLocaleString()}</div>
+      <div class="kpi-sub">Hostie conversations · ${totalCalls > 0 ? (sum(post,'callsAI')/totalCalls*100).toFixed(1) : 0}% TalkDesk AI share</div>
+    </div>
+    <div class="kpi" style="border-top:3px solid #f43f8e">
+      <div class="kpi-label">Transfer Rate (→ Human)</div>
+      <div class="kpi-value" style="color:#f43f8e">${transferRate}</div>
+      <div class="kpi-sub">${totalTransferred.toLocaleString()} transferred to host</div>
+    </div>
+    <div class="kpi" style="border-top:3px solid var(--human)">
+      <div class="kpi-label">AI Resolved (No Transfer)</div>
+      <div class="kpi-value" style="color:var(--human)">${resolvedRate}</div>
+      <div class="kpi-sub">Hostie handled end-to-end</div>
+    </div>
+    <div class="kpi" style="border-top:3px solid var(--y26)">
+      <div class="kpi-label">AI Conv %</div>
+      <div class="kpi-value" style="color:var(--y26)">${aiConv}%</div>
+      <div class="kpi-sub">${bAI} Phone/AI bookings</div>
+    </div>
+  `;
+}
+
+function buildRcAI(id, rest, weeks, r26) {
+  const mai=aggByWeek(r26,'hostieAiCalls');
+  const trRate = w => hostieTransferRate(r26.find(x=>x.week===w));
+  mkChart(`rc-ai-${id}`,'bar',{
+    labels:weeks.map(w=>'W'+w),
+    datasets:[
+      {label:'Hostie AI Calls',data:weeks.map(w=>mai[w]||0),backgroundColor:'rgba(176,110,245,.55)',yAxisID:'y'},
+      {label:'Transfer Rate%',data:weeks.map(w=>trRate(w)),type:'line',borderColor:'#f43f8e',tension:.3,yAxisID:'y1',spanGaps:true,borderWidth:2.5,pointRadius:0,pointHoverRadius:4},
+    ]
+  },{scales:{y:{position:'left',min:0,ticks:{color:'#8890b8'}},y1:{position:'right',min:0,max:100,grid:{drawOnChartArea:false},ticks:{callback:v=>v?.toFixed(0)+'%',color:'#f43f8e'}}},plugins:{annotation:{annotations:goLiveAnno(rest,weeks)}}});
+}
+
+function buildRcPrePost(id, rest, r26) {
+  const pre = r26.filter(r=>!r.isPostAI), post = r26.filter(r=>r.isPostAI);
+  if (!pre.length || !post.length) return;
+  const avgPre = field => pre.length>0 ? sum(pre,field)/pre.length : 0;
+  const avgPost = field => post.length>0 ? sum(post,field)/post.length : 0;
+
+  const metrics = ['Calls','Books','AI Calls','Phone/AI'];
+  const preVals = [avgPre('callsTotal'),avgPre('bookingsTotal'),avgPre('callsAI'),avgPre('bookingsPhoneAI')];
+  const postVals= [avgPost('callsTotal'),avgPost('bookingsTotal'),avgPost('callsAI'),avgPost('bookingsPhoneAI')];
+
+  mkChart(`rc-prepost-${id}`,'bar',{
+    labels:metrics,
+    datasets:[
+      {label:'Pre-AI avg/week',data:preVals,backgroundColor:'rgba(245,158,11,.5)',borderRadius:4},
+      {label:'Post-AI avg/week',data:postVals,backgroundColor:'rgba(79,142,247,.6)',borderRadius:4},
+    ]
+  });
+}
+
+function buildRcTable(id, rest, weeks, r26, r25) {
+  const tbody = document.getElementById(`rc-table-${id}`);
+  if (!tbody) return;
+  tbody.innerHTML = weeks.map(w => {
+    const a = r26.find(r=>r.week===w), b = r25.find(r=>r.week===w);
+    // Excel columns
+    const tot25 = b?.callsTotal||0;
+    const an = b?.callsHuman||0;
+    const ap25 = b?.callsAI||0;
+    const ao = a?.callsHuman||0;
+    const ap = a?.callsAI||0;
+    const tot26 = a?.callsTotal||0;
+    const ar = b?.bookingsPhoneHuman||0;
+    const as_ = a?.bookingsPhoneHuman||0;
+    const bPhoneAI = a?.bookingsPhoneAI||0;
+    const bOT = a?.bookingsOTNetwork||0;
+    const au = an>0 ? (ar/an*100).toFixed(1)+'%' : '—';
+    const av = ao>0 ? (as_/ao*100).toFixed(1)+'%' : '—';
+    const ax = ap>0 ? (bPhoneAI/ap*100).toFixed(1)+'%' : '—';
+    const ay = (ao+ap)>0 ? ((as_+bPhoneAI)/(ao+ap)*100).toFixed(1)+'%' : '—';
+    const cVar = tot25>0 ? ((tot26-tot25)/tot25*100).toFixed(1) : '—';
+    const cCls = parseFloat(cVar)>=0?'up':'dn';
+    const aiLabel = a?.isPostAI ? '<span class="pill pill-ai">AI</span>' : '<span style="color:var(--muted);font-size:10px">pre</span>';
+    return `<tr>
+      <td>W${w}</td><td>${aiLabel}</td>
+      <td>${tot25.toLocaleString()}</td>
+      <td style="color:var(--human)">${an.toLocaleString()}</td>
+      <td style="color:var(--ai)">${ap25.toLocaleString()}</td>
+      <td>${tot26.toLocaleString()}</td>
+      <td style="color:var(--human)">${ao.toLocaleString()}</td>
+      <td style="color:var(--ai)">${ap.toLocaleString()}</td>
+      <td>${ar}</td><td>${as_}</td><td style="color:var(--ai)">${bPhoneAI}</td><td>${bOT.toLocaleString()}</td>
+      <td>${au}</td>
+      <td style="color:var(--human)">${av}</td>
+      <td style="color:var(--ai)">${ax}</td>
+      <td style="color:#f43f8e">${ay}</td>
+      <td class="${cCls}">${cVar}%</td>
+    </tr>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  CALL CENTER TAB
+// ═══════════════════════════════════════════════════════════════
+function renderCalls() {
+  const r26 = filtered(D.rows26);
+  const r25 = filtered(D.rows25);
+  const weeks = getWeeks();
+
+  document.getElementById('page-calls').innerHTML = `
+    <div class="section-head">Call Center — All Locations</div>
+    <div class="chart-row cols-2">
+      <div class="chart-card">
+        <h3>Total Calls by Location — 2026 Weekly</h3>
+        <p>Stacked by restaurant</p>
+        <div class="chart-wrap" style="height:260px"><canvas id="cc-calls-stack"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>AI vs Human Calls — 2026 Weekly (All RDG)</h3>
+        <p>AI handled vs human answered</p>
+        <div class="chart-wrap" style="height:260px"><canvas id="cc-ai-human"></canvas></div>
+      </div>
+    </div>
+    <div class="chart-row cols-2">
+      <div class="chart-card">
+        <h3>AI Transfer Rate by Location — YTD</h3>
+        <p>Hostie: transferred to host (TRUE) ÷ total Hostie AI calls</p>
+        <div class="chart-wrap" style="height:240px"><canvas id="cc-transfer"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Abandoned Rate — 2025 vs 2026 by Location</h3>
+        <p>YTD abandonment rate comparison</p>
+        <div class="chart-wrap" style="height:240px"><canvas id="cc-abn-bar"></canvas></div>
+      </div>
+    </div>
+  `;
+
+  requestAnimationFrame(() => {
+    // Stacked by restaurant
+    mkChart('cc-calls-stack','bar',{
+      labels:weeks.map(w=>'W'+w),
+      datasets:RESTS.map(rest=>({
+        label:rest.label,
+        data:weeks.map(w=>{const r=r26.find(x=>x.restaurantId===rest.id&&x.week===w);return r?.callsTotal||0;}),
+        backgroundColor:rest.color+'99',stack:'s'
+      }))
+    },{scales:{x:{stacked:true},y:{stacked:true}}});
+
+    // AI vs Human
+    const mai=aggByWeek(r26,'callsAI'), mhum=aggByWeek(r26,'callsHuman');
+    mkChart('cc-ai-human','bar',{
+      labels:weeks.map(w=>'W'+w),
+      datasets:[
+        {label:'AI',data:weeks.map(w=>mai[w]||0),backgroundColor:'rgba(167,139,250,.6)',stack:'s'},
+        {label:'Human',data:weeks.map(w=>mhum[w]||0),backgroundColor:'rgba(52,211,153,.5)',stack:'s'},
+      ]
+    },{scales:{x:{stacked:true},y:{stacked:true}}});
+
+    // Transfer rate by location
+    const labels=RESTS.map(r=>r.label);
+    const tr = RESTS.map(rest=>{
+      const rows=r26.filter(x=>x.restaurantId===rest.id);
+      const rate = hostieTransferRateAgg(rows);
+      return rate != null ? +rate.toFixed(1) : 0;
+    });
+    mkChart('cc-transfer','bar',{labels,datasets:[{label:'Transfer Rate%',data:tr,backgroundColor:RESTS.map(r=>r.color+'99'),borderRadius:4}]},
+      {scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%'}}},plugins:{legend:{display:false}}});
+
+    // Abandoned bar
+    const abn26=RESTS.map(rest=>{const rows=r26.filter(x=>x.restaurantId===rest.id);const t=sum(rows,'callsTotal');return t>0?+(sum(rows,'callsAbandoned')/t*100).toFixed(1):0;});
+    const abn25=RESTS.map(rest=>{const rows=r25.filter(x=>x.restaurantId===rest.id);const t=sum(rows,'callsTotal');return t>0?+(sum(rows,'callsAbandoned')/t*100).toFixed(1):0;});
+    mkChart('cc-abn-bar','bar',{
+      labels,
+      datasets:[
+        {label:'2025 Abn%',data:abn25,backgroundColor:'rgba(245,158,11,.5)',borderRadius:4},
+        {label:'2026 Abn%',data:abn26,backgroundColor:'rgba(79,142,247,.6)',borderRadius:4},
+      ]
+    },{scales:{y:{ticks:{callback:v=>v+'%'}}}});
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  RESERVATIONS TAB
+// ═══════════════════════════════════════════════════════════════
+let activeResRest = 'all';
+
+function renderReservations() {
+  const pg = document.getElementById('page-reservations');
+  pg.innerHTML = `
+    <div class="rest-selector" id="res-btns"></div>
+    <div id="res-content"></div>
+  `;
+  const btns = document.getElementById('res-btns');
+  const allBtn = document.createElement('button');
+  allBtn.className = 'rest-btn' + (activeResRest==='all'?' active':'');
+  allBtn.textContent = 'All Sites';
+  allBtn.style.background = activeResRest==='all' ? 'linear-gradient(90deg,#3d8ef8,#b06ef5)' : '';
+  allBtn.style.borderColor = activeResRest==='all' ? 'transparent' : '';
+  allBtn.style.color = activeResRest==='all' ? '#fff' : '';
+  allBtn.onclick = () => { activeResRest='all'; renderReservations(); };
+  btns.appendChild(allBtn);
+
+  RESTS.forEach(r => {
+    const b = document.createElement('button');
+    b.className = 'rest-btn' + (r.id===activeResRest?' active':'');
+    if (r.id===activeResRest) { b.style.background=r.color; b.style.borderColor='transparent'; b.style.color='#fff'; }
+    b.textContent = r.label;
+    b.onclick = () => { activeResRest=r.id; renderReservations(); };
+    btns.appendChild(b);
+  });
+
+  if (activeResRest === 'all') renderResAllSites();
+  else renderResDetail(activeResRest);
+}
+
+function renderResAllSites() {
+  // Consolidated + side-by-side for every location
+  const r26 = filteredWeeks(D.rows26);
+  const r25 = filteredWeeks(D.rows25);
+  const weeks = getWeeks();
+  const b26=sum(r26,'bookingsTotal'), b25=sum(r25,'bookingsTotal');
+  const ph26=sum(r26,'bookingsPhoneHuman'), ph25=sum(r25,'bookingsPhoneHuman');
+  const ai26=sum(r26,'bookingsPhoneAI');
+  const bVar = b25>0 ? ((b26-b25)/b25*100).toFixed(1) : '—';
+
+  document.getElementById('res-content').innerHTML = `
+    ${insightBanner(buildOverviewInsight(r26, r25))}
+    <div class="kpi-row" style="grid-template-columns:repeat(5,1fr)">
+      <div class="kpi"><div class="kpi-label">Total Bookings 2026</div><div class="kpi-value">${fmt(b26)}</div>${yoyBadge(b26,b25)}</div>
+      <div class="kpi"><div class="kpi-label">Total Bookings 2025</div><div class="kpi-value">${fmt(b25)}</div><div class="kpi-sub">Same weeks W${F.wkFrom}–W${F.wkTo}</div></div>
+      <div class="kpi"><div class="kpi-label">Phone/In-House 2026</div><div class="kpi-value" style="color:var(--human)">${fmt(ph26)}</div>${yoyBadge(ph26,ph25)}</div>
+      <div class="kpi"><div class="kpi-label">Phone/AI Bookings</div><div class="kpi-value" style="color:var(--ai)">${fmt(ai26)}</div><div class="kpi-sub">${(ph26+ai26)>0?(ai26/(ph26+ai26)*100).toFixed(1):0}% of phone books</div></div>
+      <div class="kpi"><div class="kpi-label">Bookings Var YoY</div><div class="kpi-value ${parseFloat(bVar)>=0?'up':'dn'}">${bVar}%</div><div class="kpi-sub">All sites combined</div></div>
+    </div>
+
+    <div class="section-head">All Sites — Consolidated</div>
+    <div class="chart-row cols-2">
+      <div class="chart-card">
+        <h3>Total Reservations Weekly — Consolidated</h3>
+        <p>Sum of all locations · 2025 vs 2026</p>
+        <div class="chart-wrap" style="height:240px"><canvas id="res-all-trend"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Phone Bookings Weekly — Consolidated</h3>
+        <p>Phone/In-House vs Phone/AI</p>
+        <div class="chart-wrap" style="height:240px"><canvas id="res-all-phone"></canvas></div>
+      </div>
+    </div>
+    <div class="chart-row cols-2">
+      <div class="chart-card">
+        <h3>Bookings by Source — YTD Mix (All Sites)</h3>
+        <p>Share of reservation sources across the group</p>
+        <div class="chart-wrap" style="height:240px"><canvas id="res-all-pie"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Source Mix Weekly Trend — All Sites</h3>
+        <p>How AI phone vs OT Network / human phone shifts over time</p>
+        <div class="chart-wrap" style="height:240px"><canvas id="res-all-src-trend"></canvas></div>
+      </div>
+    </div>
+
+    <div class="section-head">By Location</div>
+    <div class="chart-row cols-2">
+      <div class="chart-card">
+        <h3>Bookings by Source — YTD 2026 by Location</h3>
+        <p>Stacked bar: OT Network, Phone/AI, Phone/InHouse, Walk-in, Web</p>
+        <div class="chart-wrap" style="height:280px"><canvas id="res-src-bar"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Phone Bookings — 2025 vs 2026 by Location</h3>
+        <p>Phone/In-House and Phone/AI bookings comparison</p>
+        <div class="chart-wrap" style="height:280px"><canvas id="res-phone-bar"></canvas></div>
+      </div>
+    </div>
+    <div class="chart-row cols-1">
+      <div class="chart-card">
+        <h3>Total Reservations Weekly — Per Restaurant (2025 vs 2026)</h3>
+        <p>Solid = 2026 · dashed = 2025</p>
+        <div class="legend">${RESTS.map(r=>`<div class="legend-item"><div class="legend-line" style="background:${r.color}"></div>${r.label}</div>`).join('')}</div>
+        <div class="chart-wrap" style="height:260px"><canvas id="res-trend"></canvas></div>
+      </div>
+    </div>
+    <div class="table-card">
+      <h3>Reservation Source Breakdown — YTD W${F.wkFrom}–W${F.wkTo}</h3>
+      <table>
+        <thead><tr>
+          <th>Location</th>
+          <th>Total 2026</th><th>Total 2025</th><th>Var</th>
+          <th>OT Network</th><th>OT %</th>
+          <th>Phone/InHouse</th><th>Phone/AI</th>
+          <th>Your Network</th><th>Walk-in</th>
+        </tr></thead>
+        <tbody id="res-table"></tbody>
+      </table>
+    </div>
+  `;
+
+  requestAnimationFrame(() => {
+    const labels=RESTS.map(r=>r.label);
+    const byRest=(rows,field)=>RESTS.map(rest=>sum(rows.filter(x=>x.restaurantId===rest.id),field));
+    const m26=aggByWeek(r26,'bookingsTotal'), m25=aggByWeek(r25,'bookingsTotal');
+    const mph26=aggByWeek(r26,'bookingsPhoneHuman'), mph25=aggByWeek(r25,'bookingsPhoneHuman');
+    const mai26=aggByWeek(r26,'bookingsPhoneAI');
+    const mot=aggByWeek(r26,'bookingsOTNetwork'), mweb=aggByWeek(r26,'bookingsYourNetwork'), mwk=aggByWeek(r26,'bookingsWalkIn');
+
+    mkChart('res-all-trend','line',{
+      labels:weeks.map(w=>'W'+w),
+      datasets:[
+        {label:'2025',data:weeks.map(w=>m25[w]||0),borderColor:'#ff9f2e',backgroundColor:'rgba(255,159,46,.10)',tension:.3,fill:true,borderWidth:2.5,pointRadius:0,pointHoverRadius:4},
+        {label:'2026',data:weeks.map(w=>m26[w]||0),borderColor:'#3d8ef8',backgroundColor:'rgba(61,142,248,.10)',tension:.3,fill:true,borderWidth:2.5,pointRadius:0,pointHoverRadius:4},
+      ]
+    });
+    mkChart('res-all-phone','line',{
+      labels:weeks.map(w=>'W'+w),
+      datasets:[
+        {label:'2025 Phone',data:weeks.map(w=>mph25[w]||0),borderColor:'#ff9f2e',tension:.3,fill:false,borderWidth:2.5,pointRadius:0,pointHoverRadius:4},
+        {label:'2026 Phone/InHouse',data:weeks.map(w=>mph26[w]||0),borderColor:'#22d98e',tension:.3,fill:false,borderWidth:2.5,pointRadius:0,pointHoverRadius:4},
+        {label:'2026 Phone/AI',data:weeks.map(w=>mai26[w]||0),borderColor:'#b06ef5',tension:.3,fill:false,borderWidth:2.5,borderDash:[5,3],pointRadius:0,pointHoverRadius:4},
+      ]
+    });
+    const ot=sum(r26,'bookingsOTNetwork'), ph=sum(r26,'bookingsPhoneHuman'), ai=sum(r26,'bookingsPhoneAI');
+    const wk=sum(r26,'bookingsWalkIn'), web=sum(r26,'bookingsYourNetwork');
+    mkChart('res-all-pie','doughnut',{
+      labels:['OT Network','Phone/InHouse','Phone/AI','Walk-in','Your Network'],
+      datasets:[{data:[ot,ph,ai,wk,web],backgroundColor:['#3d8ef8','#22d98e','#b06ef5','#ff9f2e','#f43f8e'],borderWidth:0,hoverOffset:6}]
+    },{plugins:{legend:{display:true,position:'right',labels:{color:'#8890b8',font:{size:11},padding:10}}}});
+    mkChart('res-all-src-trend','line',{
+      labels:weeks.map(w=>'W'+w),
+      datasets:[
+        {label:'OT Network',data:weeks.map(w=>mot[w]||0),borderColor:'#3d8ef8',tension:.3,fill:false,borderWidth:2,pointRadius:0},
+        {label:'Phone/InHouse',data:weeks.map(w=>mph26[w]||0),borderColor:'#22d98e',tension:.3,fill:false,borderWidth:2,pointRadius:0},
+        {label:'Phone/AI',data:weeks.map(w=>mai26[w]||0),borderColor:'#b06ef5',tension:.3,fill:false,borderWidth:2.5,borderDash:[5,3],pointRadius:0},
+        {label:'Your Network',data:weeks.map(w=>mweb[w]||0),borderColor:'#f43f8e',tension:.3,fill:false,borderWidth:1.5,pointRadius:0},
+        {label:'Walk-in',data:weeks.map(w=>mwk[w]||0),borderColor:'#ff9f2e',tension:.3,fill:false,borderWidth:1.5,pointRadius:0},
+      ]
+    });
+
+    mkChart('res-src-bar','bar',{
+      labels,
+      datasets:[
+        {label:'OT Network',data:byRest(r26,'bookingsOTNetwork'),backgroundColor:'#3d8ef8bb',stack:'s'},
+        {label:'Phone/InHouse',data:byRest(r26,'bookingsPhoneHuman'),backgroundColor:'#22d98ebb',stack:'s'},
+        {label:'Phone/AI',data:byRest(r26,'bookingsPhoneAI'),backgroundColor:'#b06ef5bb',stack:'s'},
+        {label:'Walk-in',data:byRest(r26,'bookingsWalkIn'),backgroundColor:'#ff9f2ebb',stack:'s'},
+        {label:'Your Network',data:byRest(r26,'bookingsYourNetwork'),backgroundColor:'#f43f8ebb',stack:'s'},
+      ]
+    },{scales:{x:{stacked:true},y:{stacked:true}}});
+
+    mkChart('res-phone-bar','bar',{
+      labels,
+      datasets:[
+        {label:'2025 Phone',data:byRest(r25,'bookingsPhoneHuman'),backgroundColor:'rgba(255,159,46,.6)',borderRadius:4},
+        {label:'2026 Phone/InHouse',data:byRest(r26,'bookingsPhoneHuman'),backgroundColor:'rgba(34,217,142,.6)',borderRadius:4},
+        {label:'2026 Phone/AI',data:byRest(r26,'bookingsPhoneAI'),backgroundColor:'rgba(176,110,245,.7)',borderRadius:4},
+      ]
+    });
+
+    mkChart('res-trend','line',{
+      labels:weeks.map(w=>'W'+w),
+      datasets:RESTS.flatMap(rest=>[
+        {label:rest.label+' 26',data:weeks.map(w=>r26.find(x=>x.restaurantId===rest.id&&x.week===w)?.bookingsTotal||0),
+          borderColor:rest.color,tension:.3,fill:false,borderWidth:2.5,pointRadius:0,pointHoverRadius:4},
+        {label:rest.label+' 25',data:weeks.map(w=>r25.find(x=>x.restaurantId===rest.id&&x.week===w)?.bookingsTotal||0),
+          borderColor:rest.color,tension:.3,fill:false,borderWidth:1.5,borderDash:[4,3],pointRadius:0}
+      ])
+    });
+
+    const tbody=document.getElementById('res-table');
+    tbody.innerHTML=RESTS.map(rest=>{
+      const rows26=r26.filter(x=>x.restaurantId===rest.id), rows25=r25.filter(x=>x.restaurantId===rest.id);
+      const t26=sum(rows26,'bookingsTotal'), t25=sum(rows25,'bookingsTotal');
+      const otN=sum(rows26,'bookingsOTNetwork'), phN=sum(rows26,'bookingsPhoneHuman'), aiN=sum(rows26,'bookingsPhoneAI');
+      const wkN=sum(rows26,'bookingsWalkIn'), webN=sum(rows26,'bookingsYourNetwork');
+      const varP=t25>0?((t26-t25)/t25*100).toFixed(1):'—';
+      return `<tr>
+        <td><span style="color:${rest.color}">●</span> ${rest.label}</td>
+        <td>${t26.toLocaleString()}</td><td>${t25.toLocaleString()}</td>
+        <td class="${parseFloat(varP)>=0?'up':'dn'}">${varP}%</td>
+        <td>${otN.toLocaleString()}</td><td>${t26>0?(otN/t26*100).toFixed(1):0}%</td>
+        <td>${phN.toLocaleString()}</td><td>${aiN}</td>
+        <td>${webN.toLocaleString()}</td><td>${wkN.toLocaleString()}</td>
+      </tr>`;
+    }).join('');
+  });
+}
+
+function renderResDetail(restId) {
+  const rest = RESTS.find(r=>r.id===restId);
+  const r26 = filteredWeeks(D.rows26).filter(r=>r.restaurantId===restId);
+  const r25 = filteredWeeks(D.rows25).filter(r=>r.restaurantId===restId);
+  const weeks = getWeeks();
+
+  const b26=sum(r26,'bookingsTotal'), b25=sum(r25,'bookingsTotal');
+  const ph26=sum(r26,'bookingsPhoneHuman'), ph25=sum(r25,'bookingsPhoneHuman');
+  const ai26=sum(r26,'bookingsPhoneAI');
+  const ot26=sum(r26,'bookingsOTNetwork'), web26=sum(r26,'bookingsYourNetwork'), wk26=sum(r26,'bookingsWalkIn');
+  const phoneShare = b26>0 ? ((ph26+ai26)/b26*100).toFixed(1) : '0';
+  const aiOfPhone = (ph26+ai26)>0 ? (ai26/(ph26+ai26)*100).toFixed(1) : '0';
+
+  document.getElementById('res-content').innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+      <h2 style="font-size:20px;font-weight:700;color:${rest.color}">${rest.label} — Reservations</h2>
+      <div class="golive-badge">◆ AI Live W${rest.goLive} · 2026</div>
+    </div>
+    ${insightBanner(buildRestInsight(rest, r26, r25))}
+    <div class="kpi-row" style="grid-template-columns:repeat(6,1fr)">
+      <div class="kpi"><div class="kpi-label">Bookings 2026</div><div class="kpi-value">${fmt(b26)}</div>${yoyBadge(b26,b25)}</div>
+      <div class="kpi"><div class="kpi-label">Bookings 2025</div><div class="kpi-value">${fmt(b25)}</div><div class="kpi-sub">Same week range</div></div>
+      <div class="kpi"><div class="kpi-label">Phone/In-House</div><div class="kpi-value" style="color:var(--human)">${fmt(ph26)}</div>${yoyBadge(ph26,ph25)}</div>
+      <div class="kpi"><div class="kpi-label">Phone/AI</div><div class="kpi-value" style="color:var(--ai)">${fmt(ai26)}</div><div class="kpi-sub">${aiOfPhone}% of phone books</div></div>
+      <div class="kpi"><div class="kpi-label">OT Network</div><div class="kpi-value" style="color:#3d8ef8">${fmt(ot26)}</div><div class="kpi-sub">${b26>0?(ot26/b26*100).toFixed(1):0}% of total</div></div>
+      <div class="kpi"><div class="kpi-label">Phone Share</div><div class="kpi-value">${phoneShare}%</div><div class="kpi-sub">InHouse + AI of all books</div></div>
+    </div>
+
+    <div class="section-head">Reservation Trends</div>
+    <div class="chart-row cols-1">
+      <div class="chart-card">
+        <h3>Total Reservations — Weekly</h3>
+        <p>2025 vs 2026 · vertical line = AI go-live</p>
+        <div class="chart-wrap" style="height:260px"><canvas id="res-d-trend"></canvas></div>
+        ${buildPhoneSummaryTable(r26, r25)}
+      </div>
+    </div>
+    <div class="chart-row cols-2">
+      <div class="chart-card">
+        <h3>Phone Bookings — 2025 vs 2026</h3>
+        <p>Human phone vs AI phone by week</p>
+        <div class="chart-wrap" style="height:220px"><canvas id="res-d-phone"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Bookings by Source — YTD Mix</h3>
+        <p>Source mix for this location</p>
+        <div class="chart-wrap" style="height:220px"><canvas id="res-d-pie"></canvas></div>
+      </div>
+    </div>
+    <div class="chart-row cols-1">
+      <div class="chart-card">
+        <h3>Source Mix — Weekly Trend</h3>
+        <p>OT Network, Phone/InHouse, Phone/AI, Walk-in, Your Network</p>
+        <div class="chart-wrap" style="height:240px"><canvas id="res-d-src"></canvas></div>
+      </div>
+    </div>
+  `;
+
+  requestAnimationFrame(() => {
+    const m26=aggByWeek(r26,'bookingsTotal'), m25=aggByWeek(r25,'bookingsTotal');
+    mkChart('res-d-trend','line',{
+      labels:weeks.map(w=>'W'+w),
+      datasets:[
+        {label:'2025',data:weeks.map(w=>m25[w]||0),borderColor:'#ff9f2e',backgroundColor:'rgba(255,159,46,.10)',tension:.3,fill:true,borderWidth:2.5,pointRadius:0,pointHoverRadius:4},
+        {label:'2026',data:weeks.map(w=>m26[w]||0),borderColor:rest.color,backgroundColor:rest.color+'18',tension:.3,fill:true,borderWidth:2.5,pointRadius:0,pointHoverRadius:4},
+      ]
+    },{plugins:{annotation:{annotations:goLiveAnno(rest,weeks)}}});
+
+    const mph25=aggByWeek(r25,'bookingsPhoneHuman'), mph26=aggByWeek(r26,'bookingsPhoneHuman'), mai=aggByWeek(r26,'bookingsPhoneAI');
+    mkChart('res-d-phone','bar',{
+      labels:weeks.map(w=>'W'+w),
+      datasets:[
+        {label:'2025 Phone',data:weeks.map(w=>mph25[w]||0),backgroundColor:'rgba(255,159,46,.55)'},
+        {label:'2026 Phone/InHouse',data:weeks.map(w=>mph26[w]||0),backgroundColor:'rgba(34,217,142,.55)'},
+        {label:'2026 Phone/AI',data:weeks.map(w=>mai[w]||0),backgroundColor:'rgba(176,110,245,.7)'},
+      ]
+    },{plugins:{annotation:{annotations:goLiveAnno(rest,weeks)}}});
+
+    mkChart('res-d-pie','doughnut',{
+      labels:['OT Network','Phone/InHouse','Phone/AI','Walk-in','Your Network'],
+      datasets:[{data:[ot26,ph26,ai26,wk26,web26],backgroundColor:['#3d8ef8','#22d98e','#b06ef5','#ff9f2e','#f43f8e'],borderWidth:0,hoverOffset:6}]
+    },{plugins:{legend:{display:true,position:'right',labels:{color:'#8890b8',font:{size:11},padding:10}}}});
+
+    const mot=aggByWeek(r26,'bookingsOTNetwork'), mweb=aggByWeek(r26,'bookingsYourNetwork'), mwk=aggByWeek(r26,'bookingsWalkIn');
+    mkChart('res-d-src','line',{
+      labels:weeks.map(w=>'W'+w),
+      datasets:[
+        {label:'OT Network',data:weeks.map(w=>mot[w]||0),borderColor:'#3d8ef8',tension:.3,fill:false,borderWidth:2,pointRadius:0},
+        {label:'Phone/InHouse',data:weeks.map(w=>mph26[w]||0),borderColor:'#22d98e',tension:.3,fill:false,borderWidth:2,pointRadius:0},
+        {label:'Phone/AI',data:weeks.map(w=>mai[w]||0),borderColor:'#b06ef5',tension:.3,fill:false,borderWidth:2.5,borderDash:[5,3],pointRadius:0},
+        {label:'Your Network',data:weeks.map(w=>mweb[w]||0),borderColor:'#f43f8e',tension:.3,fill:false,borderWidth:1.5,pointRadius:0},
+        {label:'Walk-in',data:weeks.map(w=>mwk[w]||0),borderColor:'#ff9f2e',tension:.3,fill:false,borderWidth:1.5,pointRadius:0},
+      ]
+    },{plugins:{annotation:{annotations:goLiveAnno(rest,weeks)}}});
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  CONVERSATION TAB (AI call audio → hangup / exit reasons)
+// ═══════════════════════════════════════════════════════════════
+function renderConversation() {
+  const el = document.getElementById('page-conversation');
+  if (!el) return;
+  const cAI = sum(filteredWeeks(D.rows26), 'callsAI');
+  el.innerHTML = `
+    <div class="conv-build">
+      <div class="pulse">🎧</div>
+      <h2>Conversation</h2>
+      <div class="status">Building · currently listening to AI call audio</div>
+      <p>We are processing TalkDesk recordings for <b style="color:var(--text)">If-No-Answer Agent</b> calls only — using the TalkDesk <code>Record</code> mp3 listen links.</p>
+      <p>Soon this tab will show <b style="color:var(--text)">Conversations Subcategories</b>: why callers leave or escalate on AI (want human, no availability, confusion, etc.).</p>
+      <div class="scope">
+        <div><b>Source:</b> TalkDesk Record mp3 (not Hostie)</div>
+        <div><b>Scope:</b> If-No-Answer Agent calls with a listen link</div>
+        <div><b>AI calls in window (W${F.wkFrom}–W${F.wkTo}):</b> ${cAI.toLocaleString()} TalkDesk AI legs</div>
+        <div style="margin-top:8px;color:var(--muted)">Abandoned calls are out of scope — we only analyze connected AI recordings.</div>
+      </div>
+    </div>
+  `;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TAB SWITCHING
+// ═══════════════════════════════════════════════════════════════
+function showTab(name) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// ─── START ───────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
