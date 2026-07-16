@@ -1727,14 +1727,38 @@ function renderCalls() {
   });
 }
 
+let _peopleStatic = null;   // cached ./people.json when no backend
+let _peopleReadOnly = false; // true on GitHub Pages (no POST endpoint)
+
+async function loadPeople(week) {
+  // Local Express server first; GitHub Pages falls back to static people.json
+  try {
+    const r = await fetch(`/api/people?week=${week}`);
+    if (r.ok) {
+      const j = await r.json();
+      if (j && j.ok) { _peopleReadOnly = false; return j; }
+    }
+  } catch (_) { /* static host */ }
+
+  if (!_peopleStatic) {
+    const r2 = await fetch('./people.json');
+    if (!r2.ok) throw new Error('Could not load /api/people or ./people.json');
+    _peopleStatic = await r2.json();
+  }
+  _peopleReadOnly = true;
+  const weeks = _peopleStatic.weeks || {};
+  const pick = weeks[week] || weeks[_peopleStatic.latestWeek] || Object.values(weeks)[0];
+  if (!pick) throw new Error('No people data available in snapshot');
+  return pick;
+}
+
 async function renderPeople() {
   const el = document.getElementById('page-people');
   if (!el) return;
   el.innerHTML = `<div class="loading">Loading Reservation Call Report…</div>`;
   try {
     const week = F.wkTo || D.cutoff || 24;
-    const r = await fetch(`/api/people?week=${week}`);
-    const j = await r.json();
+    const j = await loadPeople(week);
     if (!j.ok) {
       el.innerHTML = `<div class="table-card"><p>${j.error || 'People report not available.'}</p>
         <div class="stat-note">Ensure TalkDesk CSV is in <code>data/</code> and the dashboard server is running.</div></div>`;
@@ -1756,7 +1780,7 @@ async function renderPeople() {
 
     const ringMetricCells = (m, agentName, period, editable) => {
       const wh = m.workedHours;
-      const hoursCell = editable
+      const hoursCell = (editable && !_peopleReadOnly)
         ? `<td><input class="hours-input" type="number" min="0" step="0.01" data-agent="${agentName}" data-period="${period}" value="${wh != null ? wh : ''}" placeholder="hrs" title="Edit worked hours — saves on blur"></td>`
         : `<td>${wh != null ? wh : '—'}</td>`;
       return `
@@ -1831,7 +1855,7 @@ async function renderPeople() {
 
     el.innerHTML = `
       <div class="section-head">People — Reservation Call Report</div>
-      ${insightBanner(`Matches Excel <b>Reservation Call Report</b>: Ring Groups, Type of Call, and Peak Times. Week uses dashboard filter <b>W${j.selectedWeek}</b>; MTD = <b>W${j.mtdFromWeek}–W${j.mtdToWeek}</b> (4-week period). <b>Worked Hours</b> are editable — enter payroll hours to compute Call Per Hour.`)}
+      ${insightBanner(`Matches Excel <b>Reservation Call Report</b>: Ring Groups, Type of Call, and Peak Times. Week uses dashboard filter <b>W${j.selectedWeek}</b>; MTD = <b>W${j.mtdFromWeek}–W${j.mtdToWeek}</b> (4-week period). ${_peopleReadOnly ? '<b>Worked Hours</b> are view-only on the shared link — edit them in the local dashboard.' : '<b>Worked Hours</b> are editable — enter payroll hours to compute Call Per Hour.'}`)}
       <div class="people-week-bar">
         <label>Report week</label>
         <input type="number" id="people-week" min="1" max="53" value="${j.selectedWeek}">
