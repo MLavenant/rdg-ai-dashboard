@@ -136,6 +136,58 @@ tbody td:first-child{text-align:left;font-weight:600}
 .conv-build .scope{margin-top:18px;padding:12px 16px;background:var(--surface2);border-radius:10px;font-size:12px;color:var(--text);text-align:left}
 .conv-build .scope b{color:var(--ai)}
 
+/* ── SETTINGS / SANITY ── */
+.sanity-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
+@media(max-width:900px){.sanity-grid{grid-template-columns:1fr}}
+.sanity-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.sanity-card h3{font-size:14px;margin-bottom:6px}
+.sanity-card .badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:700;margin-bottom:8px}
+.badge-ok{background:rgba(52,211,153,.18);color:#34d399}
+.badge-warn{background:rgba(251,191,36,.15);color:#fbbf24}
+.badge-fail{background:rgba(248,113,113,.18);color:#f87171}
+.sanity-card ul{margin:8px 0 0;padding-left:18px;color:var(--muted);font-size:12px;line-height:1.5}
+.sanity-card .summary{font-size:13px;color:var(--text)}
+.checklist-table td:first-child{font-weight:600}
+code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius:4px;color:var(--ai)}
+
+/* ── CONVERSATION SAMPLE ── */
+.cat-bar{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.cat-row{display:grid;grid-template-columns:180px 1fr 40px;gap:10px;align-items:center;font-size:12px}
+.cat-track{height:10px;background:var(--surface2);border-radius:999px;overflow:hidden}
+.cat-fill{height:100%;background:linear-gradient(90deg,#3d8ef8,#b06ef5);border-radius:999px}
+.conv-table a{color:var(--ai);text-decoration:none}
+.conv-table a:hover{text-decoration:underline}
+.pill-cat{background:rgba(176,110,245,.18);color:var(--ai)}
+
+/* ── PATTERN / LLM / PEOPLE ── */
+.pattern-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:16px}
+.pattern-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.pattern-card h4{font-size:12px;font-weight:700;margin-bottom:6px}
+.pattern-card p{font-size:12px;color:var(--muted);line-height:1.5}
+.pattern-card.sev-high{border-color:rgba(248,113,113,.35)}
+.pattern-card.sev-medium{border-color:rgba(251,191,36,.3)}
+.llm-box{background:var(--surface2);border:1px solid rgba(176,110,245,.35);border-radius:var(--radius);padding:14px 16px;margin-bottom:16px;font-size:13px;line-height:1.6;white-space:pre-wrap}
+.people-note{font-size:11px;color:var(--muted);margin-bottom:10px}
+.agent-new{color:var(--green);font-size:10px;font-weight:600}
+.agent-left{color:var(--red);font-size:10px;font-weight:600}
+.people-subtabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.people-subtab{padding:7px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:12px;font-weight:600;cursor:pointer}
+.people-subtab.active{background:rgba(61,142,248,.18);border-color:rgba(61,142,248,.45);color:var(--text)}
+.people-week-bar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.people-week-bar label{font-size:12px;color:var(--muted)}
+.people-week-bar input{width:64px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text)}
+.hours-input{width:72px;padding:4px 6px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:12px}
+.hours-input:focus{border-color:var(--accent);outline:none}
+.people-table td,.people-table th{font-size:11px;padding:6px 8px;white-space:nowrap}
+.people-table th{position:sticky;top:0;background:var(--surface);z-index:1}
+.people-table .grp-start{border-left:2px solid var(--border)}
+.peak-wrap{overflow:auto;max-height:520px}
+.peak-table td,.peak-table th{font-size:11px;padding:5px 6px;text-align:center}
+.peak-table th.time-col{text-align:left;min-width:56px}
+.peak-table .day-sep{border-left:2px solid var(--border)}
+.ai-row td{color:var(--ai)}
+.save-hint{font-size:11px;color:var(--green);margin-left:8px}
+
 </style>
 </head>
 <body>
@@ -147,8 +199,10 @@ tbody td:first-child{text-align:left;font-weight:600}
     <button class="tab-btn active" onclick="showTab('overview')">Overview</button>
     <button class="tab-btn" onclick="showTab('byrest')">By Restaurant</button>
     <button class="tab-btn" onclick="showTab('calls')">Call Center</button>
+    <button class="tab-btn" onclick="showTab('people')">People</button>
     <button class="tab-btn" onclick="showTab('reservations')">Reservations</button>
     <button class="tab-btn" onclick="showTab('conversation')">Conversation</button>
+    <button class="tab-btn" onclick="showTab('settings')">Settings</button>
   </div>
 </nav>
 
@@ -188,8 +242,10 @@ tbody td:first-child{text-align:left;font-weight:600}
 <div id="page-overview" class="page active"><div class="loading">Loading data…</div></div>
 <div id="page-byrest"   class="page"><div class="loading">Loading data…</div></div>
 <div id="page-calls"    class="page"><div class="loading">Loading data…</div></div>
+<div id="page-people"   class="page"><div class="loading">Loading people data…</div></div>
 <div id="page-reservations" class="page"><div class="loading">Loading data…</div></div>
 <div id="page-conversation" class="page"><div class="loading">Loading data…</div></div>
+<div id="page-settings" class="page"><div class="loading">Loading data…</div></div>
 
 <script>
 // ═══════════════════════════════════════════════════════════════
@@ -251,8 +307,10 @@ function renderAll() {
   renderOverview();
   renderByRest();
   renderCalls();
+  renderPeople();
   renderReservations();
   renderConversation();
+  renderSettings();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1669,6 +1727,228 @@ function renderCalls() {
   });
 }
 
+async function renderPeople() {
+  const el = document.getElementById('page-people');
+  if (!el) return;
+  el.innerHTML = `<div class="loading">Loading Reservation Call Report…</div>`;
+  try {
+    const week = F.wkTo || D.cutoff || 24;
+    const r = await fetch(`/api/people?week=${week}`);
+    const j = await r.json();
+    if (!j.ok) {
+      el.innerHTML = `<div class="table-card"><p>${j.error || 'People report not available.'}</p>
+        <div class="stat-note">Ensure TalkDesk CSV is in <code>data/</code> and the dashboard server is running.</div></div>`;
+      return;
+    }
+
+    const fmtPct = (v) => v == null ? '—' : `${(v * 100).toFixed(1)}%`;
+    const fmtSecs = (s) => {
+      if (!s) return '0s';
+      if (s >= 3600) return `${Math.floor(s/3600)}h ${Math.floor((s%3600)/60)}m`;
+      if (s >= 60) return `${Math.floor(s/60)}m ${s%60}s`;
+      return `${Math.round(s * 10) / 10}s`;
+    };
+    const fmtNum = (n) => (n ?? 0).toLocaleString();
+    const fmtCph = (v) => v == null ? '—' : v.toFixed(2);
+
+    const periodHdr = (label, sub) =>
+      `<th colspan="9" class="grp-start">${label}<div style="font-weight:400;font-size:10px;color:var(--muted)">${sub}</div></th>`;
+
+    const ringMetricCells = (m, agentName, period, editable) => {
+      const wh = m.workedHours;
+      const hoursCell = editable
+        ? `<td><input class="hours-input" type="number" min="0" step="0.01" data-agent="${agentName}" data-period="${period}" value="${wh != null ? wh : ''}" placeholder="hrs" title="Edit worked hours — saves on blur"></td>`
+        : `<td>${wh != null ? wh : '—'}</td>`;
+      return `
+        <td class="grp-start">${fmtNum(m.calls)}</td>
+        <td>${fmtPct(m.pct)}</td>
+        ${hoursCell}
+        <td>${fmtCph(m.callsPerHour)}</td>
+        <td>${fmtSecs(m.avgTalkSecs)}</td>
+        <td>${fmtSecs(m.maxTalkSecs)}</td>
+        <td>${fmtSecs(m.asaSecs)}</td>
+        <td>${fmtNum(m.missed)}</td>
+        <td>${fmtPct(m.missedPct)}</td>`;
+    };
+
+    const ringRows = (j.ringGroups.agents || []).map(a => `
+      <tr class="${a.isAi ? 'ai-row' : ''}">
+        <td style="text-align:left">${a.isAi ? 'AI Agent' : a.agentName}</td>
+        ${ringMetricCells(a.week, a.agentName, 'week', !a.isAi)}
+        ${ringMetricCells(a.mtd, a.agentName, 'mtd', !a.isAi)}
+      </tr>`).join('');
+
+    const t = j.ringGroups.totals;
+    const ringTotalRow = `
+      <tr style="font-weight:700">
+        <td style="text-align:left">Total</td>
+        ${ringMetricCells(t.week, '', 'week', false)}
+        ${ringMetricCells(t.mtd, '', 'mtd', false)}
+      </tr>`;
+
+    const typeCols = (j.typeOfCall.types || []);
+    const typeHdr = typeCols.map(c => `<th>${c}</th>`).join('') + '<th>% NA</th><th>Total</th>';
+    const typeCells = (b) => typeCols.map(c => `<td>${fmtNum(b.types?.[c])}</td>`).join('')
+      + `<td>${fmtPct(b.naPct)}</td><td>${fmtNum(b.total)}</td>`;
+
+    const typeAgentRows = (j.typeOfCall.agents || []).map(a => `
+      <tr class="${a.isAi ? 'ai-row' : ''}">
+        <td style="text-align:left">${a.isAi ? 'AI Agent' : a.agentName}</td>
+        ${typeCols.map(c => `<td>${fmtNum(a.week.types?.[c])}</td>`).join('')}
+        <td>${fmtPct(a.week.naPct)}</td>
+        <td>${fmtNum(a.week.total)}</td>
+      </tr>`).join('');
+
+    const peakDays = j.peakTimes.days || [];
+    const peakHours = j.peakTimes.hours || [];
+    const peakHdr = peakDays.map(d => `<th colspan="4" class="day-sep">${d}</th>`).join('')
+      + '<th colspan="4" class="day-sep">TOTAL</th>';
+    const peakSub = peakDays.map(() =>
+      '<th class="day-sep">Taken</th><th>Missed</th><th>Outbound</th><th>Abandoned</th>'
+    ).join('') + '<th class="day-sep">Taken</th><th>Missed</th><th>Outbound</th><th>Abandoned</th>';
+
+    const peakRows = peakHours.map(hour => {
+      const row = j.peakTimes.grid?.[hour] || {};
+      let rt=0, rm=0, ro=0, ra=0;
+      const dayCells = peakDays.map(day => {
+        const c = row[day] || { taken:0, missed:0, outbound:0, abandoned:0 };
+        rt += c.taken; rm += c.missed; ro += c.outbound; ra += c.abandoned;
+        return `<td class="day-sep">${c.taken}</td><td>${c.missed}</td><td>${c.outbound}</td><td>${c.abandoned}</td>`;
+      }).join('');
+      return `<tr><th class="time-col">${hour}</th>${dayCells}<td class="day-sep">${rt}</td><td>${rm}</td><td>${ro}</td><td>${ra}</td></tr>`;
+    }).join('');
+
+    const tot = j.peakTimes.totals || { taken:0, missed:0, outbound:0, abandoned:0 };
+    const peakGrand = j.peakTimes.totalCalls || 1;
+    const peakTotalRow = `<tr style="font-weight:700">
+      <th class="time-col">TOTAL</th>
+      ${peakDays.map(() => `<td class="day-sep">—</td><td>—</td><td>—</td><td>—</td>`).join('')}
+      <td class="day-sep">${tot.taken}<div style="font-size:10px;color:var(--muted)">${fmtPct(tot.taken/peakGrand)}</div></td>
+      <td>${tot.missed}<div style="font-size:10px;color:var(--muted)">${fmtPct(tot.missed/peakGrand)}</div></td>
+      <td>${tot.outbound}<div style="font-size:10px;color:var(--muted)">${fmtPct(tot.outbound/peakGrand)}</div></td>
+      <td>${tot.abandoned}<div style="font-size:10px;color:var(--muted)">${fmtPct(tot.abandoned/peakGrand)}</div></td>
+    </tr>`;
+
+    el.innerHTML = `
+      <div class="section-head">People — Reservation Call Report</div>
+      ${insightBanner(`Matches Excel <b>Reservation Call Report</b>: Ring Groups, Type of Call, and Peak Times. Week uses dashboard filter <b>W${j.selectedWeek}</b>; MTD = <b>W${j.mtdFromWeek}–W${j.mtdToWeek}</b> (4-week period). <b>Worked Hours</b> are editable — enter payroll hours to compute Call Per Hour.`)}
+      <div class="people-week-bar">
+        <label>Report week</label>
+        <input type="number" id="people-week" min="1" max="53" value="${j.selectedWeek}">
+        <button class="rest-btn" id="people-week-go" style="padding:6px 12px">Apply</button>
+        <span class="people-note">Source: ${j.sources?.csv || '—'} · Generated ${j.generatedAt ? new Date(j.generatedAt).toLocaleString() : '—'}<span id="people-save-hint"></span></span>
+      </div>
+      <div class="people-subtabs" id="people-subtabs">
+        <button class="people-subtab active" data-people-panel="ring">Summary — Ring Groups</button>
+        <button class="people-subtab" data-people-panel="type">Summary — Type of Call</button>
+        <button class="people-subtab" data-people-panel="peak">Summary — Peak Times BreakDown</button>
+      </div>
+
+      <div id="people-panel-ring">
+        <div class="table-card" style="overflow:auto">
+          <h3>Summary — Ring Groups</h3>
+          <p class="people-note"># calls = inbound + outbound · ASA = avg Agent Speed to Answer · AI Agent row = If-No-Answer Agent</p>
+          <table class="people-table">
+            <thead>
+              <tr>
+                <th rowspan="2">Agent</th>
+                ${periodHdr(`Week ${j.selectedWeek}`, 'Current week')}
+                ${periodHdr(`MTD W${j.mtdFromWeek}–${j.mtdToWeek}`, '4-week period')}
+              </tr>
+              <tr>
+                <th class="grp-start">#</th><th>%</th><th>Worked Hrs</th><th>Call/Hr</th><th>Avg Talk</th><th>Max Talk</th><th>ASA</th><th># Missed</th><th>% Missed</th>
+                <th class="grp-start">#</th><th>%</th><th>Worked Hrs</th><th>Call/Hr</th><th>Avg Talk</th><th>Max Talk</th><th>ASA</th><th># Missed</th><th>% Missed</th>
+              </tr>
+            </thead>
+            <tbody>${ringRows}${ringTotalRow}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="people-panel-type" style="display:none">
+        <div class="table-card" style="overflow:auto">
+          <h3>Summary — Type of Call</h3>
+          <p class="people-note">From TalkDesk Disposition Code · empty = NA · Goal: &lt;20% NA for data quality</p>
+          <table class="people-table">
+            <thead>
+              <tr><th style="text-align:left">Agent</th>${typeHdr}</tr>
+            </thead>
+            <tbody>
+              <tr style="font-weight:600"><td style="text-align:left">Total</td>${typeCells(j.typeOfCall.totals?.week)}</tr>
+              ${typeAgentRows}
+            </tbody>
+          </table>
+          <h3 style="margin-top:20px">MTD W${j.mtdFromWeek}–${j.mtdToWeek}</h3>
+          <table class="people-table">
+            <thead><tr><th>Agent</th>${typeHdr}</tr></thead>
+            <tbody>
+              <tr style="font-weight:600"><td style="text-align:left">Total</td>${typeCells(j.typeOfCall.totals?.mtd)}</tr>
+              ${(j.typeOfCall.agents||[]).map(a => `<tr class="${a.isAi?'ai-row':''}"><td style="text-align:left">${a.isAi?'AI Agent':a.agentName}</td>${typeCols.map(c=>`<td>${fmtNum(a.mtd.types?.[c])}</td>`).join('')}<td>${fmtPct(a.mtd.naPct)}</td><td>${fmtNum(a.mtd.total)}</td></tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="people-panel-peak" style="display:none">
+        <div class="table-card peak-wrap">
+          <h3>Summary — Peak Times BreakDown</h3>
+          <p class="people-note">Week ${j.selectedWeek} · Taken = inbound · Missed = missed / outbound_missed / voicemail</p>
+          <table class="peak-table">
+            <thead>
+              <tr><th class="time-col" rowspan="2">Time</th>${peakHdr}</tr>
+              <tr>${peakSub}</tr>
+            </thead>
+            <tbody>${peakRows}${peakTotalRow}</tbody>
+          </table>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('people-week-go')?.addEventListener('click', () => {
+      const w = +document.getElementById('people-week').value;
+      if (w >= 1 && w <= 53) { F.wkTo = w; document.getElementById('f-wk-to').value = w; renderPeople(); }
+    });
+
+    document.querySelectorAll('.people-subtab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.people-subtab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const panel = btn.dataset.peoplePanel;
+        ['ring','type','peak'].forEach(p => {
+          const node = document.getElementById('people-panel-' + p);
+          if (node) node.style.display = p === panel ? '' : 'none';
+        });
+      });
+    });
+
+    el.querySelectorAll('.hours-input').forEach(input => {
+      input.addEventListener('change', async () => {
+        const agentName = input.dataset.agent;
+        const period = input.dataset.period;
+        const hours = input.value === '' ? null : parseFloat(input.value);
+        if (hours != null && (isNaN(hours) || hours < 0)) return;
+        try {
+          const resp = await fetch('/api/people/worked-hours', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ agentName, period, year: j.year, week: j.selectedWeek, hours }),
+          });
+          const data = await resp.json();
+          if (data.ok) {
+            const hint = document.getElementById('people-save-hint');
+            if (hint) { hint.textContent = ' · Hours saved'; hint.className = 'save-hint'; setTimeout(() => { hint.textContent = ''; }, 2500); }
+            renderPeople();
+          }
+        } catch (e) {
+          console.error('Save worked hours failed', e);
+        }
+      });
+    });
+  } catch (e) {
+    el.innerHTML = `<div class="error">People report failed: ${e.message}</div>`;
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  RESERVATIONS TAB
 // ═══════════════════════════════════════════════════════════════
@@ -1972,27 +2252,185 @@ function renderResDetail(restId) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  CONVERSATION TAB (AI call audio → hangup / exit reasons)
+//  CONVERSATION TAB — full AI report + audio sample with listen links
 // ═══════════════════════════════════════════════════════════════
-function renderConversation() {
+let _convSampleCalls = [];
+let _convPage = 1;
+const CONV_PAGE_SIZE = 25;
+
+function initConvAudioTable(calls) {
+  _convSampleCalls = calls || [];
+  _convPage = 1;
+  const sel = document.getElementById('conv-filter-rest');
+  const prev = document.getElementById('conv-prev');
+  const next = document.getElementById('conv-next');
+  if (sel) sel.onchange = () => { _convPage = 1; renderConvAudioPage(); };
+  if (prev) prev.onclick = () => { _convPage--; renderConvAudioPage(); };
+  if (next) next.onclick = () => { _convPage++; renderConvAudioPage(); };
+  renderConvAudioPage();
+}
+
+function renderConvAudioPage() {
+  const rest = document.getElementById('conv-filter-rest')?.value || 'all';
+  const tbody = document.getElementById('conv-sample-tbody');
+  const info = document.getElementById('conv-page-info');
+  if (!tbody) return;
+  const filtered = _convSampleCalls.filter(c => rest === 'all' || c.restaurant === rest);
+  const pages = Math.max(1, Math.ceil(filtered.length / CONV_PAGE_SIZE));
+  _convPage = Math.max(1, Math.min(_convPage, pages));
+  const slice = filtered.slice((_convPage - 1) * CONV_PAGE_SIZE, _convPage * CONV_PAGE_SIZE);
+  if (info) info.textContent = `Page ${_convPage} / ${pages} (${filtered.length} calls)`;
+  tbody.innerHTML = slice.map(c => {
+    const cat = c.audioCategory || c.category || '—';
+    const why = c.audioCategoryWhy || c.categoryWhy || '';
+    const play = c.localAudioUrl
+      ? `<audio controls preload="none" style="height:28px;max-width:180px"><source src="${c.localAudioUrl}" type="audio/mpeg"></audio>`
+      : (c.recordUrl ? `<a href="${c.recordUrl}" target="_blank" rel="noopener">Listen ↗</a>` : '—');
+    const tx = c.audioTranscript ? `<div class="stat-note" style="text-align:left;max-width:320px;white-space:normal">${String(c.audioTranscript).slice(0,180)}…</div>` : '';
+    return `<tr>
+    <td>${(c.startTime||'').replace('T',' ').slice(0,16)}</td>
+    <td>${c.restaurant||'—'}</td>
+    <td>${c.talkTime||'—'}</td>
+    <td><span class="pill pill-cat">${cat}</span>${tx}<div class="stat-note">${why}</div></td>
+    <td>${c.listenStatus === 'transcribed' ? '<span class="pill pill-h">audio analyzed</span>' : '<span style="color:var(--muted)">pending</span>'}</td>
+    <td>${play}</td>
+  </tr>`;
+  }).join('');
+}
+
+async function renderConversation() {
   const el = document.getElementById('page-conversation');
   if (!el) return;
-  const cAI = sum(filteredWeeks(D.rows26), 'callsAI');
-  el.innerHTML = `
-    <div class="conv-build">
-      <div class="pulse">🎧</div>
-      <h2>Conversation</h2>
-      <div class="status">Building · currently listening to AI call audio</div>
-      <p>We are processing TalkDesk recordings for <b style="color:var(--text)">If-No-Answer Agent</b> calls only — using the TalkDesk <code>Record</code> mp3 listen links.</p>
-      <p>Soon this tab will show <b style="color:var(--text)">Conversations Subcategories</b>: why callers leave or escalate on AI (want human, no availability, confusion, etc.).</p>
-      <div class="scope">
-        <div><b>Source:</b> TalkDesk Record mp3 (not Hostie)</div>
-        <div><b>Scope:</b> If-No-Answer Agent calls with a listen link</div>
-        <div><b>AI calls in window (W${F.wkFrom}–W${F.wkTo}):</b> ${cAI.toLocaleString()} TalkDesk AI legs</div>
-        <div style="margin-top:8px;color:var(--muted)">Abandoned calls are out of scope — we only analyze connected AI recordings.</div>
+  el.innerHTML = `<div class="loading">Loading audio conversation sample…</div>`;
+  try {
+    const sampleRes = await fetch('/api/conversations');
+    const sample = await sampleRes.json();
+
+    if (!sample.ok && !sample.calls?.length) {
+      el.innerHTML = `<div class="conv-build"><div class="pulse">🎧</div><h2>Conversation</h2>
+        <div class="status">200-call audio sample not built yet</div>
+        <p>${sample.error || 'Build the TalkDesk audio sample first.'}</p>
+        <div class="scope"><b>Step 1:</b> <code class="cmd">npm run conversations:sample</code><br>
+        <b>Step 2:</b> <code class="cmd">npm run conversations:transcribe</code> (needs OPENAI_API_KEY + TalkDesk login in .env)</div></div>`;
+      return;
+    }
+
+    const calls = sample.calls || [];
+    const transcribed = sample.transcribedCount ?? calls.filter(c => c.listenStatus === 'transcribed').length;
+    const byCat = sample.byAudioCategory || sample.byCategory || {};
+    const maxCat = Math.max(1, ...Object.values(byCat).map(Number));
+    const catRows = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v]) => `
+      <div class="cat-row"><div>${k}</div><div class="cat-track"><div class="cat-fill" style="width:${(+v/maxCat)*100}%"></div></div><div>${v}</div></div>`).join('');
+
+    el.innerHTML = `
+      ${insightBanner(`<b>200 TalkDesk audio recordings</b> from If-No-Answer Agent calls. This tab is the audio exercise: <b>listen</b> to each call and review categories from <b>Whisper transcription</b> of the mp3 — not Hostie text.`)}
+
+      <div class="kpi-row" style="grid-template-columns:repeat(5,1fr)">
+        <div class="kpi"><div class="kpi-label">Audio sample</div><div class="kpi-value" style="color:var(--ai)">${calls.length}</div><div class="kpi-sub">TalkDesk mp3 links</div></div>
+        <div class="kpi"><div class="kpi-label">Transcribed</div><div class="kpi-value" style="color:var(--human)">${transcribed}</div><div class="kpi-sub">Whisper + LLM</div></div>
+        <div class="kpi"><div class="kpi-label">Pool</div><div class="kpi-value">${sample.totalWithRecordUrl || '—'}</div><div class="kpi-sub">AI calls w/ recording</div></div>
+        <div class="kpi"><div class="kpi-label">Pending</div><div class="kpi-value">${calls.length - transcribed}</div><div class="kpi-sub">Run transcribe</div></div>
+        <div class="kpi"><div class="kpi-label">Top reason</div><div class="kpi-value" style="font-size:14px">${Object.entries(byCat).sort((a,b)=>b[1]-a[1])[0]?.[0]?.slice(0,18) || '—'}</div></div>
       </div>
-    </div>
-  `;
+
+      <div class="chart-row cols-2">
+        <div class="chart-card">
+          <h3>Why callers leave — from audio transcription</h3>
+          <p>Categories after Whisper listens to TalkDesk mp3 (${transcribed} analyzed)</p>
+          <div class="cat-bar">${catRows || '<div style="color:var(--muted)">Run npm run conversations:transcribe</div>'}</div>
+        </div>
+        <div class="chart-card">
+          <h3>How to refresh</h3>
+          <p style="line-height:1.6;margin:0">
+            <code class="cmd">npm run conversations:sample</code> — pick 200 If-No-Answer calls with Record URLs<br><br>
+            <code class="cmd">npm run conversations:transcribe</code> — download mp3 via TalkDesk login, Whisper transcribe, LLM categorize<br><br>
+            <code class="cmd">npm run conversations:refresh</code> — both steps<br><br>
+            Requires <code class="cmd">OPENAI_API_KEY</code>, <code class="cmd">TALKDESK_EMAIL</code>, <code class="cmd">TALKDESK_PASSWORD</code> in .env
+          </p>
+        </div>
+      </div>
+
+      <div class="section-head">200 AI calls — listen &amp; analyze</div>
+      <div class="table-card conv-table" id="conv-audio-table">
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+          <label style="font-size:12px;color:var(--muted)">Location:</label>
+          <select id="conv-filter-rest" style="font-size:12px">
+            <option value="all">All</option>
+            ${[...new Set(calls.map(c=>c.restaurant))].sort().map(r=>`<option value="${r}">${r}</option>`).join('')}
+          </select>
+          <span id="conv-page-info" style="font-size:12px;color:var(--muted);margin-left:auto"></span>
+          <button type="button" class="rest-btn" style="padding:4px 12px" id="conv-prev">← Prev</button>
+          <button type="button" class="rest-btn" style="padding:4px 12px" id="conv-next">Next →</button>
+        </div>
+        <table>
+          <thead><tr><th>When</th><th>Location</th><th>Talk</th><th>Audio analysis</th><th>Status</th><th>Play / Listen</th></tr></thead>
+          <tbody id="conv-sample-tbody"></tbody>
+        </table>
+        <div class="stat-note">${sample.note || ''} · Updated ${sample.generatedAt ? new Date(sample.generatedAt).toLocaleString() : '—'}</div>
+      </div>
+    `;
+
+    if (calls.length) initConvAudioTable(calls);
+  } catch (e) {
+    el.innerHTML = `<div class="error">Conversation load failed: ${e.message}</div>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  SETTINGS — Monday update sanity checks
+// ═══════════════════════════════════════════════════════════════
+async function renderSettings() {
+  const el = document.getElementById('page-settings');
+  if (!el) return;
+  el.innerHTML = `<div class="loading">Running sanity checks…</div>`;
+  try {
+    const r = await fetch('/api/sanity');
+    const j = await r.json();
+    const badge = (s) => `<span class="badge badge-${s.status}">${s.status.toUpperCase()}</span>`;
+    el.innerHTML = `
+      ${insightBanner(`Updates are scheduled for <b>every Monday at 8:30 AM</b> via Windows Task <b>${j.schedule?.windowsTaskName || 'RDG Dashboard - Weekly Refresh'}</b>. This page checks whether Hostie, TalkDesk, and OpenTable caches look complete and fresh.`)}
+
+      <div class="section-head">Schedule</div>
+      <div class="table-card">
+        <h3>Monday refresh control</h3>
+        <table>
+          <tbody>
+            <tr><td>Expected schedule</td><td>${j.schedule?.expected || 'Monday 8:30 AM'}</td></tr>
+            <tr><td>Windows task</td><td><code class="cmd">${j.schedule?.windowsTaskName || '—'}</code></td></tr>
+            <tr><td>What it runs</td><td><code class="cmd">scripts/weekly-refresh.ps1</code></td></tr>
+            <tr><td>Overall cache health</td><td><span class="badge ${j.ok?'badge-ok':'badge-fail'}">${j.ok?'PASS':'NEEDS ATTENTION'}</span></td></tr>
+            <tr><td>Checked at</td><td>${j.generatedAt ? new Date(j.generatedAt).toLocaleString() : '—'}</td></tr>
+          </tbody>
+        </table>
+        <div class="stat-note">Next expected automated run: Monday 8:30 AM. To re-register the task: run <code class="cmd">scripts/setup-scheduler.ps1</code> as Administrator.</div>
+      </div>
+
+      <div class="section-head">Source sanity checks</div>
+      <div class="sanity-grid">
+        ${(j.sources||[]).map(s => `
+          <div class="sanity-card">
+            <h3>${s.label}</h3>
+            ${badge(s)}
+            <div class="summary">${s.summary}</div>
+            <ul>${(s.details||[]).map(d=>`<li>${d}</li>`).join('')}</ul>
+            <div class="stat-note" style="margin-top:10px">${s.expectedUpdate||''}</div>
+          </div>`).join('')}
+      </div>
+
+      <div class="section-head">What to update (and how)</div>
+      <div class="table-card">
+        <h3>Manual checklist — if Monday job fails or data looks stale</h3>
+        <table class="checklist-table">
+          <thead><tr><th>Step</th><th>Command</th><th>Purpose</th></tr></thead>
+          <tbody>
+            ${(j.checklist||[]).map(c => `<tr><td>${c.step}</td><td><code class="cmd">${c.command}</code></td><td style="text-align:left">${c.purpose}</td></tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } catch (e) {
+    el.innerHTML = `<div class="error">Settings load failed: ${e.message}</div>`;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
