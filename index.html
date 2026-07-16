@@ -270,14 +270,20 @@ const ANALYSIS_START_WEEK = 11;
 // ═══════════════════════════════════════════════════════════════
 async function loadCompare() {
   // Local Express server first; GitHub Pages falls back to static compare.json
-  try {
-    const r = await fetch('/api/compare');
-    if (r.ok) {
-      const j = await r.json();
-      if (j?.ok !== false && Array.isArray(j.rows26)) return j;
-    }
-  } catch (_) { /* static host */ }
-  const r2 = await fetch('./compare.json');
+  const onStaticHost = /github\.io$/i.test(location.hostname) || location.protocol === 'file:';
+  if (!onStaticHost) {
+    try {
+      const r = await fetch('/api/compare');
+      if (r.ok) {
+        const j = await r.json();
+        if (j?.ok !== false && Array.isArray(j.rows26)) return j;
+      }
+    } catch (_) { /* static host */ }
+  }
+  let dir = location.pathname || '/';
+  if (dir.endsWith('.html')) dir = dir.replace(/\/[^/]+$/, '/');
+  else if (!dir.endsWith('/')) dir = dir + '/';
+  const r2 = await fetch(dir + 'compare.json');
   if (!r2.ok) throw new Error('Could not load /api/compare or ./compare.json');
   return r2.json();
 }
@@ -1730,24 +1736,46 @@ function renderCalls() {
 let _peopleStatic = null;   // cached ./people.json when no backend
 let _peopleReadOnly = false; // true on GitHub Pages (no POST endpoint)
 
+/** Resolve a static asset next to the dashboard (works with/without trailing slash). */
+function staticAssetUrl(name) {
+  let dir = location.pathname || '/';
+  if (dir.endsWith('.html')) dir = dir.replace(/\/[^/]+$/, '/');
+  else if (!dir.endsWith('/')) dir = dir + '/';
+  return dir + name;
+}
+
+async function fetchJsonSafe(url) {
+  const r = await fetch(url);
+  const text = await r.text();
+  const trimmed = (text || '').trim();
+  if (!r.ok || !trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+    return null;
+  }
+  try { return JSON.parse(trimmed); } catch { return null; }
+}
+
 async function loadPeople(week) {
-  // Local Express server first; GitHub Pages falls back to static people.json
-  try {
-    const r = await fetch(`/api/people?week=${week}`);
-    if (r.ok) {
-      const j = await r.json();
-      if (j && j.ok) { _peopleReadOnly = false; return j; }
-    }
-  } catch (_) { /* static host */ }
+  const onStaticHost = /github\.io$/i.test(location.hostname) || location.protocol === 'file:';
+
+  // Local Express API (skip on GitHub Pages — /api/* is not under the project path)
+  if (!onStaticHost) {
+    const j = await fetchJsonSafe(`/api/people?week=${week}`);
+    if (j && j.ok) { _peopleReadOnly = false; return j; }
+  }
 
   if (!_peopleStatic) {
-    const r2 = await fetch('./people.json');
-    if (!r2.ok) throw new Error('Could not load /api/people or ./people.json');
-    _peopleStatic = await r2.json();
+    const bust = 'v=20260716b';
+    _peopleStatic = await fetchJsonSafe(staticAssetUrl('people.json') + '?' + bust);
+    if (!_peopleStatic) {
+      _peopleStatic = await fetchJsonSafe('./people.json?' + bust);
+    }
+  }
+  if (!_peopleStatic) {
+    throw new Error('People snapshot missing. Re-export with: npm run dashboard:export');
   }
   _peopleReadOnly = true;
   const weeks = _peopleStatic.weeks || {};
-  const pick = weeks[week] || weeks[_peopleStatic.latestWeek] || Object.values(weeks)[0];
+  const pick = weeks[String(week)] || weeks[String(_peopleStatic.latestWeek)] || Object.values(weeks)[0];
   if (!pick) throw new Error('No people data available in snapshot');
   return pick;
 }
