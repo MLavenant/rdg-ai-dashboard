@@ -1918,8 +1918,28 @@ async function renderPeople() {
       </div>
 
       <div id="people-panel-type" style="display:none">
-        <div class="table-card" style="overflow:auto">
-          <h3>Summary — Type of Call</h3>
+        <div class="kpi-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px" id="people-type-kpis"></div>
+        <div class="chart-row cols-2">
+          <div class="chart-card">
+            <h3>Type of Call — Week mix</h3>
+            <p>Disposition share for W<span id="people-type-week-label">${j.selectedWeek}</span></p>
+            <div class="chart-wrap" style="height:260px"><canvas id="people-type-pie"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h3>Type of Call — Volume</h3>
+            <p>Week vs MTD counts by disposition</p>
+            <div class="chart-wrap" style="height:260px"><canvas id="people-type-bar"></canvas></div>
+          </div>
+        </div>
+        <div class="chart-row cols-1">
+          <div class="chart-card">
+            <h3>By agent — Week disposition mix</h3>
+            <p>Top agents · stacked by type (hover for counts)</p>
+            <div class="chart-wrap" style="height:320px"><canvas id="people-type-agents"></canvas></div>
+          </div>
+        </div>
+        <div class="table-card" style="overflow:auto;margin-top:14px">
+          <h3>Summary — Type of Call (detail)</h3>
           <p class="people-note">From TalkDesk Disposition Code · empty = NA · Goal: &lt;20% NA for data quality</p>
           <table class="people-table">
             <thead>
@@ -1942,8 +1962,28 @@ async function renderPeople() {
       </div>
 
       <div id="people-panel-peak" style="display:none">
-        <div class="table-card peak-wrap">
-          <h3>Summary — Peak Times BreakDown</h3>
+        <div class="kpi-row" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px" id="people-peak-kpis"></div>
+        <div class="chart-row cols-2">
+          <div class="chart-card">
+            <h3>Volume by day — Week ${j.selectedWeek}</h3>
+            <p>Inbound (Taken), Outbound, Abandoned, Missed</p>
+            <div class="chart-wrap" style="height:280px"><canvas id="people-peak-byday"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h3>Week total mix</h3>
+            <p>Share of call types for the full week</p>
+            <div class="chart-wrap" style="height:280px"><canvas id="people-peak-weekmix"></canvas></div>
+          </div>
+        </div>
+        <div class="chart-row cols-1">
+          <div class="chart-card">
+            <h3>Inbound by hour of day</h3>
+            <p>Taken (inbound) volume across the week — where demand peaks</p>
+            <div class="chart-wrap" style="height:240px"><canvas id="people-peak-byhour"></canvas></div>
+          </div>
+        </div>
+        <div class="table-card peak-wrap" style="margin-top:14px">
+          <h3>Hour × day detail</h3>
           <p class="people-note">Week ${j.selectedWeek} · Taken = inbound · Missed = missed / outbound_missed / voicemail</p>
           <table class="peak-table">
             <thead>
@@ -1955,6 +1995,9 @@ async function renderPeople() {
         </div>
       </div>
     `;
+
+    // stash report for chart renderers when panels open
+    window._peopleReport = j;
 
     document.getElementById('people-week-go')?.addEventListener('click', () => {
       const w = +document.getElementById('people-week').value;
@@ -1970,6 +2013,8 @@ async function renderPeople() {
           const node = document.getElementById('people-panel-' + p);
           if (node) node.style.display = p === panel ? '' : 'none';
         });
+        if (panel === 'type') requestAnimationFrame(() => renderPeopleTypeCharts(window._peopleReport));
+        if (panel === 'peak') requestAnimationFrame(() => renderPeoplePeakCharts(window._peopleReport));
       });
     });
 
@@ -1999,6 +2044,132 @@ async function renderPeople() {
   } catch (e) {
     el.innerHTML = `<div class="error">People report failed: ${e.message}</div>`;
   }
+}
+
+const PEOPLE_TYPE_COLORS = {
+  'General Inquiry': '#3d8ef8',
+  'Other': '#7b82a6',
+  'New Reservation': '#34d399',
+  'Confirmation': '#a78bfa',
+  'Events': '#fbbf24',
+  'Cancellation': '#f87171',
+  'NA': '#64748b',
+};
+const PEAK_COLORS = {
+  taken: '#34d399',
+  outbound: '#3d8ef8',
+  abandoned: '#fbbf24',
+  missed: '#f87171',
+};
+
+function renderPeopleTypeCharts(j) {
+  if (!j?.typeOfCall) return;
+  const types = j.typeOfCall.types || [];
+  const weekT = j.typeOfCall.totals?.week || { types: {}, total: 0, naPct: 0 };
+  const mtdT = j.typeOfCall.totals?.mtd || { types: {}, total: 0, naPct: 0 };
+  const weekVals = types.map(t => weekT.types?.[t] || 0);
+  const mtdVals = types.map(t => mtdT.types?.[t] || 0);
+  const colors = types.map(t => PEOPLE_TYPE_COLORS[t] || '#7b82a6');
+
+  const kpi = document.getElementById('people-type-kpis');
+  if (kpi) {
+    const top = [...types].sort((a,b)=>(weekT.types?.[b]||0)-(weekT.types?.[a]||0))[0] || '—';
+    kpi.innerHTML = `
+      <div class="kpi"><div class="kpi-label">Week calls typed</div><div class="kpi-value">${(weekT.total||0).toLocaleString()}</div></div>
+      <div class="kpi"><div class="kpi-label">MTD calls typed</div><div class="kpi-value">${(mtdT.total||0).toLocaleString()}</div></div>
+      <div class="kpi"><div class="kpi-label">% NA (week)</div><div class="kpi-value ${(weekT.naPct||0)>0.2?'dn':'up'}">${((weekT.naPct||0)*100).toFixed(1)}%</div><div class="kpi-sub">Goal &lt;20%</div></div>
+      <div class="kpi"><div class="kpi-label">Top type (week)</div><div class="kpi-value" style="font-size:15px">${top}</div></div>`;
+  }
+
+  mkChart('people-type-pie','doughnut',{
+    labels: types,
+    datasets:[{ data: weekVals, backgroundColor: colors.map(c=>c+'cc'), borderColor: colors, borderWidth: 1 }]
+  },{plugins:{legend:{display:true,position:'right',labels:{color:'#c8cde0',boxWidth:12,font:{size:11}}},tooltip:{callbacks:{label:ctx=>{
+    const v=ctx.raw||0; const tot=weekVals.reduce((s,n)=>s+n,0)||1;
+    return ` ${ctx.label}: ${v.toLocaleString()} (${(v/tot*100).toFixed(1)}%)`;
+  }}}},scales:{x:{display:false},y:{display:false}}});
+
+  mkChart('people-type-bar','bar',{
+    labels: types.map(t => t.replace('General ','Gen. ').replace('New ','New\n')),
+    datasets:[
+      { label:'Week', data: weekVals, backgroundColor: 'rgba(61,142,248,.7)', borderRadius: 4 },
+      { label:'MTD', data: mtdVals, backgroundColor: 'rgba(167,139,250,.55)', borderRadius: 4 },
+    ]
+  },{plugins:{legend:{display:true,labels:{color:'#c8cde0'}}}});
+
+  const agents = (j.typeOfCall.agents||[]).filter(a=>!a.isAi && (a.week?.total||0)>0)
+    .sort((a,b)=>(b.week?.total||0)-(a.week?.total||0)).slice(0,10);
+  mkChart('people-type-agents','bar',{
+    labels: agents.map(a => a.agentName.split(' ')[0]),
+    datasets: types.map(t => ({
+      label: t,
+      data: agents.map(a => a.week?.types?.[t] || 0),
+      backgroundColor: (PEOPLE_TYPE_COLORS[t]||'#7b82a6')+'99',
+      stack: 's',
+    }))
+  },{scales:{x:{stacked:true},y:{stacked:true}},plugins:{legend:{display:true,position:'bottom',labels:{color:'#c8cde0',boxWidth:10,font:{size:10}}}}});
+}
+
+function renderPeoplePeakCharts(j) {
+  if (!j?.peakTimes) return;
+  const days = j.peakTimes.days || [];
+  const hours = j.peakTimes.hours || [];
+  const grid = j.peakTimes.grid || {};
+  const tot = j.peakTimes.totals || { taken:0, missed:0, outbound:0, abandoned:0 };
+  const grand = j.peakTimes.totalCalls || 1;
+
+  const byDay = days.map(day => {
+    let taken=0, missed=0, outbound=0, abandoned=0;
+    hours.forEach(h => {
+      const c = grid[h]?.[day] || {};
+      taken += c.taken||0; missed += c.missed||0; outbound += c.outbound||0; abandoned += c.abandoned||0;
+    });
+    return { day, taken, missed, outbound, abandoned, total: taken+missed+outbound+abandoned };
+  });
+
+  const kpi = document.getElementById('people-peak-kpis');
+  if (kpi) {
+    kpi.innerHTML = `
+      <div class="kpi"><div class="kpi-label">Week volume</div><div class="kpi-value">${grand.toLocaleString()}</div><div class="kpi-sub">All types</div></div>
+      <div class="kpi"><div class="kpi-label">Inbound</div><div class="kpi-value" style="color:var(--human)">${(tot.taken||0).toLocaleString()}</div><div class="kpi-sub">${((tot.taken||0)/grand*100).toFixed(1)}%</div></div>
+      <div class="kpi"><div class="kpi-label">Outbound</div><div class="kpi-value" style="color:#3d8ef8">${(tot.outbound||0).toLocaleString()}</div><div class="kpi-sub">${((tot.outbound||0)/grand*100).toFixed(1)}%</div></div>
+      <div class="kpi"><div class="kpi-label">Abandoned</div><div class="kpi-value" style="color:#fbbf24">${(tot.abandoned||0).toLocaleString()}</div><div class="kpi-sub">${((tot.abandoned||0)/grand*100).toFixed(1)}%</div></div>
+      <div class="kpi"><div class="kpi-label">Missed</div><div class="kpi-value" style="color:var(--red)">${(tot.missed||0).toLocaleString()}</div><div class="kpi-sub">${((tot.missed||0)/grand*100).toFixed(1)}%</div></div>`;
+  }
+
+  mkChart('people-peak-byday','bar',{
+    labels: byDay.map(d => d.day.slice(0,3)),
+    datasets:[
+      { label:'Inbound', data: byDay.map(d=>d.taken), backgroundColor: PEAK_COLORS.taken+'bb', stack:'s', borderRadius:3 },
+      { label:'Outbound', data: byDay.map(d=>d.outbound), backgroundColor: PEAK_COLORS.outbound+'bb', stack:'s', borderRadius:3 },
+      { label:'Abandoned', data: byDay.map(d=>d.abandoned), backgroundColor: PEAK_COLORS.abandoned+'bb', stack:'s', borderRadius:3 },
+      { label:'Missed', data: byDay.map(d=>d.missed), backgroundColor: PEAK_COLORS.missed+'bb', stack:'s', borderRadius:3 },
+    ]
+  },{scales:{x:{stacked:true},y:{stacked:true}},plugins:{legend:{display:true,labels:{color:'#c8cde0'}}}});
+
+  mkChart('people-peak-weekmix','doughnut',{
+    labels:['Inbound','Outbound','Abandoned','Missed'],
+    datasets:[{
+      data:[tot.taken||0, tot.outbound||0, tot.abandoned||0, tot.missed||0],
+      backgroundColor:[PEAK_COLORS.taken+'cc', PEAK_COLORS.outbound+'cc', PEAK_COLORS.abandoned+'cc', PEAK_COLORS.missed+'cc'],
+      borderColor:[PEAK_COLORS.taken, PEAK_COLORS.outbound, PEAK_COLORS.abandoned, PEAK_COLORS.missed],
+      borderWidth:1
+    }]
+  },{plugins:{legend:{display:true,position:'right',labels:{color:'#c8cde0'}},tooltip:{callbacks:{label:ctx=>{
+    const v=ctx.raw||0; return ` ${ctx.label}: ${v.toLocaleString()} (${(v/grand*100).toFixed(1)}%)`;
+  }}}},scales:{x:{display:false},y:{display:false}}});
+
+  const hourTaken = hours.map(h => days.reduce((s,d)=>s+(grid[h]?.[d]?.taken||0),0));
+  mkChart('people-peak-byhour','line',{
+    labels: hours,
+    datasets:[{
+      label:'Inbound',
+      data: hourTaken,
+      borderColor: PEAK_COLORS.taken,
+      backgroundColor: PEAK_COLORS.taken+'22',
+      fill:true, tension:.35, borderWidth:2.5, pointRadius:3
+    }]
+  },{plugins:{legend:{display:false}}});
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2353,51 +2524,71 @@ function renderConvAudioPage() {
 async function renderConversation() {
   const el = document.getElementById('page-conversation');
   if (!el) return;
-  el.innerHTML = `<div class="loading">Loading audio conversation sample…</div>`;
+  el.innerHTML = `<div class="loading">Loading conversation sample…</div>`;
   try {
-    const sampleRes = await fetch('/api/conversations');
-    const sample = await sampleRes.json();
-
-    if (!sample.ok && !sample.calls?.length) {
+    const onStaticHost = /github\.io$/i.test(location.hostname) || location.protocol === 'file:';
+    let sample = null;
+    if (!onStaticHost) {
+      sample = await fetchJsonSafe('/api/conversations');
+    }
+    if (!sample) {
+      sample = await fetchJsonSafe(staticAssetUrl('conversations.json') + '?v=20260716c')
+        || await fetchJsonSafe('./conversations.json?v=20260716c');
+    }
+    if (!sample) {
       el.innerHTML = `<div class="conv-build"><div class="pulse">🎧</div><h2>Conversation</h2>
-        <div class="status">200-call audio sample not built yet</div>
-        <p>${sample.error || 'Build the TalkDesk audio sample first.'}</p>
+        <div class="status">We are currently listening to calls and analyzing them.</div>
+        <p>Audio sample not available on this host yet. Locally run the sample + transcribe pipeline, then re-export the shared dashboard.</p>
         <div class="scope"><b>Step 1:</b> <code class="cmd">npm run conversations:sample</code><br>
-        <b>Step 2:</b> <code class="cmd">npm run conversations:transcribe</code> (needs OPENAI_API_KEY + TalkDesk login in .env)</div></div>`;
+        <b>Step 2:</b> <code class="cmd">npm run conversations:transcribe</code><br>
+        <b>Step 3:</b> <code class="cmd">npm run dashboard:export</code> and publish</div></div>`;
       return;
     }
 
     const calls = sample.calls || [];
     const transcribed = sample.transcribedCount ?? calls.filter(c => c.listenStatus === 'transcribed').length;
+    const pending = Math.max(0, calls.length - transcribed);
+    const listening = pending > 0 || sample.listeningInProgress;
     const byCat = sample.byAudioCategory || sample.byCategory || {};
     const maxCat = Math.max(1, ...Object.values(byCat).map(Number));
     const catRows = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v]) => `
       <div class="cat-row"><div>${k}</div><div class="cat-track"><div class="cat-fill" style="width:${(+v/maxCat)*100}%"></div></div><div>${v}</div></div>`).join('');
 
+    if (!calls.length) {
+      el.innerHTML = `<div class="conv-build"><div class="pulse">🎧</div><h2>Conversation</h2>
+        <div class="status">We are currently listening to calls and analyzing them.</div>
+        <p>${sample.error || 'Building the 200-call TalkDesk audio sample…'}</p>
+        <div class="scope"><b>Step 1:</b> <code class="cmd">npm run conversations:sample</code><br>
+        <b>Step 2:</b> <code class="cmd">npm run conversations:transcribe</code></div></div>`;
+      return;
+    }
+
     el.innerHTML = `
-      ${insightBanner(`<b>200 TalkDesk audio recordings</b> from If-No-Answer Agent calls. This tab is the audio exercise: <b>listen</b> to each call and review categories from <b>Whisper transcription</b> of the mp3 — not Hostie text.`)}
+      ${insightBanner(listening
+        ? `<b>🎧 We are currently listening to calls and analyzing them.</b> ${transcribed} of ${calls.length} sample recordings transcribed so far · ${pending} still in the queue. Use <b>Listen</b> links below while analysis continues.`
+        : `<b>200 TalkDesk audio recordings</b> from If-No-Answer Agent calls. Listen to each call and review categories from Whisper transcription of the mp3.`)}
 
       <div class="kpi-row" style="grid-template-columns:repeat(5,1fr)">
         <div class="kpi"><div class="kpi-label">Audio sample</div><div class="kpi-value" style="color:var(--ai)">${calls.length}</div><div class="kpi-sub">TalkDesk mp3 links</div></div>
-        <div class="kpi"><div class="kpi-label">Transcribed</div><div class="kpi-value" style="color:var(--human)">${transcribed}</div><div class="kpi-sub">Whisper + LLM</div></div>
-        <div class="kpi"><div class="kpi-label">Pool</div><div class="kpi-value">${sample.totalWithRecordUrl || '—'}</div><div class="kpi-sub">AI calls w/ recording</div></div>
-        <div class="kpi"><div class="kpi-label">Pending</div><div class="kpi-value">${calls.length - transcribed}</div><div class="kpi-sub">Run transcribe</div></div>
+        <div class="kpi"><div class="kpi-label">Analyzed</div><div class="kpi-value" style="color:var(--human)">${transcribed}</div><div class="kpi-sub">Whisper + LLM</div></div>
+        <div class="kpi"><div class="kpi-label">${listening ? 'Listening…' : 'Pool'}</div><div class="kpi-value">${listening ? pending : (sample.totalWithRecordUrl || '—')}</div><div class="kpi-sub">${listening ? 'Still to analyze' : 'AI calls w/ recording'}</div></div>
+        <div class="kpi"><div class="kpi-label">Status</div><div class="kpi-value" style="font-size:14px;color:${listening ? 'var(--ai)' : 'var(--human)'}">${listening ? 'In progress' : 'Complete'}</div></div>
         <div class="kpi"><div class="kpi-label">Top reason</div><div class="kpi-value" style="font-size:14px">${Object.entries(byCat).sort((a,b)=>b[1]-a[1])[0]?.[0]?.slice(0,18) || '—'}</div></div>
       </div>
 
       <div class="chart-row cols-2">
         <div class="chart-card">
           <h3>Why callers leave — from audio transcription</h3>
-          <p>Categories after Whisper listens to TalkDesk mp3 (${transcribed} analyzed)</p>
-          <div class="cat-bar">${catRows || '<div style="color:var(--muted)">Run npm run conversations:transcribe</div>'}</div>
+          <p>${listening ? 'Partial results while we continue listening' : 'Categories after Whisper listens to TalkDesk mp3'} (${transcribed} analyzed)</p>
+          <div class="cat-bar">${catRows || '<div style="color:var(--muted)">Analysis in progress — categories appear as transcriptions complete.</div>'}</div>
         </div>
         <div class="chart-card">
-          <h3>How to refresh</h3>
-          <p style="line-height:1.6;margin:0">
-            <code class="cmd">npm run conversations:sample</code> — pick 200 If-No-Answer calls with Record URLs<br><br>
-            <code class="cmd">npm run conversations:transcribe</code> — download mp3 via TalkDesk login, Whisper transcribe, LLM categorize<br><br>
-            <code class="cmd">npm run conversations:refresh</code> — both steps<br><br>
-            Requires <code class="cmd">OPENAI_API_KEY</code>, <code class="cmd">TALKDESK_EMAIL</code>, <code class="cmd">TALKDESK_PASSWORD</code> in .env
+          <h3>What we are doing</h3>
+          <p style="line-height:1.7;margin:0">
+            We are <b>listening</b> to TalkDesk AI call recordings and <b>analyzing</b> them (Whisper transcription + categorization).<br><br>
+            ${listening
+              ? `Progress: <b>${transcribed}/${calls.length}</b> transcribed. Refresh after the next <code class="cmd">npm run conversations:transcribe</code> run.`
+              : `Sample complete. Re-run <code class="cmd">npm run conversations:refresh</code> to pull a fresh 200-call set.`}
           </p>
         </div>
       </div>
@@ -2436,11 +2627,23 @@ async function renderSettings() {
   if (!el) return;
   el.innerHTML = `<div class="loading">Running sanity checks…</div>`;
   try {
-    const r = await fetch('/api/sanity');
-    const j = await r.json();
+    const onStaticHost = /github\.io$/i.test(location.hostname) || location.protocol === 'file:';
+    let j = null;
+    if (!onStaticHost) {
+      j = await fetchJsonSafe('/api/sanity');
+    }
+    if (!j) {
+      j = await fetchJsonSafe(staticAssetUrl('sanity.json') + '?v=20260716c')
+        || await fetchJsonSafe('./sanity.json?v=20260716c');
+    }
+    if (!j || !j.sources) {
+      el.innerHTML = `<div class="error">Sanity snapshot missing. Run <code class="cmd">npm run dashboard:export</code> and republish.</div>`;
+      return;
+    }
     const badge = (s) => `<span class="badge badge-${s.status}">${s.status.toUpperCase()}</span>`;
     el.innerHTML = `
-      ${insightBanner(`Updates are scheduled for <b>every Monday at 8:30 AM</b> via Windows Task <b>${j.schedule?.windowsTaskName || 'RDG Dashboard - Weekly Refresh'}</b>. This page checks whether Hostie, TalkDesk, and OpenTable caches look complete and fresh.`)}
+      <div class="section-head">Settings — Sanity Check</div>
+      ${insightBanner(`Updates are scheduled for <b>every Monday at 8:30 AM</b> via Windows Task <b>${j.schedule?.windowsTaskName || 'RDG Dashboard - Weekly Refresh'}</b>. This page checks whether Hostie, TalkDesk, and OpenTable caches look complete and fresh.${onStaticHost ? ' <b>Shared link shows the last exported snapshot</b> — run sanity locally for live file ages.' : ''}`)}
 
       <div class="section-head">Schedule</div>
       <div class="table-card">
