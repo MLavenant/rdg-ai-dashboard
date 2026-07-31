@@ -618,6 +618,41 @@ function buildReservationWaterfall(canvasId, r26, r25) {
   }));
 }
 
+/** Weekly YoY Δ by source (previous grouped bar chart) */
+function buildChannelShiftChart(canvasId, weeks, r26, r25) {
+  const src = channelShiftSources();
+  const m25 = Object.fromEntries(src.map(s => [s.key, aggByWeek(r25, s.key)]));
+  const m26 = Object.fromEntries(src.map(s => [s.key, aggByWeek(r26, s.key)]));
+  mkChart(canvasId, 'bar', {
+    labels: weeks.map(w => 'W' + w),
+    datasets: src.map(s => ({
+      label: s.label,
+      data: weeks.map(w => (m26[s.key][w] || 0) - (m25[s.key][w] || 0)),
+      backgroundColor: s.color + 'bb',
+      borderRadius: 3,
+    })),
+  }, mergeChartOptions(Y_AUTO, {
+    plugins: {
+      legend: { display: true, labels: { color: '#8890b8', boxWidth: 10, font: { size: 10 } } },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => {
+            const v = ctx.parsed.y;
+            return `${ctx.dataset.label}: ${v >= 0 ? '+' : ''}${v}`;
+          },
+        },
+      },
+    },
+    scales: {
+      y: {
+        title: { display: true, text: 'YoY Δ bookings (2026 − 2025)', color: '#8890b8' },
+        ticks: { color: '#8890b8' },
+        grid: { color: 'rgba(37,45,74,.6)' },
+      },
+    },
+  }));
+}
+
 /** Full KPI strip (moved from Overview → By Restaurant) */
 function kpiStripHtml(r26, r25) {
   const c26 = sum(r26, 'callsTotal'), c25 = sum(r25, 'callsTotal');
@@ -946,21 +981,6 @@ function renderOverview() {
   const mtdFrom = Math.max(ANALYSIS_START_WEEK, D.cutoff - 3);
 
   document.getElementById('page-overview').innerHTML = `
-  ${yoyVerdictBanner(r26, r25)}
-
-  <div class="section-head">Winning or losing reservations vs PY — and why</div>
-  <div class="chart-row cols-1">
-    <div class="chart-card">
-      <h3>Reservation waterfall — 2025 → source shifts → 2026</h3>
-      <p>Start at prior-year total · each bar is the YoY change by source · end bar = this year total (green = gain, red = loss)</p>
-      <div class="chart-wrap" style="height:280px"><canvas id="ov-waterfall"></canvas></div>
-    </div>
-  </div>
-  <div class="table-card">
-    <h3>Channel transfer detail — W${F.wkFrom}–W${F.wkTo}</h3>
-    <div id="ov-channel-shift-table">${buildChannelShiftTableHtml(r26, r25)}</div>
-  </div>
-
   <div class="table-card">
     <h3>MTD by Location — W${mtdFrom}–W${D.cutoff} vs 2025</h3>
     <p class="loc-summary-note">Calls, reservations, phone bookings, and conversion vs same weeks prior year</p>
@@ -1096,7 +1116,6 @@ function renderOverview() {
 
   // build charts after DOM insert
   requestAnimationFrame(() => {
-    buildReservationWaterfall('ov-waterfall', r26, r25);
     buildLocSummaryTable('ov-mtd-table', 'mtd');
     buildLocSummaryTable('ov-ytd-table', 'ytd');
     buildOvCallsTrend(weeks, r26, r25);
@@ -1689,6 +1708,8 @@ function renderRestDetail(restId) {
   `;
 
   requestAnimationFrame(() => {
+    buildReservationWaterfall(`rc-waterfall-${restId}`, r26, r25);
+    buildChannelShiftChart(`rc-channel-shift-${restId}`, weeks, r26, r25);
     buildExerciseChart(`rc-exercise-${restId}`, weeks, r26, r25, rest);
     buildRcCalls(restId, rest, weeks, r26, r25);
     buildRcAbn(restId, rest, weeks, r26, r25);
