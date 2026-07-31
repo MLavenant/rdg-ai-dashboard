@@ -527,41 +527,151 @@ function buildChannelShiftTableHtml(r26, r25) {
       </tr>
     </tbody>
   </table>
-  <div class="stat-note">Question: if Phone/In-House falls, does Phone/AI + OT Network + web/walk-in absorb it? Weekly chart = same deltas by week.</div>`;
+  <div class="stat-note">Read with the waterfall: start at 2025 total → each source Δ → end at 2026 total.</div>`;
 }
 
-function buildChannelShiftChart(weeks, r26, r25) {
+/** Waterfall: 2025 total → source deltas → 2026 total (one glance: win/lose + why) */
+function reservationWaterfallSteps(r26, r25) {
+  const t25 = sum(r25, 'bookingsTotal');
+  const t26 = sum(r26, 'bookingsTotal');
   const src = channelShiftSources();
-  const m25 = Object.fromEntries(src.map(s => [s.key, aggByWeek(r25, s.key)]));
-  const m26 = Object.fromEntries(src.map(s => [s.key, aggByWeek(r26, s.key)]));
-  mkChart('ov-channel-shift', 'bar', {
-    labels: weeks.map(w => 'W' + w),
-    datasets: src.map(s => ({
-      label: s.label,
-      data: weeks.map(w => (m26[s.key][w] || 0) - (m25[s.key][w] || 0)),
-      backgroundColor: s.color + 'bb',
-      borderRadius: 3,
-    })),
+  const deltas = src.map(s => ({
+    label: s.label,
+    color: s.color,
+    delta: sum(r26, s.key) - sum(r25, s.key),
+  }));
+  const accounted = deltas.reduce((s, d) => s + d.delta, 0);
+  const residual = (t26 - t25) - accounted;
+  if (Math.abs(residual) >= 1) {
+    deltas.push({ label: 'Other', color: '#8890b8', delta: residual });
+  }
+  return { t25, t26, deltas };
+}
+
+function buildReservationWaterfall(canvasId, r26, r25) {
+  const { t25, t26, deltas } = reservationWaterfallSteps(r26, r25);
+  const labels = ['2025 Total', ...deltas.map(d => d.label), '2026 Total'];
+  const base = [];
+  const vals = [];
+  const colors = [];
+  let run = t25;
+  base.push(0); vals.push(t25); colors.push('rgba(255,159,46,.85)');
+  deltas.forEach(d => {
+    if (d.delta >= 0) {
+      base.push(run);
+      vals.push(d.delta);
+      colors.push(d.color + 'cc');
+    } else {
+      base.push(run + d.delta);
+      vals.push(-d.delta);
+      colors.push(d.color + '99');
+    }
+    run += d.delta;
+  });
+  base.push(0); vals.push(t26);
+  colors.push(t26 >= t25 ? 'rgba(34,217,142,.85)' : 'rgba(255,92,106,.85)');
+
+  mkChart(canvasId, 'bar', {
+    labels,
+    datasets: [
+      {
+        label: 'base',
+        data: base,
+        backgroundColor: 'transparent',
+        borderWidth: 0,
+        stack: 'wf',
+        tooltip: { enabled: false },
+      },
+      {
+        label: 'Reservations',
+        data: vals,
+        backgroundColor: colors,
+        borderRadius: 4,
+        stack: 'wf',
+      },
+    ],
   }, mergeChartOptions(Y_AUTO, {
     plugins: {
-      legend: { display: true, labels: { color: '#8890b8', boxWidth: 10, font: { size: 10 } } },
+      legend: { display: false },
       tooltip: {
+        filter: (item) => item.datasetIndex === 1,
         callbacks: {
           label: (ctx) => {
-            const v = ctx.parsed.y;
-            return `${ctx.dataset.label}: ${v >= 0 ? '+' : ''}${v}`;
+            const i = ctx.dataIndex;
+            if (i === 0) return `2025 Total: ${t25.toLocaleString()}`;
+            if (i === labels.length - 1) return `2026 Total: ${t26.toLocaleString()} (${t26 - t25 >= 0 ? '+' : ''}${(t26 - t25).toLocaleString()})`;
+            const d = deltas[i - 1];
+            return `${d.label}: ${d.delta >= 0 ? '+' : ''}${d.delta.toLocaleString()}`;
           },
         },
       },
     },
     scales: {
+      x: { stacked: true, ticks: { color: '#8890b8', maxRotation: 40, font: { size: 10 } } },
       y: {
-        title: { display: true, text: 'YoY Δ bookings (2026 − 2025)', color: '#8890b8' },
+        stacked: true,
+        title: { display: true, text: 'Reservations', color: '#8890b8' },
         ticks: { color: '#8890b8' },
         grid: { color: 'rgba(37,45,74,.6)' },
       },
     },
   }));
+}
+
+/** Full KPI strip (moved from Overview → By Restaurant) */
+function kpiStripHtml(r26, r25) {
+  const c26 = sum(r26, 'callsTotal'), c25 = sum(r25, 'callsTotal');
+  const cAI = sum(r26, 'callsAI'), cHum = sum(r26, 'callsHuman');
+  const b26 = sum(r26, 'bookingsTotal'), b25 = sum(r25, 'bookingsTotal');
+  const bAI = sum(r26, 'bookingsPhoneAI'), bHum = sum(r26, 'bookingsPhoneHuman');
+  const conv26 = pct(bHum, cHum);
+  const conv25 = pct(sum(r25, 'bookingsPhoneHuman'), sum(r25, 'callsHuman'));
+  const aiPct = c26 > 0 ? (cAI / c26 * 100).toFixed(1) : '0';
+  return `<div class="kpi-row">
+    <div class="kpi">
+      <div class="kpi-label">Total Calls — 2026</div>
+      <div class="kpi-value">${fmt(c26)}</div>
+      ${yoyBadge(c26, c25)}
+      <div class="kpi-split">
+        <div class="kpi-split-item" style="color:var(--ai)"><b>${fmt(cAI)}</b>AI Handled</div>
+        <div class="kpi-split-item" style="color:var(--human)"><b>${fmt(cHum)}</b>Human</div>
+      </div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Total Calls — 2025</div>
+      <div class="kpi-value">${fmt(c25)}</div>
+      <div class="kpi-sub">Same week range W${F.wkFrom}–W${F.wkTo}</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">AI Share of Calls</div>
+      <div class="kpi-value" style="color:var(--ai)">${aiPct}%</div>
+      <div class="kpi-sub">${fmt(cAI)} of ${fmt(c26)} total calls</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Total Bookings — 2026</div>
+      <div class="kpi-value">${fmt(b26)}</div>
+      ${yoyBadge(b26, b25)}
+      <div class="kpi-split">
+        <div class="kpi-split-item" style="color:var(--ai)"><b>${fmt(bAI)}</b>Phone/AI</div>
+        <div class="kpi-split-item" style="color:var(--human)"><b>${fmt(bHum)}</b>Phone/In-House</div>
+      </div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Human Conv % 2026</div>
+      <div class="kpi-value" style="color:var(--human)">${conv26}</div>
+      <div class="kpi-sub">2025: ${conv25} · Phone/InHouse ÷ Human Calls</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">AI Conv % 2026</div>
+      <div class="kpi-value" style="color:var(--ai)">${pct(bAI, cAI)}</div>
+      <div class="kpi-sub">Phone/AI bookings ÷ AI-handled calls</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Total Conv % 2026</div>
+      <div class="kpi-value" style="color:#f43f8e">${pct(bHum + bAI, cHum + cAI)}</div>
+      <div class="kpi-sub">(Phone/InHouse + Phone/AI) ÷ (Human + AI calls)</div>
+    </div>
+  </div>`;
 }
 
 /** One-sentence location insight (uses go-live for post-AI view when available) */
@@ -833,31 +943,21 @@ function renderOverview() {
   const r26 = filtered(D.rows26);
   const r25 = filtered(D.rows25);
   const weeks = getWeeks();
-
-  const c26=sum(r26,'callsTotal'), c25=sum(r25,'callsTotal');
-  const cAI=sum(r26,'callsAI'), cHum=sum(r26,'callsHuman');
-  const b26=sum(r26,'bookingsTotal'), b25=sum(r25,'bookingsTotal');
-  const bAI=sum(r26,'bookingsPhoneAI'), bHum=sum(r26,'bookingsPhoneHuman');
-  // Human conv = Phone/InHouse bookings ÷ callsHuman (Excel AU/AV: total − IfNoAnswer − empty agent)
-  const conv26 = pct(bHum, cHum);
-  const conv25Calls = sum(r25,'callsHuman'); const conv25Books = sum(r25,'bookingsPhoneHuman');
-  const conv25 = pct(conv25Books, conv25Calls);
-  const aiPct = c26 > 0 ? (cAI/c26*100).toFixed(1) : '0';
   const mtdFrom = Math.max(ANALYSIS_START_WEEK, D.cutoff - 3);
 
   document.getElementById('page-overview').innerHTML = `
   ${yoyVerdictBanner(r26, r25)}
 
-  <div class="section-head">Are we losing phone reservations — or transferring them?</div>
+  <div class="section-head">Winning or losing reservations vs PY — and why</div>
   <div class="chart-row cols-1">
     <div class="chart-card">
-      <h3>Weekly source shift — YoY Δ (2026 − 2025)</h3>
-      <p>Negative Phone/In-House bars = lost human phone books that week · positive Phone/AI / OT / other = where volume went</p>
-      <div class="chart-wrap" style="height:260px"><canvas id="ov-channel-shift"></canvas></div>
+      <h3>Reservation waterfall — 2025 → source shifts → 2026</h3>
+      <p>Start at prior-year total · each bar is the YoY change by source · end bar = this year total (green = gain, red = loss)</p>
+      <div class="chart-wrap" style="height:280px"><canvas id="ov-waterfall"></canvas></div>
     </div>
   </div>
   <div class="table-card">
-    <h3>Channel transfer summary — W${F.wkFrom}–W${F.wkTo}</h3>
+    <h3>Channel transfer detail — W${F.wkFrom}–W${F.wkTo}</h3>
     <div id="ov-channel-shift-table">${buildChannelShiftTableHtml(r26, r25)}</div>
   </div>
 
@@ -891,52 +991,6 @@ function renderOverview() {
       </tr></thead>
       <tbody id="ov-ytd-table"></tbody>
     </table>
-  </div>
-
-  <div class="kpi-row">
-    <div class="kpi">
-      <div class="kpi-label">Total Calls — 2026 YTD</div>
-      <div class="kpi-value">${fmt(c26)}</div>
-      ${yoyBadge(c26,c25)}
-      <div class="kpi-split">
-        <div class="kpi-split-item" style="color:var(--ai)"><b>${fmt(cAI)}</b>AI Handled</div>
-        <div class="kpi-split-item" style="color:var(--human)"><b>${fmt(cHum)}</b>Human</div>
-      </div>
-    </div>
-    <div class="kpi">
-      <div class="kpi-label">Total Calls — 2025 YTD</div>
-      <div class="kpi-value">${fmt(c25)}</div>
-      <div class="kpi-sub">Same week range W${F.wkFrom}–W${F.wkTo}</div>
-    </div>
-    <div class="kpi">
-      <div class="kpi-label">AI Share of Calls</div>
-      <div class="kpi-value" style="color:var(--ai)">${aiPct}%</div>
-      <div class="kpi-sub">${fmt(cAI)} of ${fmt(c26)} total calls</div>
-    </div>
-    <div class="kpi">
-      <div class="kpi-label">Total Bookings — 2026</div>
-      <div class="kpi-value">${fmt(b26)}</div>
-      ${yoyBadge(b26,b25)}
-      <div class="kpi-split">
-        <div class="kpi-split-item" style="color:var(--ai)"><b>${fmt(bAI)}</b>Phone/AI</div>
-        <div class="kpi-split-item" style="color:var(--human)"><b>${fmt(bHum)}</b>Phone/In-House</div>
-      </div>
-    </div>
-      <div class="kpi">
-      <div class="kpi-label">Human Conv % 2026</div>
-      <div class="kpi-value" style="color:var(--human)">${conv26}</div>
-      <div class="kpi-sub">2025: ${conv25} · Phone/InHouse ÷ Human Calls</div>
-    </div>
-    <div class="kpi">
-      <div class="kpi-label">AI Conv % 2026</div>
-      <div class="kpi-value" style="color:var(--ai)">${pct(bAI, cAI)}</div>
-      <div class="kpi-sub">Phone/AI bookings ÷ AI-handled calls</div>
-    </div>
-    <div class="kpi">
-      <div class="kpi-label">Total Conv % 2026</div>
-      <div class="kpi-value" style="color:#f43f8e">${pct(sum(r26,'bookingsPhoneHuman')+bAI, cHum+cAI)}</div>
-      <div class="kpi-sub">(Phone/InHouse + Phone/AI) ÷ (Human + AI calls)</div>
-    </div>
   </div>
 
   <div class="section-head">Call Volume Trends</div>
@@ -1042,7 +1096,7 @@ function renderOverview() {
 
   // build charts after DOM insert
   requestAnimationFrame(() => {
-    buildChannelShiftChart(weeks, r26, r25);
+    buildReservationWaterfall('ov-waterfall', r26, r25);
     buildLocSummaryTable('ov-mtd-table', 'mtd');
     buildLocSummaryTable('ov-ytd-table', 'ytd');
     buildOvCallsTrend(weeks, r26, r25);
@@ -1528,33 +1582,12 @@ function renderRestDetail(restId) {
   const r25 = filteredWeeks(D.rows25).filter(r=>r.restaurantId===restId);
   const weeks = getWeeks();
 
-  const c26=sum(r26,'callsTotal'), c25=sum(r25,'callsTotal');
-  const cAI=sum(r26,'callsAI'), cHum=sum(r26,'callsHuman');
-  const b26=sum(r26,'bookingsTotal'), b25=sum(r25,'bookingsTotal');
-  const bH26=sum(r26,'bookingsPhoneHuman'), bH25=sum(r25,'bookingsPhoneHuman');
-  const bAI26=sum(r26,'bookingsPhoneAI');
-  const cHum25=sum(r25,'callsHuman');
-  const convH26 = cHum>0 ? (bH26/cHum*100).toFixed(1) : '—';
-  const convH25 = cHum25>0 ? (bH25/cHum25*100).toFixed(1) : '—';
-  const cVar = c25>0 ? ((c26-c25)/c25*100).toFixed(1) : '—';
-  const bVar = b25>0 ? ((b26-b25)/b25*100).toFixed(1) : '—';
-
   document.getElementById('rest-content').innerHTML = `
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
       <h2 style="font-size:20px;font-weight:700;color:${rest.color}">${rest.label}</h2>
       <div class="golive-badge">◆ AI Live W${rest.goLive} · 2026</div>
     </div>
-    ${insightBanner(buildRestInsight(rest, r26, r25))}
-
-    <div class="kpi-row" style="grid-template-columns:repeat(6,1fr)">
-      <div class="kpi"><div class="kpi-label">Calls 2026</div><div class="kpi-value">${fmt(c26)}</div>${yoyBadge(c26,c25)}</div>
-      <div class="kpi"><div class="kpi-label">AI Calls</div><div class="kpi-value" style="color:var(--ai)">${fmt(cAI)}</div><div class="kpi-sub">${c26>0?(cAI/c26*100).toFixed(1):0}% of total</div></div>
-      <div class="kpi"><div class="kpi-label">Bookings 2026</div><div class="kpi-value">${fmt(b26)}</div>${yoyBadge(b26,b25)}</div>
-      <div class="kpi"><div class="kpi-label">Phone/AI Books</div><div class="kpi-value" style="color:var(--ai)">${bAI26}</div><div class="kpi-sub">AI-assisted bookings</div></div>
-      <div class="kpi"><div class="kpi-label">Human Conv %</div><div class="kpi-value" style="color:var(--human)">${convH26}%</div><div class="kpi-sub">2025: ${convH25}% · Phone/In-House ÷ Human Calls</div></div>
-      <div class="kpi"><div class="kpi-label">AI Conv %</div><div class="kpi-value" style="color:var(--ai)">${aiConvRateAgg(r26).toFixed(1)}%</div><div class="kpi-sub">Phone/AI bookings ÷ AI calls</div></div>
-      <div class="kpi"><div class="kpi-label">Total Conv %</div><div class="kpi-value" style="color:#f43f8e">${totalConvRateAgg(r26).toFixed(1)}%</div><div class="kpi-sub">All phone bookings ÷ all handled calls</div></div>
-    </div>
+    ${kpiStripHtml(r26, r25)}
 
     <div class="section-head">Exercise — Calls + Reservations by Source (2025 vs 2026)</div>
     <div class="chart-row cols-1">
