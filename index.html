@@ -128,6 +128,15 @@ tbody tr.total-row td{font-weight:700;color:var(--text)}
 .insight-banner.verdict .insight-text + .insight-text{margin-top:6px}
 .shift-absorbed{color:var(--green);font-weight:600}
 .shift-leak{color:var(--red);font-weight:600}
+.exercise-legend{display:grid;grid-template-columns:1.2fr 1fr;gap:16px;margin:10px 0 14px;padding:12px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px}
+@media(max-width:900px){.exercise-legend{grid-template-columns:1fr}}
+.exercise-legend .ex-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:6px}
+.exercise-legend p{font-size:12px;color:var(--text);line-height:1.5;margin:0 0 8px}
+.exercise-legend .swatch-row{display:flex;flex-wrap:wrap;gap:8px 14px}
+.exercise-legend .swatch{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)}
+.exercise-legend .swatch i{display:inline-block;width:12px;height:12px;border-radius:3px;flex-shrink:0}
+.exercise-legend .swatch i.line{height:2px;width:18px;border-radius:0;align-self:center}
+.exercise-legend .swatch i.line.dash{background:repeating-linear-gradient(90deg,#ff9f2e 0 4px,transparent 4px 7px)!important;height:2px}
 
 /* ── LOADING ── */
 .loading{text-align:center;padding:80px;color:var(--muted);font-size:15px}
@@ -888,6 +897,63 @@ function annoGoLive(goLiveWeek, weeks) {
 // ═══════════════════════════════════════════════════════════════
 //  OVERVIEW
 // ═══════════════════════════════════════════════════════════════
+function overviewPeriodKpis(period) {
+  const r26 = locSummaryScope(D.rows26, period);
+  const r25 = locSummaryScope(D.rows25, period);
+  return {
+    calls26: sum(r26, 'callsTotal'), calls25: sum(r25, 'callsTotal'),
+    books26: sum(r26, 'bookingsTotal'), books25: sum(r25, 'bookingsTotal'),
+    phone26: phoneBooks(r26), phone25: phoneBooks(r25),
+    h26: humanConvRateAgg(r26), h25: humanConvRateAgg(r25),
+  };
+}
+
+function buildOverviewRecapBanner() {
+  const mtdFrom = Math.max(ANALYSIS_START_WEEK, D.cutoff - 3);
+  const m = overviewPeriodKpis('mtd');
+  const y = overviewPeriodKpis('ytd');
+  const line = (label, k) => {
+    const c = fmtSigned(signedPct(k.calls26, k.calls25));
+    const b = fmtSigned(signedPct(k.books26, k.books25));
+    const p = fmtSigned(signedPct(k.phone26, k.phone25));
+    const conv = `${k.h25.toFixed(1)}% → ${k.h26.toFixed(1)}%`;
+    return `<b>${label}</b>: calls <b>${c}</b>, reservations <b>${b}</b>, phone books <b>${p}</b>, human conv ${conv}.`;
+  };
+  return `<div class="insight-banner verdict"><div class="insight-mark">◆</div><div>
+    <div class="insight-label">Overview recap — vs same weeks prior year</div>
+    <div class="insight-text">${line(`MTD W${mtdFrom}–W${D.cutoff}`, m)}</div>
+    <div class="insight-text">${line(`YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}`, y)}</div>
+  </div></div>`;
+}
+
+function exerciseLegendHtml() {
+  const sources = [
+    { label: 'OT Network', c25: 'rgba(61,142,248,.35)', c26: '#3d8ef8' },
+    { label: 'Phone/In-House', c25: 'rgba(34,217,142,.35)', c26: '#22d98e' },
+    { label: 'Phone/AI', c25: 'rgba(176,110,245,.25)', c26: '#b06ef5' },
+    { label: 'Your Network', c25: 'rgba(244,63,142,.3)', c26: '#f43f8e' },
+    { label: 'Walk-in', c25: 'rgba(255,159,46,.3)', c26: '#ff9f2e' },
+  ];
+  const swatches = sources.map(s =>
+    `<span class="swatch"><i style="background:${s.c25}"></i><i style="background:${s.c26}"></i> ${s.label}</span>`
+  ).join('');
+  return `<div class="exercise-legend">
+    <div>
+      <div class="ex-title">Bars (left axis) — Reservations by source</div>
+      <p>Each week has <b>two stacks side by side</b>: <b>muted = 2025</b>, <b>bright = 2026</b>. Height of the stack = total reservations that week; colors = channel mix (OT, phone human, phone AI, web, walk-in).</p>
+      <div class="swatch-row">${swatches}</div>
+    </div>
+    <div>
+      <div class="ex-title">Lines (right axis) — Total call volume</div>
+      <p>Compare demand vs bookings: when the white line (2026 calls) rises above the orange dashed line (2025), call volume is up YoY — independently of how reservations mix shifted.</p>
+      <div class="swatch-row">
+        <span class="swatch"><i class="line dash"></i> Total Calls 2025</span>
+        <span class="swatch"><i class="line" style="background:#fff"></i> Total Calls 2026</span>
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderOverview() {
   const r26 = filtered(D.rows26);
   const r25 = filtered(D.rows25);
@@ -895,36 +961,16 @@ function renderOverview() {
   const mtdFrom = Math.max(ANALYSIS_START_WEEK, D.cutoff - 3);
 
   document.getElementById('page-overview').innerHTML = `
-  <div class="table-card">
-    <h3>MTD by Location — W${mtdFrom}–W${D.cutoff} vs 2025</h3>
-    <p class="loc-summary-note">Calls, reservations, phone bookings, and conversion vs same weeks prior year</p>
-    <table>
-      <thead><tr>
-        <th>Location</th>
-        <th>Calls 2026</th><th>Calls 2025</th><th>Var</th>
-        <th>Reservations 2026</th><th>Reservations 2025</th><th>Var</th>
-        <th>Phone Books 2026</th><th>Phone Books 2025</th><th>Var</th>
-        <th>Human Conv 2026</th><th>Human Conv 2025</th>
-        <th>AI Conv 2026</th><th>AI Conv 2025</th>
-      </tr></thead>
-      <tbody id="ov-mtd-table"></tbody>
-    </table>
-  </div>
+  ${buildOverviewRecapBanner()}
 
-  <div class="table-card">
-    <h3>YTD by Location — W${ANALYSIS_START_WEEK}–W${D.cutoff} vs 2025</h3>
-    <p class="loc-summary-note">Same metrics · analysis window W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
-    <table>
-      <thead><tr>
-        <th>Location</th>
-        <th>Calls 2026</th><th>Calls 2025</th><th>Var</th>
-        <th>Reservations 2026</th><th>Reservations 2025</th><th>Var</th>
-        <th>Phone Books 2026</th><th>Phone Books 2025</th><th>Var</th>
-        <th>Human Conv 2026</th><th>Human Conv 2025</th>
-        <th>AI Conv 2026</th><th>AI Conv 2025</th>
-      </tr></thead>
-      <tbody id="ov-ytd-table"></tbody>
-    </table>
+  <div class="section-head">Calls + Reservations by Source (2025 vs 2026)</div>
+  <div class="chart-row cols-1">
+    <div class="chart-card">
+      <h3>Exercise — weekly mix &amp; call volume</h3>
+      <p>Read left→right by week (W${F.wkFrom}–W${F.wkTo}): stacked bars = where reservations came from; lines = how many calls we took. Mute vs bright = prior year vs this year.</p>
+      ${exerciseLegendHtml()}
+      <div class="chart-wrap" style="height:360px"><canvas id="ov-exercise"></canvas></div>
+    </div>
   </div>
 
   <div class="section-head">Call Volume Trends</div>
@@ -963,6 +1009,39 @@ function renderOverview() {
     </div>
   </div>
 
+  <div class="table-card">
+    <h3>MTD by Location — W${mtdFrom}–W${D.cutoff} vs 2025</h3>
+    <p class="loc-summary-note">Calls, reservations, phone bookings, and conversion vs same weeks prior year</p>
+    <table>
+      <thead><tr>
+        <th>Location</th>
+        <th>Calls 2026</th><th>Calls 2025</th><th>Var</th>
+        <th>Reservations 2026</th><th>Reservations 2025</th><th>Var</th>
+        <th>Phone Books 2026</th><th>Phone Books 2025</th><th>Var</th>
+        <th>Human Conv 2026</th><th>Human Conv 2025</th>
+        <th>AI Conv 2026</th><th>AI Conv 2025</th>
+      </tr></thead>
+      <tbody id="ov-mtd-table"></tbody>
+    </table>
+  </div>
+
+  <div class="table-card">
+    <h3>YTD by Location — W${ANALYSIS_START_WEEK}–W${D.cutoff} vs 2025</h3>
+    <p class="loc-summary-note">Same metrics · analysis window W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
+    <table>
+      <thead><tr>
+        <th>Location</th>
+        <th>Calls 2026</th><th>Calls 2025</th><th>Var</th>
+        <th>Reservations 2026</th><th>Reservations 2025</th><th>Var</th>
+        <th>Phone Books 2026</th><th>Phone Books 2025</th><th>Var</th>
+        <th>Human Conv 2026</th><th>Human Conv 2025</th>
+        <th>AI Conv 2026</th><th>AI Conv 2025</th>
+      </tr></thead>
+      <tbody id="ov-ytd-table"></tbody>
+    </table>
+  </div>
+
+  <div class="section-head">Abandoned Calls &amp; Phone Bookings</div>
   <div class="chart-row cols-2">
     <div class="chart-card">
       <h3>Abandoned Call Rate — 2025 vs 2026</h3>
@@ -982,15 +1061,6 @@ function renderOverview() {
         <div class="legend-item"><div class="legend-line" style="background:var(--ai)"></div>2026 AI</div>
       </div>
       <div class="chart-wrap" style="height:200px"><canvas id="ov-phone-trend"></canvas></div>
-    </div>
-  </div>
-
-  <div class="section-head">Exercise — Calls + Reservations by Source (2025 vs 2026)</div>
-  <div class="chart-row cols-1">
-    <div class="chart-card">
-      <h3>Exercise</h3>
-      <p>Grouped stacks: 2025 vs 2026 reservations by source · lines = total call volume both years · weekly W${F.wkFrom}–W${F.wkTo}</p>
-      <div class="chart-wrap" style="height:340px"><canvas id="ov-exercise"></canvas></div>
     </div>
   </div>
 
@@ -1030,21 +1100,21 @@ function renderOverview() {
 
   // build charts after DOM insert
   requestAnimationFrame(() => {
-    buildLocSummaryTable('ov-mtd-table', 'mtd');
-    buildLocSummaryTable('ov-ytd-table', 'ytd');
+    buildExerciseChart('ov-exercise', weeks, filteredWeeks(D.rows26), filteredWeeks(D.rows25), null, false);
     buildOvCallsTrend(weeks, r26, r25);
     buildOvBooksTrend(weeks, r26, r25);
     buildOvConvTrend(weeks, r26, r25);
+    buildLocSummaryTable('ov-mtd-table', 'mtd');
+    buildLocSummaryTable('ov-ytd-table', 'ytd');
     buildOvAbnTrend(weeks, r26, r25);
     buildOvPhoneTrend(weeks, r26, r25);
     buildOvYoyBars();
-    buildExerciseChart('ov-exercise', weeks, filteredWeeks(D.rows26), filteredWeeks(D.rows25));
     buildLwTable();
   });
 }
 
 /** Exercise: total call volume (lines) + reservations by source (2025 vs 2026 stacked bars) */
-function buildExerciseChart(canvasId, weeks, r26, r25, rest=null) {
+function buildExerciseChart(canvasId, weeks, r26, r25, rest=null, showChartLegend=true) {
   const src = [
     { key: 'bookingsOTNetwork', label: 'OT Network', c25: 'rgba(61,142,248,.35)', c26: 'rgba(61,142,248,.85)' },
     { key: 'bookingsPhoneHuman', label: 'Phone/InHouse', c25: 'rgba(34,217,142,.35)', c26: 'rgba(34,217,142,.85)' },
@@ -1087,7 +1157,7 @@ function buildExerciseChart(canvasId, weeks, r26, r25, rest=null) {
       y1: { position: 'right', min: 0, grid: { drawOnChartArea: false }, title: { display: true, text: 'Total calls', color: '#fff' }, ticks: { color: '#fff' } },
     },
     plugins: {
-      legend: { display: true, labels: { color: '#8890b8', boxWidth: 10, font: { size: 10 } } },
+      legend: { display: !!showChartLegend, labels: { color: '#8890b8', boxWidth: 10, font: { size: 10 } } },
     },
   };
   if (rest) opts.plugins.annotation = { annotations: goLiveAnno(rest, weeks) };
