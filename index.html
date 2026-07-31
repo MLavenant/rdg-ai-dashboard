@@ -118,6 +118,8 @@ tbody tr.total-row td{font-weight:700;color:var(--text)}
 .heat-bad{background:rgba(248,113,113,.18);color:#f87171}
 .heat-na{color:var(--muted)}
 .stat-note{font-size:10px;color:var(--muted);margin-top:8px;font-style:italic}
+.conv-flag{color:var(--red);font-weight:700}
+.conv-footnote{font-size:11px;color:var(--muted);margin:6px 0 12px;line-height:1.45}
 
 /* ── INSIGHT SUMMARY ── */
 .insight-banner{background:linear-gradient(135deg,rgba(61,142,248,.12),rgba(176,110,245,.10));border:1px solid rgba(61,142,248,.28);border-radius:var(--radius);padding:14px 18px;margin-bottom:18px;display:flex;gap:12px;align-items:flex-start}
@@ -582,8 +584,8 @@ function kpiStripHtml(r26, r25) {
   const cAI = sum(r26, 'callsAI'), cHum = sum(r26, 'callsHuman');
   const b26 = sum(r26, 'bookingsTotal'), b25 = sum(r25, 'bookingsTotal');
   const bAI = sum(r26, 'bookingsPhoneAI'), bHum = sum(r26, 'bookingsPhoneHuman');
-  const conv26 = pct(bHum, cHum);
-  const conv25 = pct(sum(r25, 'bookingsPhoneHuman'), sum(r25, 'callsHuman'));
+  const conv26 = pctConv(bHum, cHum);
+  const conv25 = pctConv(sum(r25, 'bookingsPhoneHuman'), sum(r25, 'callsHuman'));
   const aiPct = c26 > 0 ? (cAI / c26 * 100).toFixed(1) : '0';
   return `<div class="kpi-row">
     <div class="kpi">
@@ -621,15 +623,15 @@ function kpiStripHtml(r26, r25) {
     </div>
     <div class="kpi">
       <div class="kpi-label">AI Conv % 2026</div>
-      <div class="kpi-value" style="color:var(--ai)">${pct(bAI, cAI)}</div>
+      <div class="kpi-value" style="color:var(--ai)">${pctConv(bAI, cAI)}</div>
       <div class="kpi-sub">Phone/AI bookings ÷ AI-handled calls</div>
     </div>
     <div class="kpi">
       <div class="kpi-label">Total Conv % 2026</div>
-      <div class="kpi-value" style="color:#f43f8e">${pct(bHum + bAI, cHum + cAI)}</div>
+      <div class="kpi-value" style="color:#f43f8e">${pctConv(bHum + bAI, cHum + cAI)}</div>
       <div class="kpi-sub">(Phone/InHouse + Phone/AI) ÷ (Human + AI calls)</div>
     </div>
-  </div>`;
+  </div>${CONV_FOOTNOTE}`;
 }
 
 /** One-sentence location insight (uses go-live for post-AI view when available) */
@@ -680,6 +682,9 @@ function abnRateFmt(rows) {
 // Heat coloring: green = good, red = bad
 function heatConv(v) {
   if (v == null || isNaN(v)) return '<span class="heat-na">—</span>';
+  if (v > 100) {
+    return `<span class="heat heat-bad conv-flag" title="OT phone books can exceed TalkDesk human calls — not a true conversion">${v.toFixed(1)}%⚠</span>`;
+  }
   const cls = v >= 42 ? 'heat-good' : v >= 32 ? 'heat-mid' : 'heat-bad';
   return `<span class="heat ${cls}">${v.toFixed(1)}%</span>`;
 }
@@ -690,6 +695,7 @@ function heatAbn(v) {
 }
 function heatYoY(cur, prior, higherIsBetter) {
   if (cur == null || prior == null || isNaN(cur) || isNaN(prior)) return heatConv(cur);
+  if (cur > 100) return heatConv(cur);
   const better = higherIsBetter ? cur >= prior : cur <= prior;
   const cls = better ? 'heat-good' : 'heat-bad';
   const arrow = cur > prior ? '▲' : cur < prior ? '▼' : '—';
@@ -818,6 +824,24 @@ function buildPhoneSummaryTable(r26, r25) {
 function sum(rows, field) { return rows.reduce((s,r) => s + (r[field]||0), 0); }
 
 function pct(num, den) { return den > 0 ? (num/den*100).toFixed(1)+'%' : '—'; }
+
+/** Conversion % with >100 flag (OT phone books can exceed TalkDesk human calls in a week). */
+function convPctValue(num, den) {
+  if (!(den > 0)) return null;
+  return (num / den) * 100;
+}
+function fmtConvPct(v) {
+  if (v == null || isNaN(v)) return '—';
+  const s = v.toFixed(1) + '%';
+  if (v > 100) {
+    return `<span class="conv-flag" title="OT phone books can exceed TalkDesk human calls in a week — not a true conversion">${s}⚠</span>`;
+  }
+  return s;
+}
+function pctConv(num, den) {
+  return fmtConvPct(convPctValue(num, den));
+}
+const CONV_FOOTNOTE = `<div class="conv-footnote">⚠ Conversion &gt;100% means OpenTable Phone/In-House bookings exceeded TalkDesk human-answered calls for that period (timing/source tagging) — not a real conversion rate. Formula stays Phone/In-House ÷ Human Calls.</div>`;
 
 function fmt(n) { return n == null ? '—' : n >= 1000 ? (n/1000).toFixed(1)+'k' : String(n); }
 
@@ -959,8 +983,13 @@ function renderOverview() {
   const r25 = filtered(D.rows25);
   const weeks = getWeeks();
   const mtdFrom = Math.max(ANALYSIS_START_WEEK, D.cutoff - 3);
+  const reportHref = /github\.io$/i.test(location.hostname) || location.protocol === 'file:' ? './report.html' : '/report';
 
   document.getElementById('page-overview').innerHTML = `
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+    <a href="${reportHref}" target="_blank" rel="noopener" class="tab-btn" style="background:var(--surface2);color:var(--y26);text-decoration:none;display:inline-block">Open exec report</a>
+    <span class="loc-summary-note" style="margin:0">Printable one-pager (overall + each restaurant) · PDF: <code class="cmd">npm run report:pdf</code></span>
+  </div>
   ${buildOverviewRecapBanner()}
 
   <div class="section-head">Calls + Reservations by Source (2025 vs 2026)</div>
@@ -1298,12 +1327,16 @@ function varPctCell(cur, prior) {
 }
 function convYoYCell(cur, prior) {
   if (cur == null || isNaN(cur)) return '<td>—</td>';
-  if (prior == null || isNaN(prior) || !(prior > 0) && prior !== 0) {
-    return `<td>${cur.toFixed(1)}%</td>`;
+  const flagged = cur > 100;
+  const body = flagged
+    ? `<span class="conv-flag" title="OT phone books can exceed TalkDesk human calls — not a true conversion">${cur.toFixed(1)}%⚠</span>`
+    : `${cur.toFixed(1)}%`;
+  if (prior == null || isNaN(prior) || (!(prior > 0) && prior !== 0)) {
+    return `<td>${body}</td>`;
   }
   const better = cur >= prior;
-  const cls = better ? 'up' : 'dn';
-  return `<td class="${cls}">${cur.toFixed(1)}%</td>`;
+  const cls = flagged ? '' : (better ? 'up' : 'dn');
+  return `<td class="${cls}">${body}</td>`;
 }
 function phoneBooks(rows) {
   return sum(rows, 'bookingsPhoneHuman') + sum(rows, 'bookingsPhoneAI');
@@ -1326,9 +1359,9 @@ function locSummaryRowHtml(labelHtml, r26, r25, isTotal) {
   const p26 = phoneBooks(r26), p25 = phoneBooks(r25);
   const h26 = humanConvRateAgg(r26), h25 = humanConvRateAgg(r25);
   const a26 = aiConvRateAgg(r26), a25 = aiConvRateAgg(r25);
-  const h25Html = sum(r25, 'callsHuman') > 0 ? `${h25.toFixed(1)}%` : '—';
-  const ai26Html = sum(r26, 'callsAI') > 0 ? `${a26.toFixed(1)}%` : '—';
-  const ai25Html = sum(r25, 'callsAI') > 0 ? `${a25.toFixed(1)}%` : '—';
+  const h25Html = sum(r25, 'callsHuman') > 0 ? fmtConvPct(h25) : '—';
+  const ai26Html = sum(r26, 'callsAI') > 0 ? fmtConvPct(a26) : '—';
+  const ai25Html = sum(r25, 'callsAI') > 0 ? fmtConvPct(a25) : '—';
   return `<tr class="${isTotal ? 'total-row' : ''}">
     <td>${labelHtml}</td>
     <td>${c26.toLocaleString()}</td><td>${c25.toLocaleString()}</td>${varPctCell(c26, c25)}
@@ -1357,6 +1390,10 @@ function buildLocSummaryTable(tbodyId, period) {
   const all25 = locSummaryScope(D.rows25, period).filter(r => rests.some(x => x.id === r.restaurantId));
   rows.push(locSummaryRowHtml('Total', all26, all25, true));
   tbody.innerHTML = rows.join('');
+  const card = tbody.closest('.table-card');
+  if (card && !card.querySelector('.conv-footnote')) {
+    card.insertAdjacentHTML('beforeend', CONV_FOOTNOTE);
+  }
 }
 
 function buildOvTable(r26all, r25all) {
@@ -1372,7 +1409,7 @@ function buildLwTable() {
   tbody.innerHTML = RESTS.map(rest => {
     const r = rows26lw.find(x=>x.restaurantId===rest.id);
     if (!r) return `<tr><td><span style="color:${rest.color}">●</span> ${rest.label}</td><td colspan="9" style="color:var(--muted)">No data</td></tr>`;
-    const convH = r.callsHuman>0?(r.bookingsPhoneHuman/r.callsHuman*100).toFixed(1):0;
+    const convH = r.callsHuman>0 ? fmtConvPct(r.bookingsPhoneHuman/r.callsHuman*100) : '—';
     const tr = hostieTransferRate(r);
     return `<tr>
       <td><span style="color:${rest.color}">●</span> ${rest.label}</td>
@@ -1383,7 +1420,7 @@ function buildLwTable() {
       <td>${r.bookingsPhoneAI}</td>
       <td>${r.bookingsPhoneHuman}</td>
       <td>${r.bookingsOTNetwork.toLocaleString()}</td>
-      <td>${convH}%</td>
+      <td>${convH}</td>
       <td>${fmtHostiePct(tr)}</td>
     </tr>`;
   }).join('');
@@ -1884,10 +1921,10 @@ function buildRcTable(id, rest, weeks, r26, r25) {
     const as_ = a?.bookingsPhoneHuman||0;
     const bPhoneAI = a?.bookingsPhoneAI||0;
     const bOT = a?.bookingsOTNetwork||0;
-    const au = an>0 ? (ar/an*100).toFixed(1)+'%' : '—';
-    const av = ao>0 ? (as_/ao*100).toFixed(1)+'%' : '—';
-    const ax = ap>0 ? (bPhoneAI/ap*100).toFixed(1)+'%' : '—';
-    const ay = (ao+ap)>0 ? ((as_+bPhoneAI)/(ao+ap)*100).toFixed(1)+'%' : '—';
+    const au = an>0 ? fmtConvPct(ar/an*100) : '—';
+    const av = ao>0 ? fmtConvPct(as_/ao*100) : '—';
+    const ax = ap>0 ? fmtConvPct(bPhoneAI/ap*100) : '—';
+    const ay = (ao+ap)>0 ? fmtConvPct((as_+bPhoneAI)/(ao+ap)*100) : '—';
     const cVar = tot25>0 ? ((tot26-tot25)/tot25*100).toFixed(1) : '—';
     const cCls = parseFloat(cVar)>=0?'up':'dn';
     const aiLabel = a?.isPostAI ? '<span class="pill pill-ai">AI</span>' : '<span style="color:var(--muted);font-size:10px">pre</span>';
@@ -2900,6 +2937,16 @@ async function renderSettings() {
     el.innerHTML = `
       <div class="section-head">Settings — Sanity Check</div>
       ${insightBanner(`Updates are scheduled for <b>every Monday at 8:30 AM</b> via Windows Task <b>${j.schedule?.windowsTaskName || 'RDG Dashboard - Weekly Refresh'}</b>. This page checks whether Hostie, TalkDesk, and OpenTable caches look complete and fresh.${onStaticHost ? ' <b>Shared link shows the last exported snapshot</b> — run sanity locally for live file ages.' : ''}`)}
+
+      <div class="section-head">Executive report</div>
+      <div class="table-card">
+        <h3>One-pager for leadership</h3>
+        <p class="loc-summary-note">Overall page + one page per restaurant (MTD/YTD vs PY, channel transfer read, conversion flags).</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+          <a href="${onStaticHost ? './report.html' : '/report'}" target="_blank" rel="noopener" class="tab-btn" style="background:var(--surface2);color:var(--y26);text-decoration:none">Open exec report</a>
+        </div>
+        <div class="stat-note" style="margin-top:10px">PDF export (local): <code class="cmd">npm run report:pdf</code> → <code class="cmd">exports/rdg-ai-exec-W….pdf</code></div>
+      </div>
 
       <div class="section-head">Schedule</div>
       <div class="table-card">
