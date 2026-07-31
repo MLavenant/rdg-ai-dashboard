@@ -1607,6 +1607,27 @@ function renderRestDetail(restId) {
       <div class="golive-badge">◆ AI Live W${rest.goLive} · 2026</div>
     </div>
     ${kpiStripHtml(r26, r25)}
+    ${yoyVerdictBanner(r26, r25)}
+
+    <div class="section-head">Winning or losing reservations vs PY — and why</div>
+    <div class="chart-row cols-1">
+      <div class="chart-card">
+        <h3>Reservation waterfall — ${rest.label}</h3>
+        <p>Start at prior-year total · each bar is the YoY change by source · end bar = this year total (green = gain, red = loss)</p>
+        <div class="chart-wrap" style="height:280px"><canvas id="rc-waterfall-${restId}"></canvas></div>
+      </div>
+    </div>
+    <div class="chart-row cols-1">
+      <div class="chart-card">
+        <h3>Weekly source shift — YoY Δ (2026 − 2025)</h3>
+        <p>Negative Phone/In-House = lost human phone books that week · positive Phone/AI / OT / other = where volume went</p>
+        <div class="chart-wrap" style="height:240px"><canvas id="rc-channel-shift-${restId}"></canvas></div>
+      </div>
+    </div>
+    <div class="table-card">
+      <h3>Channel transfer detail — ${rest.label} · W${F.wkFrom}–W${F.wkTo}</h3>
+      <div id="rc-channel-shift-table-${restId}">${buildChannelShiftTableHtml(r26, r25)}</div>
+    </div>
 
     <div class="section-head">Exercise — Calls + Reservations by Source (2025 vs 2026)</div>
     <div class="chart-row cols-1">
