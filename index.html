@@ -85,6 +85,9 @@ tbody td:first-child{text-align:left;font-weight:600}
 .pill{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600}
 .pill-ai{background:rgba(167,139,250,.2);color:var(--ai)}
 .pill-h{background:rgba(52,211,153,.2);color:var(--human)}
+tbody tr.total-row{background:rgba(61,142,248,.08);border-top:2px solid var(--border)}
+tbody tr.total-row td{font-weight:700;color:var(--text)}
+.loc-summary-note{font-size:11px;color:var(--muted);margin:-4px 0 14px}
 
 /* ── BY RESTAURANT ── */
 .rest-selector{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
@@ -121,6 +124,10 @@ tbody td:first-child{text-align:left;font-weight:600}
 .insight-banner .insight-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--ai);margin-bottom:4px}
 .insight-banner .insight-text{font-size:13px;line-height:1.55;color:var(--text)}
 .insight-banner .insight-mark{color:var(--ai);font-size:16px;line-height:1.2;flex-shrink:0}
+.insight-banner.verdict{border-color:rgba(176,110,245,.4);background:linear-gradient(135deg,rgba(176,110,245,.14),rgba(61,142,248,.10))}
+.insight-banner.verdict .insight-text + .insight-text{margin-top:6px}
+.shift-absorbed{color:var(--green);font-weight:600}
+.shift-leak{color:var(--red);font-weight:600}
 
 /* ── LOADING ── */
 .loading{text-align:center;padding:80px;color:var(--muted);font-size:15px}
@@ -411,27 +418,150 @@ function fmtSigned(v, unit='%') {
   return `${sign}${v.toFixed(1)}${unit}`;
 }
 
-/** One-sentence overview of AI impact for the current filter window */
-function buildOverviewInsight(r26, r25) {
-  const b26 = sum(r26,'bookingsTotal'), b25 = sum(r25,'bookingsTotal');
+/** Sharp 1–2 line YoY verdict: calls, conversion, phone→AI/other transfer */
+function buildYoyVerdict(r26, r25) {
+  const c26 = sum(r26, 'callsTotal'), c25 = sum(r25, 'callsTotal');
+  const cVar = signedPct(c26, c25);
+  const b26 = sum(r26, 'bookingsTotal'), b25 = sum(r25, 'bookingsTotal');
   const bVar = signedPct(b26, b25);
-  const phone26 = sum(r26,'bookingsPhoneHuman') + sum(r26,'bookingsPhoneAI');
-  const phone25 = sum(r25,'bookingsPhoneHuman');
-  const phoneVar = signedPct(phone26, phone25);
-  const a26 = abnRate(r26), a25 = abnRate(r25);
-  const abnDelta = (a25 != null && a26 != null) ? (a25 - a26) : null; // positive = improved
-  const c26 = sum(r26,'callsTotal'), cAI = sum(r26,'callsAI');
-  const aiShare = c26 > 0 ? (cAI / c26 * 100) : null;
-  const bAI = sum(r26,'bookingsPhoneAI');
-  const transfer = hostieTransferRateAgg(r26);
-  const bookDir = bVar == null ? 'mixed' : bVar >= 0 ? 'up' : 'down';
-  const abnText = abnDelta == null ? '' :
-    (abnDelta >= 0
-      ? `Abandoned rate improved ${abnDelta.toFixed(1)}pp (${a25.toFixed(1)}% → ${a26.toFixed(1)}%).`
-      : `Abandoned rate worsened ${Math.abs(abnDelta).toFixed(1)}pp (${a25.toFixed(1)}% → ${a26.toFixed(1)}%).`);
-  return `W${F.wkFrom}–W${F.wkTo}: total reservations are <b>${fmtSigned(bVar)}</b> YoY and phone bookings are <b>${fmtSigned(phoneVar)}</b> YoY. ` +
-    `AI handles <b>${aiShare != null ? aiShare.toFixed(1) : '—'}%</b> of TalkDesk calls and drove <b>${bAI.toLocaleString()}</b> Phone/AI bookings, with a Hostie transfer rate of <b>${fmtHostiePct(transfer)}</b>. ` +
-    `${abnText} Overall reservation momentum is <b>${bookDir}</b> vs 2025 for this window — AI is reducing abandon + handling volume; whether that lifts total covers depends on OT Network and walk-ins too.`;
+  const ph25 = sum(r25, 'bookingsPhoneHuman');
+  const ph26 = sum(r26, 'bookingsPhoneHuman');
+  const ai26 = sum(r26, 'bookingsPhoneAI');
+  const phoneLoss = ph25 - ph26; // >0 = lost human phone books
+  const h26 = humanConvRateAgg(r26), h25 = humanConvRateAgg(r25);
+  const convDelta = h26 - h25;
+  const otDelta = sum(r26, 'bookingsOTNetwork') - sum(r25, 'bookingsOTNetwork');
+  const otherDelta =
+    (sum(r26, 'bookingsYourNetwork') + sum(r26, 'bookingsWalkIn')) -
+    (sum(r25, 'bookingsYourNetwork') + sum(r25, 'bookingsWalkIn'));
+
+  const callsTxt = cVar == null
+    ? 'Call volume YoY is unclear'
+    : (cVar >= 0
+      ? `Calls are <b>up ${fmtSigned(cVar)}</b> vs same weeks 2025`
+      : `Calls are <b>down ${fmtSigned(cVar)}</b> vs same weeks 2025`);
+  const convTxt = Math.abs(convDelta) < 1
+    ? `Human conversion is <b>held</b> (${h25.toFixed(1)}% → ${h26.toFixed(1)}%)`
+    : (convDelta >= 0
+      ? `Human conversion is <b>protected</b> (${h25.toFixed(1)}% → ${h26.toFixed(1)}%, +${convDelta.toFixed(1)}pp)`
+      : `Human conversion is <b>down ${Math.abs(convDelta).toFixed(1)}pp</b> (${h25.toFixed(1)}% → ${h26.toFixed(1)}%)`);
+
+  let shiftTxt;
+  if (phoneLoss <= 0) {
+    shiftTxt = `Phone/In-House is <b>not down</b> YoY; Phone/AI added <b>${ai26.toLocaleString()}</b>. Total reservations <b>${fmtSigned(bVar)}</b> — AI is not costing reservations.`;
+  } else if (ai26 >= phoneLoss) {
+    shiftTxt = `Phone/In-House dropped <b>${phoneLoss.toLocaleString()}</b>, fully offset by Phone/AI (<b>${ai26.toLocaleString()}</b>). Total reservations <b>${fmtSigned(bVar)}</b>${otDelta ? `; OT Network ${otDelta > 0 ? '+' : ''}${otDelta.toLocaleString()}` : ''} — phone mix shifted to AI, not lost.`;
+  } else if (bVar != null && bVar >= 0) {
+    const pctAi = ((ai26 / phoneLoss) * 100).toFixed(0);
+    shiftTxt = `Phone/In-House dropped <b>${phoneLoss.toLocaleString()}</b>; AI recovered <b>${ai26.toLocaleString()}</b> (${pctAi}%). Remainder went to other channels (OT ${otDelta >= 0 ? '+' : ''}${otDelta.toLocaleString()}, web/walk-in ${otherDelta >= 0 ? '+' : ''}${otherDelta.toLocaleString()}). <b>Not losing reservations overall</b> (${fmtSigned(bVar)}).`;
+  } else {
+    shiftTxt = `Phone/In-House dropped <b>${phoneLoss.toLocaleString()}</b>; AI recovered only <b>${ai26.toLocaleString()}</b>. OT ${otDelta >= 0 ? '+' : ''}${otDelta.toLocaleString()}, web/walk-in ${otherDelta >= 0 ? '+' : ''}${otherDelta.toLocaleString()}. Total reservations <b>${fmtSigned(bVar)}</b> — some phone volume looks <b>lost, not fully transferred</b>.`;
+  }
+  return { line1: `${callsTxt}. ${convTxt}.`, line2: shiftTxt };
+}
+
+function yoyVerdictBanner(r26, r25) {
+  const v = buildYoyVerdict(r26, r25);
+  return `<div class="insight-banner verdict"><div class="insight-mark">◆</div><div>
+    <div class="insight-label">YoY Verdict — W${F.wkFrom}–W${F.wkTo}</div>
+    <div class="insight-text">${v.line1}</div>
+    <div class="insight-text">${v.line2}</div>
+  </div></div>`;
+}
+
+/** Legacy single-paragraph insight (By Restaurant / Reservations tabs) */
+function buildOverviewInsight(r26, r25) {
+  const v = buildYoyVerdict(r26, r25);
+  return `${v.line1} ${v.line2}`;
+}
+
+function channelShiftSources() {
+  return [
+    { key: 'bookingsPhoneHuman', label: 'Phone/In-House', color: '#22d98e' },
+    { key: 'bookingsPhoneAI', label: 'Phone/AI', color: '#b06ef5' },
+    { key: 'bookingsOTNetwork', label: 'OT Network', color: '#3d8ef8' },
+    { key: 'bookingsYourNetwork', label: 'Your Network', color: '#f43f8e' },
+    { key: 'bookingsWalkIn', label: 'Walk-in', color: '#ff9f2e' },
+  ];
+}
+
+function buildChannelShiftTableHtml(r26, r25) {
+  const src = channelShiftSources();
+  const ph25 = sum(r25, 'bookingsPhoneHuman');
+  const ph26 = sum(r26, 'bookingsPhoneHuman');
+  const phoneLoss = Math.max(0, ph25 - ph26);
+  const rows = src.map(s => {
+    const a = sum(r25, s.key), b = sum(r26, s.key);
+    const d = b - a;
+    let absorb = '—';
+    if (phoneLoss > 0 && s.key === 'bookingsPhoneAI' && d > 0) {
+      absorb = `<span class="shift-absorbed">${Math.min(100, (d / phoneLoss) * 100).toFixed(0)}% of phone loss</span>`;
+    } else if (phoneLoss > 0 && s.key !== 'bookingsPhoneHuman' && d > 0) {
+      absorb = `<span class="shift-absorbed">${Math.min(100, (d / phoneLoss) * 100).toFixed(0)}% of phone loss</span>`;
+    } else if (s.key === 'bookingsPhoneHuman' && d < 0) {
+      absorb = `<span class="shift-leak">${Math.abs(d).toLocaleString()} lost vs 2025</span>`;
+    }
+    return `<tr>
+      <td><span style="color:${s.color}">●</span> ${s.label}</td>
+      <td>${a.toLocaleString()}</td><td>${b.toLocaleString()}</td>
+      ${varPctCell(b, a).replace('</td>', ` (${d >= 0 ? '+' : ''}${d.toLocaleString()})</td>`)}
+      <td>${absorb}</td>
+    </tr>`;
+  }).join('');
+  const t25 = sum(r25, 'bookingsTotal'), t26 = sum(r26, 'bookingsTotal');
+  const td = t26 - t25;
+  const totalAbsorb = phoneLoss <= 0 ? '—'
+    : (td >= 0
+      ? `<span class="shift-absorbed">Net OK — total reservations not down</span>`
+      : `<span class="shift-leak">Net leak — total still ${td.toLocaleString()} vs 2025</span>`);
+  return `<table>
+    <thead><tr>
+      <th>Source</th><th>2025</th><th>2026</th><th>YoY</th><th>Transfer read</th>
+    </tr></thead>
+    <tbody>${rows}
+      <tr class="total-row">
+        <td>Total reservations</td>
+        <td>${t25.toLocaleString()}</td><td>${t26.toLocaleString()}</td>
+        ${varPctCell(t26, t25).replace('</td>', ` (${td >= 0 ? '+' : ''}${td.toLocaleString()})</td>`)}
+        <td>${totalAbsorb}</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="stat-note">Question: if Phone/In-House falls, does Phone/AI + OT Network + web/walk-in absorb it? Weekly chart = same deltas by week.</div>`;
+}
+
+function buildChannelShiftChart(weeks, r26, r25) {
+  const src = channelShiftSources();
+  const m25 = Object.fromEntries(src.map(s => [s.key, aggByWeek(r25, s.key)]));
+  const m26 = Object.fromEntries(src.map(s => [s.key, aggByWeek(r26, s.key)]));
+  mkChart('ov-channel-shift', 'bar', {
+    labels: weeks.map(w => 'W' + w),
+    datasets: src.map(s => ({
+      label: s.label,
+      data: weeks.map(w => (m26[s.key][w] || 0) - (m25[s.key][w] || 0)),
+      backgroundColor: s.color + 'bb',
+      borderRadius: 3,
+    })),
+  }, mergeChartOptions(Y_AUTO, {
+    plugins: {
+      legend: { display: true, labels: { color: '#8890b8', boxWidth: 10, font: { size: 10 } } },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => {
+            const v = ctx.parsed.y;
+            return `${ctx.dataset.label}: ${v >= 0 ? '+' : ''}${v}`;
+          },
+        },
+      },
+    },
+    scales: {
+      y: {
+        title: { display: true, text: 'YoY Δ bookings (2026 − 2025)', color: '#8890b8' },
+        ticks: { color: '#8890b8' },
+        grid: { color: 'rgba(37,45,74,.6)' },
+      },
+    },
+  }));
 }
 
 /** One-sentence location insight (uses go-live for post-AI view when available) */
@@ -713,10 +843,56 @@ function renderOverview() {
   const conv25Calls = sum(r25,'callsHuman'); const conv25Books = sum(r25,'bookingsPhoneHuman');
   const conv25 = pct(conv25Books, conv25Calls);
   const aiPct = c26 > 0 ? (cAI/c26*100).toFixed(1) : '0';
-  const transferPct = fmtHostiePct(hostieTransferRateAgg(r26));
+  const mtdFrom = Math.max(ANALYSIS_START_WEEK, D.cutoff - 3);
 
   document.getElementById('page-overview').innerHTML = `
-  ${insightBanner(buildOverviewInsight(r26, r25))}
+  ${yoyVerdictBanner(r26, r25)}
+
+  <div class="section-head">Are we losing phone reservations — or transferring them?</div>
+  <div class="chart-row cols-1">
+    <div class="chart-card">
+      <h3>Weekly source shift — YoY Δ (2026 − 2025)</h3>
+      <p>Negative Phone/In-House bars = lost human phone books that week · positive Phone/AI / OT / other = where volume went</p>
+      <div class="chart-wrap" style="height:260px"><canvas id="ov-channel-shift"></canvas></div>
+    </div>
+  </div>
+  <div class="table-card">
+    <h3>Channel transfer summary — W${F.wkFrom}–W${F.wkTo}</h3>
+    <div id="ov-channel-shift-table">${buildChannelShiftTableHtml(r26, r25)}</div>
+  </div>
+
+  <div class="table-card">
+    <h3>MTD by Location — W${mtdFrom}–W${D.cutoff} vs 2025</h3>
+    <p class="loc-summary-note">Calls, reservations, phone bookings, and conversion vs same weeks prior year</p>
+    <table>
+      <thead><tr>
+        <th>Location</th>
+        <th>Calls 2026</th><th>Calls 2025</th><th>Var</th>
+        <th>Reservations 2026</th><th>Reservations 2025</th><th>Var</th>
+        <th>Phone Books 2026</th><th>Phone Books 2025</th><th>Var</th>
+        <th>Human Conv 2026</th><th>Human Conv 2025</th>
+        <th>AI Conv 2026</th><th>AI Conv 2025</th>
+      </tr></thead>
+      <tbody id="ov-mtd-table"></tbody>
+    </table>
+  </div>
+
+  <div class="table-card">
+    <h3>YTD by Location — W${ANALYSIS_START_WEEK}–W${D.cutoff} vs 2025</h3>
+    <p class="loc-summary-note">Same metrics · analysis window W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
+    <table>
+      <thead><tr>
+        <th>Location</th>
+        <th>Calls 2026</th><th>Calls 2025</th><th>Var</th>
+        <th>Reservations 2026</th><th>Reservations 2025</th><th>Var</th>
+        <th>Phone Books 2026</th><th>Phone Books 2025</th><th>Var</th>
+        <th>Human Conv 2026</th><th>Human Conv 2025</th>
+        <th>AI Conv 2026</th><th>AI Conv 2025</th>
+      </tr></thead>
+      <tbody id="ov-ytd-table"></tbody>
+    </table>
+  </div>
+
   <div class="kpi-row">
     <div class="kpi">
       <div class="kpi-label">Total Calls — 2026 YTD</div>
@@ -862,26 +1038,13 @@ function renderOverview() {
       <tbody id="lw-table"></tbody>
     </table>
   </div>
-
-  <div class="section-head">Location Summary</div>
-  <div class="table-card">
-    <h3>All Locations — YTD W${F.wkFrom}–W${F.wkTo}</h3>
-    <table>
-      <thead><tr>
-        <th>Location</th><th>AI Live</th>
-        <th>Calls 2026</th><th>Calls 2025</th><th>Calls Var</th>
-        <th>AI Calls</th><th>AI Share</th>
-        <th>Books 2026</th><th>Books 2025</th><th>Books Var</th>
-        <th>Human Conv 2026</th><th>Human Conv 2025</th>
-        <th>Hostie Transfer %</th>
-      </tr></thead>
-      <tbody id="ov-table"></tbody>
-    </table>
-  </div>
   `;
 
   // build charts after DOM insert
   requestAnimationFrame(() => {
+    buildChannelShiftChart(weeks, r26, r25);
+    buildLocSummaryTable('ov-mtd-table', 'mtd');
+    buildLocSummaryTable('ov-ytd-table', 'ytd');
     buildOvCallsTrend(weeks, r26, r25);
     buildOvBooksTrend(weeks, r26, r25);
     buildOvConvTrend(weeks, r26, r25);
@@ -889,7 +1052,6 @@ function renderOverview() {
     buildOvPhoneTrend(weeks, r26, r25);
     buildOvYoyBars();
     buildExerciseChart('ov-exercise', weeks, filteredWeeks(D.rows26), filteredWeeks(D.rows25));
-    buildOvTable(filteredWeeks(D.rows26), filteredWeeks(D.rows25));
     buildLwTable();
   });
 }
@@ -1070,36 +1232,79 @@ function buildOvYoyBars() {
   }]}, mergeChartOptions(Y_AUTO, {scales:{y:{ticks:{callback:v=>v.toFixed(1)+'pp'}}},plugins:{legend:{display:false}}}));
 }
 
-function buildOvTable(r26all, r25all) {
-  const tbody = document.getElementById('ov-table');
+function varPctCell(cur, prior) {
+  if (!(prior > 0)) return '<td class="neu">—</td>';
+  const v = ((cur - prior) / prior) * 100;
+  const cls = v >= 0 ? 'up' : 'dn';
+  const sign = v > 0 ? '+' : '';
+  return `<td class="${cls}">${sign}${v.toFixed(1)}%</td>`;
+}
+function convYoYCell(cur, prior) {
+  if (cur == null || isNaN(cur)) return '<td>—</td>';
+  if (prior == null || isNaN(prior) || !(prior > 0) && prior !== 0) {
+    return `<td>${cur.toFixed(1)}%</td>`;
+  }
+  const better = cur >= prior;
+  const cls = better ? 'up' : 'dn';
+  return `<td class="${cls}">${cur.toFixed(1)}%</td>`;
+}
+function phoneBooks(rows) {
+  return sum(rows, 'bookingsPhoneHuman') + sum(rows, 'bookingsPhoneAI');
+}
+function locSummaryScope(rowsAll, period) {
+  const cutoff = D.cutoff;
+  let rows = rowsAll || [];
+  if (F.location && F.location !== 'all') {
+    rows = rows.filter(r => r.restaurantId === F.location);
+  }
+  if (period === 'mtd') {
+    const from = Math.max(ANALYSIS_START_WEEK, cutoff - 3);
+    return rows.filter(r => r.week >= from && r.week <= cutoff);
+  }
+  return rows.filter(r => r.week >= ANALYSIS_START_WEEK && r.week <= cutoff);
+}
+function locSummaryRowHtml(labelHtml, r26, r25, isTotal) {
+  const c26 = sum(r26, 'callsTotal'), c25 = sum(r25, 'callsTotal');
+  const b26 = sum(r26, 'bookingsTotal'), b25 = sum(r25, 'bookingsTotal');
+  const p26 = phoneBooks(r26), p25 = phoneBooks(r25);
+  const h26 = humanConvRateAgg(r26), h25 = humanConvRateAgg(r25);
+  const a26 = aiConvRateAgg(r26), a25 = aiConvRateAgg(r25);
+  const h25Html = sum(r25, 'callsHuman') > 0 ? `${h25.toFixed(1)}%` : '—';
+  const ai26Html = sum(r26, 'callsAI') > 0 ? `${a26.toFixed(1)}%` : '—';
+  const ai25Html = sum(r25, 'callsAI') > 0 ? `${a25.toFixed(1)}%` : '—';
+  return `<tr class="${isTotal ? 'total-row' : ''}">
+    <td>${labelHtml}</td>
+    <td>${c26.toLocaleString()}</td><td>${c25.toLocaleString()}</td>${varPctCell(c26, c25)}
+    <td>${b26.toLocaleString()}</td><td>${b25.toLocaleString()}</td>${varPctCell(b26, b25)}
+    <td>${p26.toLocaleString()}</td><td>${p25.toLocaleString()}</td>${varPctCell(p26, p25)}
+    ${convYoYCell(h26, h25)}<td>${h25Html}</td>
+    <td style="color:var(--ai)">${ai26Html}</td><td>${ai25Html}</td>
+  </tr>`;
+}
+
+function buildLocSummaryTable(tbodyId, period) {
+  const tbody = document.getElementById(tbodyId);
   if (!tbody) return;
-  tbody.innerHTML = RESTS.map(rest => {
-    const r26 = r26all.filter(r=>r.restaurantId===rest.id);
-    const r25 = r25all.filter(r=>r.restaurantId===rest.id);
-    const c26=sum(r26,'callsTotal'), c25=sum(r25,'callsTotal');
-    const cAI=sum(r26,'callsAI'), cHum=sum(r26,'callsHuman');
-    const b26=sum(r26,'bookingsTotal'), b25=sum(r25,'bookingsTotal');
-    const bH26=sum(r26,'bookingsPhoneHuman'), bH25=sum(r25,'bookingsPhoneHuman');
-    const cHum25=sum(r25,'callsHuman');
-    const cVar = c25>0 ? ((c26-c25)/c25*100).toFixed(1) : '—';
-    const bVar = b25>0 ? ((b26-b25)/b25*100).toFixed(1) : '—';
-    const cVarCls = parseFloat(cVar)>=0?'up':'dn';
-    const bVarCls = parseFloat(bVar)>=0?'up':'dn';
-  const convH26 = cHum>0?(bH26/cHum*100).toFixed(1):'—';
-  const convH25 = cHum25>0?(bH25/cHum25*100).toFixed(1):'—';
-  const transfRate = fmtHostiePct(hostieTransferRateAgg(r26));
-    return `<tr>
-      <td><span style="color:${rest.color}">●</span> ${rest.label}</td>
-      <td><span class="pill pill-ai">W${rest.goLive}</span></td>
-      <td>${c26.toLocaleString()}</td><td>${c25.toLocaleString()}</td>
-      <td class="${cVarCls}">${cVar}%</td>
-      <td>${cAI.toLocaleString()}</td><td>${c26>0?(cAI/c26*100).toFixed(1):0}%</td>
-      <td>${b26.toLocaleString()}</td><td>${b25.toLocaleString()}</td>
-      <td class="${bVarCls}">${bVar}%</td>
-      <td>${convH26}%</td><td>${convH25}%</td>
-      <td>${transfRate}</td>
-    </tr>`;
-  }).join('');
+  const rests = (F.location && F.location !== 'all')
+    ? RESTS.filter(r => r.id === F.location)
+    : RESTS;
+  const rows = rests.map(rest => {
+    const r26 = locSummaryScope(D.rows26, period).filter(r => r.restaurantId === rest.id);
+    const r25 = locSummaryScope(D.rows25, period).filter(r => r.restaurantId === rest.id);
+    return locSummaryRowHtml(
+      `<span style="color:${rest.color}">●</span> ${rest.label}`,
+      r26, r25, false
+    );
+  });
+  const all26 = locSummaryScope(D.rows26, period).filter(r => rests.some(x => x.id === r.restaurantId));
+  const all25 = locSummaryScope(D.rows25, period).filter(r => rests.some(x => x.id === r.restaurantId));
+  rows.push(locSummaryRowHtml('Total', all26, all25, true));
+  tbody.innerHTML = rows.join('');
+}
+
+function buildOvTable(r26all, r25all) {
+  // legacy alias — Overview now uses buildLocSummaryTable (MTD + YTD)
+  buildLocSummaryTable('ov-ytd-table', 'ytd');
 }
 
 function buildLwTable() {
