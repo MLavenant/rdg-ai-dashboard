@@ -6,6 +6,7 @@
 <title>RDG AI Impact Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
 <style>
 :root{
   --bg:#0d0f18;--surface:#141720;--surface2:#1a1f30;--border:#252d4a;
@@ -120,6 +121,21 @@ tbody tr.total-row td{font-weight:700;color:var(--text)}
 .stat-note{font-size:10px;color:var(--muted);margin-top:8px;font-style:italic}
 .conv-flag{color:var(--red);font-weight:700}
 .conv-footnote{font-size:11px;color:var(--muted);margin:6px 0 12px;line-height:1.45}
+.report-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.report-bar h2{font-size:18px;font-weight:700;margin:0;flex:1}
+.btn-export{background:linear-gradient(90deg,#3d8ef8,#b06ef5);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer}
+.btn-export:disabled{opacity:.55;cursor:wait}
+.btn-export:hover{filter:brightness(1.08)}
+@media print{
+  body.print-report .nav,
+  body.print-report .filters,
+  body.print-report .report-bar .btn-export,
+  body.print-report .report-bar .no-print{display:none!important}
+  body.print-report .page{display:none!important}
+  body.print-report #page-report{display:block!important;padding:0;max-width:none}
+  body.print-report{background:#fff}
+}
+
 
 /* ── INSIGHT SUMMARY ── */
 .insight-banner{background:linear-gradient(135deg,rgba(61,142,248,.12),rgba(176,110,245,.10));border:1px solid rgba(61,142,248,.28);border-radius:var(--radius);padding:14px 18px;margin-bottom:18px;display:flex;gap:12px;align-items:flex-start}
@@ -214,13 +230,14 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 <nav class="nav">
   <div class="nav-brand"><span>◆</span>RDG AI Impact Dashboard</div>
   <div class="tabs">
-    <button class="tab-btn active" onclick="showTab('overview')">Overview</button>
-    <button class="tab-btn" onclick="showTab('byrest')">By Restaurant</button>
-    <button class="tab-btn" onclick="showTab('calls')">Call Center</button>
-    <button class="tab-btn" onclick="showTab('people')">People</button>
-    <button class="tab-btn" onclick="showTab('reservations')">Reservations</button>
-    <button class="tab-btn" onclick="showTab('conversation')">Conversation</button>
-    <button class="tab-btn" onclick="showTab('settings')">Settings</button>
+    <button class="tab-btn active" data-tab="overview" onclick="showTab('overview')">Overview</button>
+    <button class="tab-btn" data-tab="report" onclick="showTab('report')">Report</button>
+    <button class="tab-btn" data-tab="byrest" onclick="showTab('byrest')">By Restaurant</button>
+    <button class="tab-btn" data-tab="calls" onclick="showTab('calls')">Call Center</button>
+    <button class="tab-btn" data-tab="people" onclick="showTab('people')">People</button>
+    <button class="tab-btn" data-tab="reservations" onclick="showTab('reservations')">Reservations</button>
+    <button class="tab-btn" data-tab="conversation" onclick="showTab('conversation')">Conversation</button>
+    <button class="tab-btn" data-tab="settings" onclick="showTab('settings')">Settings</button>
   </div>
 </nav>
 
@@ -258,6 +275,7 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 
 <!-- PAGES -->
 <div id="page-overview" class="page active"><div class="loading">Loading data…</div></div>
+<div id="page-report" class="page"><div class="loading">Loading report…</div></div>
 <div id="page-byrest"   class="page"><div class="loading">Loading data…</div></div>
 <div id="page-calls"    class="page"><div class="loading">Loading data…</div></div>
 <div id="page-people"   class="page"><div class="loading">Loading people data…</div></div>
@@ -329,6 +347,7 @@ function applyFilters() {
 
 function renderAll() {
   renderOverview();
+  renderReport();
   renderByRest();
   renderCalls();
   renderPeople();
@@ -983,13 +1002,8 @@ function renderOverview() {
   const r25 = filtered(D.rows25);
   const weeks = getWeeks();
   const mtdFrom = Math.max(ANALYSIS_START_WEEK, D.cutoff - 3);
-  const reportHref = /github\.io$/i.test(location.hostname) || location.protocol === 'file:' ? './report.html' : '/report';
 
   document.getElementById('page-overview').innerHTML = `
-  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
-    <a href="${reportHref}" target="_blank" rel="noopener" class="tab-btn" style="background:var(--surface2);color:var(--y26);text-decoration:none;display:inline-block">Open exec report</a>
-    <span class="loc-summary-note" style="margin:0">Printable one-pager (overall + each restaurant) · PDF: <code class="cmd">npm run report:pdf</code></span>
-  </div>
   ${buildOverviewRecapBanner()}
 
   <div class="section-head">Calls + Reservations by Source (2025 vs 2026)</div>
@@ -1193,12 +1207,12 @@ function buildExerciseChart(canvasId, weeks, r26, r25, rest=null, showChartLegen
   mkChart(canvasId, 'bar', { labels: weeks.map(w => 'W' + w), datasets }, opts);
 }
 
-function buildOvCallsTrend(weeks, r26, r25) {
+function buildOvCallsTrend(weeks, r26, r25, canvasId='ov-calls-trend') {
   const map26 = aggByWeek(r26, 'callsTotal');
   const map26ai = aggByWeek(r26, 'callsAI');
   const map26h = aggByWeek(r26, 'callsHuman');
   const map25 = aggByWeek(r25, 'callsTotal');
-  mkChart('ov-calls-trend','line',{
+  mkChart(canvasId,'line',{
     labels: weeks.map(w=>'W'+w),
     datasets:[
       {label:'2025 Total',data:weeks.map(w=>map25[w]||0),borderColor:'#ff9f2e',backgroundColor:'rgba(255,159,46,.10)',tension:.3,fill:true,borderWidth:2.5,pointRadius:0,pointHoverRadius:4},
@@ -1209,9 +1223,9 @@ function buildOvCallsTrend(weeks, r26, r25) {
   });
 }
 
-function buildOvBooksTrend(weeks, r26, r25) {
+function buildOvBooksTrend(weeks, r26, r25, canvasId='ov-books-trend') {
   const m26 = aggByWeek(r26,'bookingsTotal'), m25 = aggByWeek(r25,'bookingsTotal');
-  mkChart('ov-books-trend','line',{
+  mkChart(canvasId,'line',{
     labels:weeks.map(w=>'W'+w),
     datasets:[
       {label:'2025',data:weeks.map(w=>m25[w]||0),borderColor:'#ff9f2e',backgroundColor:'rgba(255,159,46,.12)',tension:.3,fill:true,borderWidth:2.5,pointRadius:0,pointHoverRadius:4},
@@ -1220,7 +1234,7 @@ function buildOvBooksTrend(weeks, r26, r25) {
   });
 }
 
-function buildOvConvTrend(weeks, r26, r25) {
+function buildOvConvTrend(weeks, r26, r25, canvasId='ov-conv-trend') {
   // Excel AU/AV: Human Conv = Phone/InHouse ÷ callsHuman (humanAnswered — excl IfNoAnswer + empty)
   const m26 = {}, m25 = {};
   const bmap26=aggByWeek(r26,'bookingsPhoneHuman'), hmap26=aggByWeek(r26,'callsHuman');
@@ -1236,7 +1250,7 @@ function buildOvConvTrend(weeks, r26, r25) {
     const ai=aimap26[w]||0; maiConv[w]=ai>0?+(baimap26[w]||0)/ai*100:null;
     const h=hmap26[w]||0; const totD=h+ai; mtotConv[w]=totD>0?+((bmap26[w]||0)+(baimap26[w]||0))/totD*100:null;
   });
-  mkChart('ov-conv-trend','line',{
+  mkChart(canvasId,'line',{
     labels:weeks.map(w=>'W'+w),
     datasets:[
       {label:'2025 Human',data:weeks.map(w=>m25[w]),borderColor:'#ff9f2e',tension:.3,fill:false,borderWidth:2.5,spanGaps:true,pointRadius:0,pointHoverRadius:4},
@@ -1263,11 +1277,11 @@ function buildOvAbnTrend(weeks, r26, r25) {
   },{scales:{y:{ticks:{callback:v=>v?.toFixed(1)+'%'}}}});
 }
 
-function buildOvPhoneTrend(weeks, r26, r25) {
+function buildOvPhoneTrend(weeks, r26, r25, canvasId='ov-phone-trend') {
   const m25h = aggByWeek(r25,'bookingsPhoneHuman');
   const m26h = aggByWeek(r26,'bookingsPhoneHuman');
   const m26ai = aggByWeek(r26,'bookingsPhoneAI');
-  mkChart('ov-phone-trend','line',{
+  mkChart(canvasId,'line',{
     labels:weeks.map(w=>'W'+w),
     datasets:[
       {label:'2025 Phone',data:weeks.map(w=>m25h[w]||0),borderColor:'#ff9f2e',tension:.3,fill:false,borderWidth:2.5,pointRadius:0,pointHoverRadius:4},
@@ -1424,6 +1438,172 @@ function buildLwTable() {
       <td>${fmtHostiePct(tr)}</td>
     </tr>`;
   }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  REPORT TAB (KPIs + key charts + Export PDF)
+// ═══════════════════════════════════════════════════════════════
+let reportScope = 'all';
+
+function reportRows() {
+  if (reportScope === 'all') {
+    return { r26: filteredWeeks(D.rows26), r25: filteredWeeks(D.rows25), label: 'All Restaurants', rest: null };
+  }
+  const rest = RESTS.find(r => r.id === reportScope);
+  return {
+    r26: filteredWeeks(D.rows26).filter(r => r.restaurantId === reportScope),
+    r25: filteredWeeks(D.rows25).filter(r => r.restaurantId === reportScope),
+    label: rest?.label || reportScope,
+    rest,
+  };
+}
+
+async function exportReportPdf() {
+  const root = document.getElementById('report-print-root');
+  const btn = document.getElementById('btn-export-pdf');
+  if (!root) return;
+  if (typeof html2pdf === 'undefined') {
+    document.body.classList.add('print-report');
+    window.print();
+    document.body.classList.remove('print-report');
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = 'Exporting…'; }
+  try {
+    const { label } = reportRows();
+    const safe = label.replace(/\s+/g, '-');
+    await html2pdf().set({
+      margin: [8, 8, 8, 8],
+      filename: `RDG-AI-Report-${safe}-W${F.wkFrom}-${F.wkTo}.pdf`,
+      image: { type: 'jpeg', quality: 0.96 },
+      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#0d0f18', logging: false },
+      jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' },
+      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+    }).from(root).save();
+  } catch (e) {
+    console.error(e);
+    alert('PDF export failed: ' + (e.message || e) + '\nTry Print dialog instead.');
+    document.body.classList.add('print-report');
+    window.print();
+    document.body.classList.remove('print-report');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Export PDF'; }
+  }
+}
+
+function renderReport() {
+  const el = document.getElementById('page-report');
+  if (!el || !D) return;
+  const { r26, r25, label, rest } = reportRows();
+  const weeks = getWeeks();
+  const mtdFrom = Math.max(ANALYSIS_START_WEEK, D.cutoff - 3);
+  const mtd26 = (reportScope === 'all' ? D.rows26 : (D.rows26 || []).filter(r => r.restaurantId === reportScope))
+    .filter(r => r.week >= mtdFrom && r.week <= D.cutoff);
+  const mtd25 = (reportScope === 'all' ? D.rows25 : (D.rows25 || []).filter(r => r.restaurantId === reportScope))
+    .filter(r => r.week >= mtdFrom && r.week <= D.cutoff);
+
+  const scopeBtns = [
+    `<button type="button" class="rest-btn${reportScope === 'all' ? ' active' : ''}" onclick="reportScope='all';renderReport()" style="${reportScope === 'all' ? 'background:linear-gradient(90deg,#3d8ef8,#b06ef5);border-color:transparent;color:#fff' : ''}">Overall</button>`,
+    ...RESTS.map(r => `<button type="button" class="rest-btn${reportScope === r.id ? ' active' : ''}" onclick="reportScope='${r.id}';renderReport()" style="${reportScope === r.id ? `background:${r.color};border-color:transparent;color:#fff` : ''}">${r.label}</button>`),
+  ].join('');
+
+  el.innerHTML = `
+  <div class="report-bar">
+    <h2>Report — ${label}</h2>
+    <span class="loc-summary-note no-print" style="margin:0">W${F.wkFrom}–W${F.wkTo} vs same weeks 2025</span>
+    <button type="button" class="btn-export" id="btn-export-pdf" onclick="exportReportPdf()">Export PDF</button>
+  </div>
+  <div class="rest-selector no-print">${scopeBtns}</div>
+
+  <div id="report-print-root">
+    <div class="section-head" style="margin-top:0">${label} · W${F.wkFrom}–W${F.wkTo}</div>
+    ${yoyVerdictBanner(r26, r25)}
+    <div class="table-card" style="padding:12px 14px;margin-bottom:14px">
+      <div class="loc-summary-note" style="margin:0 0 6px">MTD W${mtdFrom}–W${D.cutoff}</div>
+      <div style="font-size:13px;line-height:1.5">${(() => {
+        const cV = signedPct(sum(mtd26,'callsTotal'), sum(mtd25,'callsTotal'));
+        const bV = signedPct(sum(mtd26,'bookingsTotal'), sum(mtd25,'bookingsTotal'));
+        const pV = signedPct(phoneBooks(mtd26), phoneBooks(mtd25));
+        return `Calls <b>${fmtSigned(cV)}</b> · Reservations <b>${fmtSigned(bV)}</b> · Phone books <b>${fmtSigned(pV)}</b> · Human conv ${fmtConvPct(humanConvRateAgg(mtd25))} → ${fmtConvPct(humanConvRateAgg(mtd26))}`;
+      })()}</div>
+    </div>
+    ${kpiStripHtml(r26, r25)}
+
+    <div class="section-head">Call volume</div>
+    <div class="chart-row cols-1"><div class="chart-card">
+      <h3>Total Calls — Weekly (2025 vs 2026)</h3>
+      <p>${rest ? `${rest.label} · AI Live W${rest.goLive}` : 'All locations'} · 2025 baseline vs 2026 (AI + human)</p>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-line" style="background:var(--y25)"></div>2025 Total</div>
+        <div class="legend-item"><div class="legend-line" style="background:var(--y26)"></div>2026 Total</div>
+        <div class="legend-item"><div class="legend-line" style="background:var(--ai)"></div>2026 AI</div>
+        <div class="legend-item"><div class="legend-line" style="background:var(--human)"></div>2026 Human</div>
+      </div>
+      <div class="chart-wrap" style="height:240px"><canvas id="rp-calls"></canvas></div>
+    </div></div>
+
+    <div class="chart-row cols-2">
+      <div class="chart-card">
+        <h3>Total Reservations — 2025 vs 2026</h3>
+        <p>All booking sources combined by week</p>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-line" style="background:var(--y25)"></div>2025</div>
+          <div class="legend-item"><div class="legend-line" style="background:var(--y26)"></div>2026</div>
+        </div>
+        <div class="chart-wrap" style="height:200px"><canvas id="rp-books"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Conversion Rates — 2025 vs 2026</h3>
+        <p>Human / AI / total phone booking rates</p>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-line" style="background:#ff9f2e"></div>2025 Human</div>
+          <div class="legend-item"><div class="legend-line" style="background:#22d98e"></div>2026 Human</div>
+          <div class="legend-item"><div class="legend-line" style="background:#b06ef5"></div>2026 AI</div>
+          <div class="legend-item"><div class="legend-line" style="background:#f43f8e"></div>2026 Total</div>
+        </div>
+        <div class="chart-wrap" style="height:200px"><canvas id="rp-conv"></canvas></div>
+      </div>
+    </div>
+
+    <div class="section-head">Phone bookings</div>
+    <div class="chart-row cols-1"><div class="chart-card">
+      <h3>Phone Bookings — 2025 vs 2026</h3>
+      <p>Phone/In-House vs Phone/AI${rest ? ` · dashed AI Live at W${rest.goLive}` : ''}</p>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-line" style="background:var(--y25)"></div>2025 Phone</div>
+        <div class="legend-item"><div class="legend-line" style="background:var(--human)"></div>2026 Human</div>
+        <div class="legend-item"><div class="legend-line" style="background:var(--ai)"></div>2026 AI</div>
+      </div>
+      <div class="chart-wrap" style="height:220px"><canvas id="rp-phone"></canvas></div>
+    </div></div>
+
+    <div class="table-card">
+      <h3>Channel transfer detail — ${label}</h3>
+      ${buildChannelShiftTableHtml(r26, r25)}
+    </div>
+  </div>
+  `;
+
+  requestAnimationFrame(() => {
+    buildOvCallsTrend(weeks, r26, r25, 'rp-calls');
+    buildOvBooksTrend(weeks, r26, r25, 'rp-books');
+    buildOvConvTrend(weeks, r26, r25, 'rp-conv');
+    buildOvPhoneTrend(weeks, r26, r25, 'rp-phone');
+    if (rest) {
+      // annotate phone chart with go-live if possible — rebuild with annotation
+      const m25h = aggByWeek(r25, 'bookingsPhoneHuman');
+      const m26h = aggByWeek(r26, 'bookingsPhoneHuman');
+      const m26ai = aggByWeek(r26, 'bookingsPhoneAI');
+      mkChart('rp-phone', 'line', {
+        labels: weeks.map(w => 'W' + w),
+        datasets: [
+          { label: '2025 Phone', data: weeks.map(w => m25h[w] || 0), borderColor: '#ff9f2e', tension: .3, fill: false, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4 },
+          { label: '2026 Human', data: weeks.map(w => m26h[w] || 0), borderColor: '#22d98e', tension: .3, fill: false, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4 },
+          { label: '2026 AI', data: weeks.map(w => m26ai[w] || 0), borderColor: '#b06ef5', tension: .3, fill: false, borderWidth: 2.5, borderDash: [5, 3], pointRadius: 0, pointHoverRadius: 4 },
+        ],
+      }, { plugins: { annotation: { annotations: goLiveAnno(rest, weeks) } } });
+    }
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2940,12 +3120,9 @@ async function renderSettings() {
 
       <div class="section-head">Executive report</div>
       <div class="table-card">
-        <h3>One-pager for leadership</h3>
-        <p class="loc-summary-note">Overall page + one page per restaurant (MTD/YTD vs PY, channel transfer read, conversion flags).</p>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
-          <a href="${onStaticHost ? './report.html' : '/report'}" target="_blank" rel="noopener" class="tab-btn" style="background:var(--surface2);color:var(--y26);text-decoration:none">Open exec report</a>
-        </div>
-        <div class="stat-note" style="margin-top:10px">PDF export (local): <code class="cmd">npm run report:pdf</code> → <code class="cmd">exports/rdg-ai-exec-W….pdf</code></div>
+        <h3>Report tab</h3>
+        <p class="loc-summary-note">Use the <b>Report</b> tab for KPIs + call volume, conversion, bookings, and phone bookings — then click <b>Export PDF</b>.</p>
+        <button type="button" class="btn-export" onclick="showTab('report')">Open Report tab</button>
       </div>
 
       <div class="section-head">Schedule</div>
@@ -2995,14 +3172,21 @@ async function renderSettings() {
 //  TAB SWITCHING
 // ═══════════════════════════════════════════════════════════════
 function showTab(name) {
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('page-'+name).classList.add('active');
-  event.target.classList.add('active');
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav .tab-btn').forEach(b => b.classList.remove('active'));
+  const page = document.getElementById('page-' + name);
+  if (page) page.classList.add('active');
+  const btn = document.querySelector(`.nav .tab-btn[data-tab="${name}"]`);
+  if (btn) btn.classList.add('active');
+  if (name === 'report') renderReport();
+  try { history.replaceState(null, '', name === 'overview' ? location.pathname + location.search : '#' + name); } catch (_) {}
 }
 
 // ─── START ───────────────────────────────────────────────────
-init();
+init().then(() => {
+  const hash = (location.hash || '').replace('#', '');
+  if (hash && document.getElementById('page-' + hash)) showTab(hash);
+});
 </script>
 </body>
 </html>
