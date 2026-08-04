@@ -153,11 +153,19 @@ tbody tr.total-row td{font-weight:700;color:var(--text)}
     print-color-adjust:exact!important;
   }
 }
+.report-blurb{font-size:12px;line-height:1.45;color:var(--text);margin:0 0 10px;max-width:920px}
+.report-blurb b{color:var(--text);font-weight:600}
+.pdf-compact .chart-wrap{height:260px!important}
+.pdf-compact .chart-card{padding:12px!important;margin-bottom:8px!important}
+.pdf-compact .table-card{padding:12px!important;margin-bottom:0!important}
+.pdf-compact .exec-kpi-table th,.pdf-compact .exec-kpi-table td{padding:8px 10px!important;font-size:11px!important}
+.pdf-compact .exec-kpi-table td b{font-size:13px!important}
+.pdf-compact .report-blurb{font-size:11px!important;margin-bottom:6px!important}
+.pdf-compact .loc-summary-note,.pdf-compact .stat-note{font-size:10px!important;margin:4px 0!important}
+.pdf-compact .section-head{margin:0 0 6px!important;font-size:13px!important}
+.pdf-compact h3{font-size:12px!important;margin-bottom:4px!important}
 .overview-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
 .overview-toolbar .section-head{margin:0}
-
-
-/* ── INSIGHT SUMMARY ── */
 .insight-banner{background:linear-gradient(135deg,rgba(61,142,248,.12),rgba(176,110,245,.10));border:1px solid rgba(61,142,248,.28);border-radius:var(--radius);padding:14px 18px;margin-bottom:18px;display:flex;gap:12px;align-items:flex-start}
 .insight-banner .insight-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--ai);margin-bottom:4px}
 .insight-banner .insight-text{font-size:13px;line-height:1.55;color:var(--text)}
@@ -1399,7 +1407,8 @@ function buildOverviewUnifiedTableHtml() {
 
   return `<div class="table-card exec-kpi-card">
     <h3>Locations · Last week · MTD · YTD</h3>
-    <p class="loc-summary-note">Phone calls vs PY · Phone booked = In-House + AI · Conv % = phone booked ÷ (human + AI calls) · Last week W${D.cutoff} · MTD W${mtdFrom}–W${D.cutoff} · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
+    <p class="report-blurb">This scorecard compares each restaurant to the same weeks last year across three windows — last week, month-to-date (4 weeks), and year-to-date. Use it to see whether call volume, phone bookings (In-House + AI), and phone conversion are up or down vs prior year.</p>
+    <p class="loc-summary-note">Calls vs PY · Phone booked = In-House + AI · Conv % = phone booked ÷ (human + AI calls) · Last week W${D.cutoff} · MTD W${mtdFrom}–W${D.cutoff} · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
     <table class="exec-kpi-table">
       <thead>
         <tr class="group-row">
@@ -1466,13 +1475,14 @@ function renderOverview() {
     <div class="chart-row cols-1" style="margin-bottom:16px">
       <div class="chart-card">
         <h3>Before vs After AI — phone bookings by location</h3>
-        <p>2025 Phone/In-House vs 2026 stacked Phone/In-House + Phone/AI · split at each site’s AI Live · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
+        <p class="report-blurb">This chart shows whether phone reservations held up after AI went live at each site. Amber bars are 2025 Phone/In-House; 2026 is stacked green (In-House) + purple (AI). Before/After splits at each restaurant’s AI Live week — green/red labels are YoY vs the same weeks last year.</p>
+        <p>YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
         <div class="chart-wrap" style="height:380px"><canvas id="ov-ai-impact-by-loc"></canvas></div>
       </div>
     </div>
 
     ${buildOverviewUnifiedTableHtml()}
-    <div class="stat-note">Calls vs PY = TalkDesk total calls YoY · Phone booked = Phone/In-House + Phone/AI · Conv % = phone booked ÷ (human + AI calls). † = Human Conv can exceed 100% when OT Phone/IH bookings &gt; TalkDesk human-answered calls.</div>
+    <div class="stat-note">Calls vs PY = TalkDesk total calls YoY · Phone booked = Phone/In-House + Phone/AI · Conv % = phone booked ÷ (human + AI calls).</div>
   </div>
   `;
   requestAnimationFrame(() => paintOverviewAiImpactChart());
@@ -1516,22 +1526,30 @@ async function exportOverviewPdf() {
   const btn = document.getElementById('overview-pdf-btn');
   const root = document.getElementById('overview-pdf-root');
   const title = document.getElementById('overview-pdf-title');
-  if (!root || typeof html2pdf === 'undefined') {
+  if (!root) {
     alert('PDF export is not available in this browser session.');
+    return;
+  }
+  const h2c = window.html2canvas;
+  const JsPDF = window.jspdf?.jsPDF || window.jsPDF;
+  if (typeof h2c !== 'function' || typeof JsPDF !== 'function') {
+    alert('PDF libraries failed to load. Refresh and try again.');
     return;
   }
   if (btn) { btn.disabled = true; btn.textContent = 'Preparing PDF…'; }
   if (title) title.style.display = 'block';
   document.body.classList.add('print-overview');
+  root.classList.add('pdf-compact');
 
-  // Snapshot chart canvases as images so PDF keeps the rendered dark chart pixels
+  // Snapshot chart canvases as images so PDF keeps rendered dark chart pixels
   const canvasSwaps = [];
   root.querySelectorAll('canvas').forEach(canvas => {
     try {
       const img = document.createElement('img');
       img.src = canvas.toDataURL('image/png');
-      img.style.width = canvas.style.width || (canvas.width + 'px');
-      img.style.height = canvas.style.height || (canvas.height + 'px');
+      const rect = canvas.getBoundingClientRect();
+      img.style.width = Math.max(rect.width, 1) + 'px';
+      img.style.height = Math.max(rect.height, 1) + 'px';
       img.style.maxWidth = '100%';
       img.style.display = 'block';
       img.className = 'pdf-chart-snap';
@@ -1545,84 +1563,76 @@ async function exportOverviewPdf() {
 
   try {
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-    const w = Math.max(root.scrollWidth, 1280);
-    const h = Math.max(root.scrollHeight, 900);
-    await html2pdf().set({
-      margin: [6, 6, 6, 6],
-      filename: `RDG-Overview-through-W${D.cutoff}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: {
-        scale: 2,
-        backgroundColor: '#0d0f18',
-        useCORS: true,
-        logging: false,
-        windowWidth: w,
-        windowHeight: h,
-        onclone: (clonedDoc) => {
-          const style = clonedDoc.createElement('style');
-          style.textContent = `
-            html, body {
-              background: #0d0f18 !important;
-              color: #eef0fb !important;
-            }
-            #overview-pdf-root {
-              background: #0d0f18 !important;
-              color: #eef0fb !important;
-              padding: 8px !important;
-            }
-            #overview-pdf-root, #overview-pdf-root * {
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-            }
-            #overview-pdf-root .chart-card,
-            #overview-pdf-root .table-card,
-            #overview-pdf-root .exec-kpi-card {
-              background: #141720 !important;
-              border: 1px solid #252d4a !important;
-              color: #eef0fb !important;
-              border-radius: 10px !important;
-            }
-            #overview-pdf-root .exec-kpi-card {
-              background: linear-gradient(180deg, rgba(61,142,248,.08), #141720) !important;
-              border-color: rgba(61,142,248,.35) !important;
-            }
-            #overview-pdf-root h3,
-            #overview-pdf-root .section-head { color: #eef0fb !important; }
-            #overview-pdf-root p,
-            #overview-pdf-root .loc-summary-note,
-            #overview-pdf-root .stat-note { color: #8890b8 !important; }
-            #overview-pdf-root table { color: #eef0fb !important; width: 100% !important; border-collapse: collapse !important; }
-            #overview-pdf-root thead th {
-              color: #8890b8 !important;
-              border-bottom: 1px solid #252d4a !important;
-              background: transparent !important;
-            }
-            #overview-pdf-root .group-lw { color: #3d8ef8 !important; border-bottom: 2px solid rgba(61,142,248,.55) !important; }
-            #overview-pdf-root .group-mtd { color: #22d98e !important; border-bottom: 2px solid rgba(34,217,142,.55) !important; }
-            #overview-pdf-root .group-ytd { color: #b06ef5 !important; border-bottom: 2px solid rgba(176,110,245,.55) !important; }
-            #overview-pdf-root tbody td { color: #eef0fb !important; border-bottom: 1px solid rgba(42,48,80,.5) !important; }
-            #overview-pdf-root tbody tr.total-row { background: rgba(61,142,248,.08) !important; }
-            #overview-pdf-root .up { color: #22d98e !important; }
-            #overview-pdf-root .dn { color: #ff5c6a !important; }
-            #overview-pdf-root .pill-ai {
-              background: rgba(167,139,250,.2) !important;
-              color: #b06ef5 !important;
-            }
-            #overview-pdf-title { display: block !important; color: #eef0fb !important; margin-bottom: 12px !important; }
-            #overview-pdf-root canvas { display: none !important; }
-            #overview-pdf-root .pdf-chart-snap { display: block !important; max-width: 100% !important; }
-          `;
-          clonedDoc.head.appendChild(style);
-          const clonedRoot = clonedDoc.getElementById('overview-pdf-root');
-          if (clonedRoot) {
-            clonedRoot.style.background = '#0d0f18';
-            clonedRoot.style.color = '#eef0fb';
+    // Let Chart.js / layout settle after compact class
+    await new Promise(r => setTimeout(r, 120));
+
+    const canvas = await h2c(root, {
+      scale: 2,
+      backgroundColor: '#0d0f18',
+      useCORS: true,
+      logging: false,
+      windowWidth: Math.max(root.scrollWidth, 1200),
+      onclone: (clonedDoc) => {
+        const style = clonedDoc.createElement('style');
+        style.textContent = `
+          html, body { background:#0d0f18!important; color:#eef0fb!important; }
+          #overview-pdf-root {
+            background:#0d0f18!important; color:#eef0fb!important; padding:6px!important;
+            -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important;
           }
-        },
+          #overview-pdf-root, #overview-pdf-root * {
+            -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important;
+          }
+          #overview-pdf-root .chart-card,
+          #overview-pdf-root .table-card,
+          #overview-pdf-root .exec-kpi-card {
+            background:#141720!important; border:1px solid #252d4a!important; color:#eef0fb!important;
+          }
+          #overview-pdf-root .exec-kpi-card {
+            background:linear-gradient(180deg,rgba(61,142,248,.08),#141720)!important;
+            border-color:rgba(61,142,248,.35)!important;
+          }
+          #overview-pdf-root h3, #overview-pdf-root .section-head { color:#eef0fb!important; }
+          #overview-pdf-root p, #overview-pdf-root .loc-summary-note,
+          #overview-pdf-root .stat-note, #overview-pdf-root .report-blurb { color:#8890b8!important; }
+          #overview-pdf-root .report-blurb { color:#c8cde0!important; }
+          #overview-pdf-root table { color:#eef0fb!important; width:100%!important; border-collapse:collapse!important; }
+          #overview-pdf-root thead th { color:#8890b8!important; border-bottom:1px solid #252d4a!important; background:transparent!important; }
+          #overview-pdf-root .group-lw { color:#3d8ef8!important; border-bottom:2px solid rgba(61,142,248,.55)!important; }
+          #overview-pdf-root .group-mtd { color:#22d98e!important; border-bottom:2px solid rgba(34,217,142,.55)!important; }
+          #overview-pdf-root .group-ytd { color:#b06ef5!important; border-bottom:2px solid rgba(176,110,245,.55)!important; }
+          #overview-pdf-root tbody td { color:#eef0fb!important; border-bottom:1px solid rgba(42,48,80,.5)!important; }
+          #overview-pdf-root tbody tr.total-row { background:rgba(61,142,248,.08)!important; }
+          #overview-pdf-root .up { color:#22d98e!important; }
+          #overview-pdf-root .dn { color:#ff5c6a!important; }
+          #overview-pdf-title { display:block!important; color:#eef0fb!important; margin-bottom:8px!important; }
+          #overview-pdf-root canvas { display:none!important; }
+          #overview-pdf-root .pdf-chart-snap { display:block!important; max-width:100%!important; }
+        `;
+        clonedDoc.head.appendChild(style);
       },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
-      pagebreak: { mode: ['css', 'legacy'] },
-    }).from(root).save();
+    });
+
+    const imgData = canvas.toDataURL('image/jpeg', 0.98);
+    const pdf = new JsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const margin = 5;
+    const availW = pageW - margin * 2;
+    const availH = pageH - margin * 2;
+    const aspect = canvas.width / canvas.height;
+    let drawW = availW;
+    let drawH = drawW / aspect;
+    if (drawH > availH) {
+      drawH = availH;
+      drawW = drawH * aspect;
+    }
+    const x = (pageW - drawW) / 2;
+    const y = (pageH - drawH) / 2;
+    pdf.setFillColor(13, 15, 24);
+    pdf.rect(0, 0, pageW, pageH, 'F');
+    pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH, undefined, 'FAST');
+    pdf.save(`RDG-Overview-through-W${D.cutoff}.pdf`);
   } catch (e) {
     console.error(e);
     alert('PDF export failed: ' + (e.message || e));
@@ -1631,6 +1641,7 @@ async function exportOverviewPdf() {
       img.remove();
       canvas.style.display = '';
     });
+    root.classList.remove('pdf-compact');
     if (title) title.style.display = 'none';
     document.body.classList.remove('print-overview');
     if (btn) { btn.disabled = false; btn.textContent = 'Export PDF'; }
@@ -1789,9 +1800,14 @@ function paintOverviewAiImpactChart() {
       },
     ],
   }, {
-    layout: { padding: { top: 36 } },
+    layout: { padding: { top: 36, bottom: 8 } },
     plugins: {
-      legend: { display: true, labels: { color: '#8890b8', boxWidth: 10, font: { size: 10 } } },
+      legend: {
+        display: true,
+        position: 'bottom',
+        align: 'center',
+        labels: { color: '#8890b8', boxWidth: 12, font: { size: 11 }, padding: 18 },
+      },
       tooltip: {
         filter: item => item.parsed.y != null && item.parsed.y !== 0,
         callbacks: {
