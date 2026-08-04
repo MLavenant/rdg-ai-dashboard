@@ -379,36 +379,43 @@ function filteredWeeks(rows) {
 //   Human Conv% = Phone/In-House bookings ÷ Human Calls
 //   AI Conv%    = Phone/AI bookings ÷ AI Calls
 //   Total Conv% = (Phone/In-House + Phone/AI) ÷ (Human Calls + AI Calls)
+// Cap at 100%: OT Phone/In-House can exceed TalkDesk humanAnswered on smaller sites
+// (attribution mismatch) — same formulas as MILA, display cannot exceed 100%.
+
+function clampConvPct(v) {
+  if (v == null || isNaN(v)) return v;
+  return Math.min(100, Math.max(0, v));
+}
 
 function humanConvRate(row) {
   if (!row) return null;
   const h = row.callsHuman || 0;
-  return h > 0 ? row.bookingsPhoneHuman / h * 100 : null;
+  return h > 0 ? clampConvPct((row.bookingsPhoneHuman || 0) / h * 100) : null;
 }
 function humanConvRateAgg(rows) {
   const books = sum(rows, 'bookingsPhoneHuman');
   const h = sum(rows, 'callsHuman');
-  return h > 0 ? books / h * 100 : 0;
+  return h > 0 ? clampConvPct(books / h * 100) : 0;
 }
 function aiConvRate(row) {
   if (!row) return null;
   const ai = row.callsAI || 0;
-  return ai > 0 ? (row.bookingsPhoneAI || 0) / ai * 100 : null;
+  return ai > 0 ? clampConvPct((row.bookingsPhoneAI || 0) / ai * 100) : null;
 }
 function aiConvRateAgg(rows) {
   const books = sum(rows, 'bookingsPhoneAI');
   const ai = sum(rows, 'callsAI');
-  return ai > 0 ? books / ai * 100 : 0;
+  return ai > 0 ? clampConvPct(books / ai * 100) : 0;
 }
 function totalConvRate(row) {
   if (!row) return null;
   const denom = (row.callsHuman || 0) + (row.callsAI || 0);
-  return denom > 0 ? ((row.bookingsPhoneHuman||0) + (row.bookingsPhoneAI||0)) / denom * 100 : null;
+  return denom > 0 ? clampConvPct(((row.bookingsPhoneHuman || 0) + (row.bookingsPhoneAI || 0)) / denom * 100) : null;
 }
 function totalConvRateAgg(rows) {
-  const books = sum(rows,'bookingsPhoneHuman') + sum(rows,'bookingsPhoneAI');
-  const denom = sum(rows,'callsHuman') + sum(rows,'callsAI');
-  return denom > 0 ? books / denom * 100 : 0;
+  const books = sum(rows, 'bookingsPhoneHuman') + sum(rows, 'bookingsPhoneAI');
+  const denom = sum(rows, 'callsHuman') + sum(rows, 'callsAI');
+  return denom > 0 ? clampConvPct(books / denom * 100) : 0;
 }
 
 // Hostie transfer rate: "Transferred to Host" = TRUE ÷ total Hostie AI calls (by location)
@@ -702,7 +709,7 @@ function buildPhoneImpactVolumeChart(canvasId, weeks, r26, r25, rest) {
   });
 }
 
-/** Grouped before/after bars: IH & AI totals vs PY */
+/** Grouped before/after: 2025 IH vs 2026 stacked (IH + AI) */
 function buildPrePostPhoneCompareChart(canvasId, rest, r26, r25) {
   const split26 = splitPrePostAi(r26, rest);
   const split25 = splitPrePostAi(r25, rest);
@@ -711,16 +718,21 @@ function buildPrePostPhoneCompareChart(canvasId, rest, r26, r25) {
   mkChart(canvasId, 'bar', {
     labels: ['Before AI', 'After AI'],
     datasets: [
-      { label: 'Phone/IH 2025', data: [b.ih25, a.ih25], backgroundColor: 'rgba(255,159,46,.5)', borderRadius: 4 },
-      { label: 'Phone/IH 2026', data: [b.ih26, a.ih26], backgroundColor: 'rgba(34,217,142,.75)', borderRadius: 4 },
-      { label: 'Phone/AI 2026', data: [b.ai26, a.ai26], backgroundColor: 'rgba(176,110,245,.85)', borderRadius: 4 },
+      { label: '2025 Phone/In-House', data: [b.ih25, a.ih25], backgroundColor: 'rgba(255,159,46,.55)', borderRadius: 4, stack: 'y25' },
+      { label: '2026 Phone/In-House', data: [b.ih26, a.ih26], backgroundColor: 'rgba(34,217,142,.8)', borderRadius: 4, stack: 'y26' },
+      { label: '2026 Phone/AI', data: [b.ai26, a.ai26], backgroundColor: 'rgba(176,110,245,.9)', borderRadius: 4, stack: 'y26' },
     ],
   }, {
     plugins: { legend: { display: true, labels: { color: '#8890b8', boxWidth: 10, font: { size: 10 } } } },
     scales: {
-      y: { beginAtZero: true, ticks: { color: '#8890b8' }, grid: { color: 'rgba(37,45,74,.6)' },
-        title: { display: true, text: 'Phone reservations', color: '#8890b8' } },
-      x: { ticks: { color: '#8890b8' }, grid: { display: false } },
+      x: { stacked: true, ticks: { color: '#8890b8' }, grid: { display: false } },
+      y: {
+        stacked: true,
+        beginAtZero: true,
+        ticks: { color: '#8890b8' },
+        grid: { color: 'rgba(37,45,74,.6)' },
+        title: { display: true, text: 'Phone reservations', color: '#8890b8' },
+      },
     },
   });
 }
@@ -956,11 +968,9 @@ function abnRateFmt(rows) {
 // Heat coloring: green = good, red = bad
 function heatConv(v) {
   if (v == null || isNaN(v)) return '<span class="heat-na">—</span>';
-  if (v > 100) {
-    return `<span class="heat heat-bad conv-flag" title="OT phone books can exceed TalkDesk human calls — not a true conversion">${v.toFixed(1)}%⚠</span>`;
-  }
-  const cls = v >= 42 ? 'heat-good' : v >= 32 ? 'heat-mid' : 'heat-bad';
-  return `<span class="heat ${cls}">${v.toFixed(1)}%</span>`;
+  const c = clampConvPct(v);
+  const cls = c >= 42 ? 'heat-good' : c >= 32 ? 'heat-mid' : 'heat-bad';
+  return `<span class="heat ${cls}">${c.toFixed(1)}%</span>`;
 }
 function heatAbn(v) {
   if (v == null || isNaN(v)) return '<span class="heat-na">—</span>';
@@ -969,11 +979,11 @@ function heatAbn(v) {
 }
 function heatYoY(cur, prior, higherIsBetter) {
   if (cur == null || prior == null || isNaN(cur) || isNaN(prior)) return heatConv(cur);
-  if (cur > 100) return heatConv(cur);
-  const better = higherIsBetter ? cur >= prior : cur <= prior;
+  const c = clampConvPct(cur), p = clampConvPct(prior);
+  const better = higherIsBetter ? c >= p : c <= p;
   const cls = better ? 'heat-good' : 'heat-bad';
-  const arrow = cur > prior ? '▲' : cur < prior ? '▼' : '—';
-  return `<span class="heat ${cls}">${cur.toFixed(1)}% <span style="font-size:9px;opacity:.8">${arrow}</span></span>`;
+  const arrow = c > p ? '▲' : c < p ? '▼' : '—';
+  return `<span class="heat ${cls}">${c.toFixed(1)}% <span style="font-size:9px;opacity:.8">${arrow}</span></span>`;
 }
 
 function buildConvSummaryTable(r26, r25) {
@@ -1099,23 +1109,19 @@ function sum(rows, field) { return rows.reduce((s,r) => s + (r[field]||0), 0); }
 
 function pct(num, den) { return den > 0 ? (num/den*100).toFixed(1)+'%' : '—'; }
 
-/** Conversion % with >100 flag (OT phone books can exceed TalkDesk human calls in a week). */
+/** Conversion % — capped at 100% (OT phone books can exceed TalkDesk human calls). */
 function convPctValue(num, den) {
   if (!(den > 0)) return null;
-  return (num / den) * 100;
+  return clampConvPct((num / den) * 100);
 }
 function fmtConvPct(v) {
   if (v == null || isNaN(v)) return '—';
-  const s = v.toFixed(1) + '%';
-  if (v > 100) {
-    return `<span class="conv-flag" title="OT phone books can exceed TalkDesk human calls in a week — not a true conversion">${s}⚠</span>`;
-  }
-  return s;
+  return clampConvPct(v).toFixed(1) + '%';
 }
 function pctConv(num, den) {
   return fmtConvPct(convPctValue(num, den));
 }
-const CONV_FOOTNOTE = `<div class="conv-footnote">⚠ Conversion &gt;100% means OpenTable Phone/In-House bookings exceeded TalkDesk human-answered calls for that period (timing/source tagging) — not a real conversion rate. Formula stays Phone/In-House ÷ Human Calls.</div>`;
+const CONV_FOOTNOTE = `<div class="conv-footnote">Conversion is capped at 100%. OT Phone/In-House can exceed TalkDesk human-answered calls on some sites (attribution mismatch) — rates use the same MILA formulas, capped for display.</div>`;
 
 function fmt(n) { return n == null ? '—' : n >= 1000 ? (n/1000).toFixed(1)+'k' : String(n); }
 
@@ -1773,16 +1779,14 @@ function varPctCell(cur, prior) {
 }
 function convYoYCell(cur, prior) {
   if (cur == null || isNaN(cur)) return '<td>—</td>';
-  const flagged = cur > 100;
-  const body = flagged
-    ? `<span class="conv-flag" title="OT phone books can exceed TalkDesk human calls — not a true conversion">${cur.toFixed(1)}%⚠</span>`
-    : `${cur.toFixed(1)}%`;
-  if (prior == null || isNaN(prior) || (!(prior > 0) && prior !== 0)) {
+  const c = clampConvPct(cur);
+  const p = prior == null || isNaN(prior) ? null : clampConvPct(prior);
+  const body = `${c.toFixed(1)}%`;
+  if (p == null || (!(p > 0) && p !== 0)) {
     return `<td>${body}</td>`;
   }
-  const better = cur >= prior;
-  const cls = flagged ? '' : (better ? 'up' : 'dn');
-  return `<td class="${cls}">${body}</td>`;
+  const better = c >= p;
+  return `<td class="${better ? 'up' : 'dn'}">${body}</td>`;
 }
 function phoneBooks(rows) {
   return sum(rows, 'bookingsPhoneHuman') + sum(rows, 'bookingsPhoneAI');
@@ -2082,17 +2086,28 @@ function renderRestDetail(restId) {
     ${kpiStripHtml(r26, r25)}
     ${yoyVerdictBanner(r26, r25)}
 
-    <div class="section-head">Winning or losing phone reservations vs PY</div>
+    <div class="section-head">Phone reservations vs prior year · before &amp; after AI</div>
     <div class="chart-row cols-1">
       <div class="chart-card">
-        <h3>Weekly source shift — Phone only · YoY Δ (2026 − 2025)</h3>
-        <p>Bars = Phone/In-House &amp; Phone/AI Δ · white line = net phone YoY · yellow dashed = linear trend · vertical line = AI Live W${rest.goLive}</p>
-        <div class="chart-wrap" style="height:280px"><canvas id="rc-channel-shift-${restId}"></canvas></div>
+        <h3>Phone reservations by week — ${rest.label}</h3>
+        <p>2025 Phone/In-House vs 2026 stacked Phone/In-House + Phone/AI · dashed line = AI Live W${rest.goLive}</p>
+        <div class="chart-wrap" style="height:300px"><canvas id="rc-phone-impact-${restId}"></canvas></div>
+      </div>
+    </div>
+    <div class="chart-row cols-1">
+      <div class="chart-card">
+        <h3>Before vs After AI — totals</h3>
+        <p>Same weeks prior year · 2025 IH vs 2026 stacked IH + AI · split at AI Live W${rest.goLive}</p>
+        <div class="chart-wrap" style="height:260px"><canvas id="rc-phone-prepost-${restId}"></canvas></div>
       </div>
     </div>
     <div class="table-card">
       <h3>Phone channel detail — ${rest.label} · W${F.wkFrom}–W${F.wkTo}</h3>
       <div id="rc-channel-shift-table-${restId}">${buildChannelShiftTableHtml(r26, r25)}</div>
+    </div>
+    <div class="table-card exec-kpi-card">
+      <h3>Before / After AI — phone impact vs 2025</h3>
+      ${buildPrePostPhoneTableHtml(rest, r26, r25)}
     </div>
 
     <div class="section-head">Exercise — Calls + Reservations by Source (2025 vs 2026)</div>
@@ -2195,7 +2210,8 @@ function renderRestDetail(restId) {
   `;
 
   requestAnimationFrame(() => {
-    buildChannelShiftChart(`rc-channel-shift-${restId}`, weeks, r26, r25, rest);
+    buildPhoneImpactVolumeChart(`rc-phone-impact-${restId}`, weeks, r26, r25, rest);
+    buildPrePostPhoneCompareChart(`rc-phone-prepost-${restId}`, rest, r26, r25);
     buildExerciseChart(`rc-exercise-${restId}`, weeks, r26, r25, rest);
     buildRcCalls(restId, rest, weeks, r26, r25);
     buildRcAbn(restId, rest, weeks, r26, r25);
