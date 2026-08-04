@@ -1563,36 +1563,33 @@ async function exportReportPdf() {
 // ═══════════════════════════════════════════════════════════════
 //  BY RESTAURANT
 // ═══════════════════════════════════════════════════════════════
-let activeRest = 'all';
+let activeRest = 'mila';
 
 function renderByRest() {
   const pg = document.getElementById('page-byrest');
+  // Prefer global location filter when a single site is selected
+  if (F.location && F.location !== 'all' && RESTS.some(r => r.id === F.location)) {
+    activeRest = F.location;
+  } else if (!RESTS.some(r => r.id === activeRest)) {
+    activeRest = RESTS[0].id;
+  }
+
   pg.innerHTML = `
     <div class="rest-selector" id="rest-btns"></div>
     <div id="rest-content"></div>
   `;
   const btns = document.getElementById('rest-btns');
-  // "All" button first
-  const allBtn = document.createElement('button');
-  allBtn.className = 'rest-btn' + (activeRest==='all'?' active':'');
-  allBtn.textContent = 'All Restaurants';
-  allBtn.style.background = activeRest==='all' ? 'linear-gradient(90deg,#3d8ef8,#b06ef5)' : '';
-  allBtn.style.borderColor = activeRest==='all' ? 'transparent' : '';
-  allBtn.style.color = activeRest==='all' ? '#fff' : '';
-  allBtn.onclick = () => { activeRest='all'; renderByRest(); };
-  btns.appendChild(allBtn);
 
   RESTS.forEach(r => {
     const b = document.createElement('button');
-    b.className = 'rest-btn' + (r.id===activeRest?' active':'');
-    if (r.id===activeRest) { b.style.background=r.color; b.style.borderColor='transparent'; b.style.color='#fff'; }
+    b.className = 'rest-btn' + (r.id === activeRest ? ' active' : '');
+    if (r.id === activeRest) { b.style.background = r.color; b.style.borderColor = 'transparent'; b.style.color = '#fff'; }
     b.textContent = r.label;
-    b.onclick = () => { activeRest=r.id; renderByRest(); };
+    b.onclick = () => { activeRest = r.id; renderByRest(); };
     btns.appendChild(b);
   });
 
-  if (activeRest === 'all') renderAllRestComparison();
-  else renderRestDetail(activeRest);
+  renderRestDetail(activeRest);
 }
 
 function renderAllRestComparison() {
