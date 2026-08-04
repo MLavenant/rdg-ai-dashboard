@@ -567,6 +567,188 @@ function phoneShiftCorrelationInsight(weeks, net, rest) {
   </div></div>`;
 }
 
+/** Split location rows into before / after AI Live (within current week filter). */
+function splitPrePostAi(rows, rest) {
+  const go = rest.goLive;
+  const from = F.wkFrom, to = F.wkTo;
+  return {
+    before: (rows || []).filter(r => r.week >= from && r.week < go && r.week <= to),
+    after: (rows || []).filter(r => r.week >= go && r.week >= from && r.week <= to),
+    go,
+    beforeLabel: from < go ? `Before AI · W${from}–W${Math.min(go - 1, to)}` : 'Before AI · (none in range)',
+    afterLabel: to >= go ? `After AI · W${Math.max(go, from)}–W${to}` : 'After AI · (none in range)',
+  };
+}
+
+function phoneImpactMetrics(r26, r25) {
+  const ih26 = sum(r26, 'bookingsPhoneHuman');
+  const ih25 = sum(r25, 'bookingsPhoneHuman');
+  const ai26 = sum(r26, 'bookingsPhoneAI');
+  const phone26 = ih26 + ai26;
+  const phone25 = ih25;
+  return {
+    ih26, ih25, ai26, phone26, phone25,
+    ihYoY: signedPct(ih26, ih25),
+    phoneYoY: signedPct(phone26, phone25),
+    net: phone26 - phone25,
+  };
+}
+
+function buildPrePostPhoneStripHtml(rest, r26, r25) {
+  const split26 = splitPrePostAi(r26, rest);
+  const split25 = splitPrePostAi(r25, rest);
+  const periods = [
+    { label: split26.beforeLabel, m: phoneImpactMetrics(split26.before, split25.before), accent: '#ff9f2e' },
+    { label: split26.afterLabel, m: phoneImpactMetrics(split26.after, split25.after), accent: '#b06ef5' },
+    { label: `Full · W${F.wkFrom}–W${F.wkTo}`, m: phoneImpactMetrics(r26, r25), accent: rest.color },
+  ];
+  return `<div class="kpi-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+    ${periods.map(p => `
+      <div class="kpi" style="border-top:3px solid ${p.accent}">
+        <div class="kpi-label">${p.label}</div>
+        <div class="kpi-sub" style="margin-top:8px">Phone/In-House <b>${fmt(p.m.ih26)}</b>
+          <span class="${(p.m.ihYoY ?? 0) >= 0 ? 'up' : 'dn'}">${fmtSigned(p.m.ihYoY)}</span></div>
+        <div class="kpi-sub">Phone/AI <b style="color:var(--ai)">${fmt(p.m.ai26)}</b></div>
+        <div class="kpi-sub">Phone total <b>${fmt(p.m.phone26)}</b>
+          <span class="${(p.m.phoneYoY ?? 0) >= 0 ? 'up' : 'dn'}">${fmtSigned(p.m.phoneYoY)}</span>
+          vs ${fmt(p.m.phone25)} PY</div>
+      </div>`).join('')}
+  </div>`;
+}
+
+function buildPrePostPhoneTableHtml(rest, r26, r25) {
+  const split26 = splitPrePostAi(r26, rest);
+  const split25 = splitPrePostAi(r25, rest);
+  const rows = [
+    { label: split26.beforeLabel, m: phoneImpactMetrics(split26.before, split25.before) },
+    { label: split26.afterLabel, m: phoneImpactMetrics(split26.after, split25.after) },
+    { label: `Full W${F.wkFrom}–W${F.wkTo}`, m: phoneImpactMetrics(r26, r25), total: true },
+  ];
+  const body = rows.map(r => {
+    const netCls = r.m.net >= 0 ? 'shift-absorbed' : 'shift-leak';
+    const netTxt = r.m.net >= 0
+      ? `Net OK (+${r.m.net.toLocaleString()})`
+      : `Net leak ${r.m.net.toLocaleString()}`;
+    return `<tr class="${r.total ? 'total-row' : ''}">
+      <td>${r.label}</td>
+      <td>${r.m.ih25.toLocaleString()}</td>
+      <td style="color:var(--human)">${r.m.ih26.toLocaleString()}</td>
+      ${varPctCell(r.m.ih26, r.m.ih25)}
+      <td style="color:var(--ai)">${r.m.ai26.toLocaleString()}</td>
+      <td>${r.m.phone25.toLocaleString()}</td>
+      <td>${r.m.phone26.toLocaleString()}</td>
+      ${varPctCell(r.m.phone26, r.m.phone25)}
+      <td><span class="${netCls}">${netTxt}</span></td>
+    </tr>`;
+  }).join('');
+  return `<table class="exec-kpi-table">
+    <thead><tr>
+      <th>Period</th>
+      <th>IH 2025</th><th>IH 2026</th><th>IH YoY</th>
+      <th>Phone/AI 2026</th>
+      <th>Phone tot 2025</th><th>Phone tot 2026</th><th>Phone YoY</th>
+      <th>Net vs PY</th>
+    </tr></thead>
+    <tbody>${body}</tbody>
+  </table>
+  <div class="stat-note">Before = weeks prior to AI Live W${rest.goLive} · After = W${rest.goLive}+ · Phone total 2026 = In-House + AI · compared to 2025 In-House (no AI).</div>`;
+}
+
+/** Absolute weekly phone reservations: 2025 IH vs 2026 IH vs 2026 AI */
+function buildPhoneImpactVolumeChart(canvasId, weeks, r26, r25, rest) {
+  const ih25 = aggByWeek(r25, 'bookingsPhoneHuman');
+  const ih26 = aggByWeek(r26, 'bookingsPhoneHuman');
+  const ai26 = aggByWeek(r26, 'bookingsPhoneAI');
+  mkChart(canvasId, 'bar', {
+    labels: weeks.map(w => 'W' + w),
+    datasets: [
+      {
+        type: 'bar',
+        label: '2025 Phone/In-House',
+        data: weeks.map(w => ih25[w] || 0),
+        backgroundColor: 'rgba(255,159,46,.45)',
+        borderRadius: 3,
+        order: 3,
+      },
+      {
+        type: 'bar',
+        label: '2026 Phone/In-House',
+        data: weeks.map(w => ih26[w] || 0),
+        backgroundColor: 'rgba(34,217,142,.75)',
+        borderRadius: 3,
+        order: 2,
+      },
+      {
+        type: 'bar',
+        label: '2026 Phone/AI',
+        data: weeks.map(w => ai26[w] || 0),
+        backgroundColor: 'rgba(176,110,245,.85)',
+        borderRadius: 3,
+        order: 1,
+      },
+      {
+        type: 'line',
+        label: '2026 Phone total',
+        data: weeks.map(w => (ih26[w] || 0) + (ai26[w] || 0)),
+        borderColor: '#fff',
+        borderWidth: 2.5,
+        tension: 0.25,
+        pointRadius: 2,
+        fill: false,
+        order: 0,
+      },
+      {
+        type: 'line',
+        label: '2025 Phone total',
+        data: weeks.map(w => ih25[w] || 0),
+        borderColor: '#ff9f2e',
+        borderWidth: 2,
+        borderDash: [5, 3],
+        tension: 0.25,
+        pointRadius: 0,
+        fill: false,
+        order: 0,
+      },
+    ],
+  }, mergeChartOptions(Y_AUTO, {
+    plugins: {
+      legend: { display: true, labels: { color: '#8890b8', boxWidth: 10, font: { size: 10 } } },
+      annotation: { annotations: goLiveAnno(rest, weeks) },
+    },
+    scales: {
+      y: {
+        title: { display: true, text: 'Phone reservations', color: '#8890b8' },
+        ticks: { color: '#8890b8' },
+        grid: { color: 'rgba(37,45,74,.6)' },
+        beginAtZero: true,
+      },
+    },
+  }));
+}
+
+/** Grouped before/after bars: IH & AI totals vs PY */
+function buildPrePostPhoneCompareChart(canvasId, rest, r26, r25) {
+  const split26 = splitPrePostAi(r26, rest);
+  const split25 = splitPrePostAi(r25, rest);
+  const b = phoneImpactMetrics(split26.before, split25.before);
+  const a = phoneImpactMetrics(split26.after, split25.after);
+  mkChart(canvasId, 'bar', {
+    labels: ['Before AI', 'After AI'],
+    datasets: [
+      { label: 'Phone/IH 2025', data: [b.ih25, a.ih25], backgroundColor: 'rgba(255,159,46,.5)', borderRadius: 4 },
+      { label: 'Phone/IH 2026', data: [b.ih26, a.ih26], backgroundColor: 'rgba(34,217,142,.75)', borderRadius: 4 },
+      { label: 'Phone/AI 2026', data: [b.ai26, a.ai26], backgroundColor: 'rgba(176,110,245,.85)', borderRadius: 4 },
+    ],
+  }, {
+    plugins: { legend: { display: true, labels: { color: '#8890b8', boxWidth: 10, font: { size: 10 } } } },
+    scales: {
+      y: { beginAtZero: true, ticks: { color: '#8890b8' }, grid: { color: 'rgba(37,45,74,.6)' },
+        title: { display: true, text: 'Phone reservations', color: '#8890b8' } },
+      x: { ticks: { color: '#8890b8' }, grid: { display: false } },
+    },
+  });
+}
+
 function buildChannelShiftTableHtml(r26, r25) {
   const src = channelShiftSources();
   const ph25 = sum(r25, 'bookingsPhoneHuman');
@@ -1761,14 +1943,36 @@ function renderRestDetail(restId) {
     ${kpiStripHtml(r26, r25)}
     ${yoyVerdictBanner(r26, r25)}
 
-    <div class="section-head">Winning or losing phone reservations vs PY</div>
+    <div class="section-head">Phone reservations vs prior year · before &amp; after AI</div>
+    ${buildPrePostPhoneStripHtml(rest, r26, r25)}
+
     <div class="chart-row cols-1">
       <div class="chart-card">
-        <h3>Weekly source shift — Phone only · YoY Δ (2026 − 2025)</h3>
-        <p>Bars = Phone/In-House &amp; Phone/AI Δ · white line = net phone YoY · yellow dashed = linear trend · vertical line = AI Live W${rest.goLive}</p>
-        <div class="chart-wrap" style="height:280px"><canvas id="rc-channel-shift-${restId}"></canvas></div>
+        <h3>Phone reservations by week — ${rest.label}</h3>
+        <p>Bars = 2025 In-House · 2026 In-House · 2026 AI · lines = phone totals · dashed vertical = AI Live W${rest.goLive}</p>
+        <div class="chart-wrap" style="height:300px"><canvas id="rc-phone-impact-${restId}"></canvas></div>
       </div>
     </div>
+
+    <div class="chart-row cols-2">
+      <div class="chart-card">
+        <h3>Before vs After AI — totals</h3>
+        <p>Same weeks prior year · split at AI Live W${rest.goLive}</p>
+        <div class="chart-wrap" style="height:240px"><canvas id="rc-phone-prepost-${restId}"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Weekly YoY Δ (2026 − 2025)</h3>
+        <p>Phone/In-House &amp; Phone/AI deltas · net + linear trend</p>
+        <div class="chart-wrap" style="height:240px"><canvas id="rc-channel-shift-${restId}"></canvas></div>
+      </div>
+    </div>
+
+    <div class="table-card exec-kpi-card">
+      <h3>Before / After AI — phone impact vs 2025</h3>
+      <p class="loc-summary-note">${rest.label} · In-House &amp; AI reservations vs prior year</p>
+      ${buildPrePostPhoneTableHtml(rest, r26, r25)}
+    </div>
+
     <div class="table-card">
       <h3>Phone channel detail — ${rest.label} · W${F.wkFrom}–W${F.wkTo}</h3>
       <div id="rc-channel-shift-table-${restId}">${buildChannelShiftTableHtml(r26, r25)}</div>
@@ -1874,6 +2078,8 @@ function renderRestDetail(restId) {
   `;
 
   requestAnimationFrame(() => {
+    buildPhoneImpactVolumeChart(`rc-phone-impact-${restId}`, weeks, r26, r25, rest);
+    buildPrePostPhoneCompareChart(`rc-phone-prepost-${restId}`, rest, r26, r25);
     buildChannelShiftChart(`rc-channel-shift-${restId}`, weeks, r26, r25, rest);
     buildExerciseChart(`rc-exercise-${restId}`, weeks, r26, r25, rest);
     buildRcCalls(restId, rest, weeks, r26, r25);
