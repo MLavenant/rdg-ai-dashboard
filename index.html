@@ -654,7 +654,7 @@ function buildPrePostPhoneTableHtml(rest, r26, r25) {
   <div class="stat-note">Before = weeks prior to AI Live W${rest.goLive} · After = W${rest.goLive}+ · Phone total 2026 = In-House + AI · compared to 2025 In-House (no AI).</div>`;
 }
 
-/** Absolute weekly phone reservations: 2025 IH vs 2026 IH vs 2026 AI */
+/** Weekly / period phone: 2025 IH bar vs 2026 stacked (IH + AI) */
 function buildPhoneImpactVolumeChart(canvasId, weeks, r26, r25, rest) {
   const ih25 = aggByWeek(r25, 'bookingsPhoneHuman');
   const ih26 = aggByWeek(r26, 'bookingsPhoneHuman');
@@ -663,67 +663,43 @@ function buildPhoneImpactVolumeChart(canvasId, weeks, r26, r25, rest) {
     labels: weeks.map(w => 'W' + w),
     datasets: [
       {
-        type: 'bar',
         label: '2025 Phone/In-House',
         data: weeks.map(w => ih25[w] || 0),
-        backgroundColor: 'rgba(255,159,46,.45)',
+        backgroundColor: 'rgba(255,159,46,.55)',
         borderRadius: 3,
-        order: 3,
+        stack: 'y25',
       },
       {
-        type: 'bar',
         label: '2026 Phone/In-House',
         data: weeks.map(w => ih26[w] || 0),
-        backgroundColor: 'rgba(34,217,142,.75)',
+        backgroundColor: 'rgba(34,217,142,.8)',
         borderRadius: 3,
-        order: 2,
+        stack: 'y26',
       },
       {
-        type: 'bar',
         label: '2026 Phone/AI',
         data: weeks.map(w => ai26[w] || 0),
-        backgroundColor: 'rgba(176,110,245,.85)',
+        backgroundColor: 'rgba(176,110,245,.9)',
         borderRadius: 3,
-        order: 1,
-      },
-      {
-        type: 'line',
-        label: '2026 Phone total',
-        data: weeks.map(w => (ih26[w] || 0) + (ai26[w] || 0)),
-        borderColor: '#fff',
-        borderWidth: 2.5,
-        tension: 0.25,
-        pointRadius: 2,
-        fill: false,
-        order: 0,
-      },
-      {
-        type: 'line',
-        label: '2025 Phone total',
-        data: weeks.map(w => ih25[w] || 0),
-        borderColor: '#ff9f2e',
-        borderWidth: 2,
-        borderDash: [5, 3],
-        tension: 0.25,
-        pointRadius: 0,
-        fill: false,
-        order: 0,
+        stack: 'y26',
       },
     ],
-  }, mergeChartOptions(Y_AUTO, {
+  }, {
     plugins: {
       legend: { display: true, labels: { color: '#8890b8', boxWidth: 10, font: { size: 10 } } },
-      annotation: { annotations: goLiveAnno(rest, weeks) },
+      annotation: rest ? { annotations: goLiveAnno(rest, weeks) } : undefined,
     },
     scales: {
+      x: { stacked: true, ticks: { color: '#8890b8' }, grid: { color: 'rgba(37,45,74,.4)' } },
       y: {
+        stacked: true,
+        beginAtZero: true,
         title: { display: true, text: 'Phone reservations', color: '#8890b8' },
         ticks: { color: '#8890b8' },
         grid: { color: 'rgba(37,45,74,.6)' },
-        beginAtZero: true,
       },
     },
-  }));
+  });
 }
 
 /** Grouped before/after bars: IH & AI totals vs PY */
@@ -1454,28 +1430,23 @@ function renderOverview() {
   <div class="chart-row cols-1">
     <div class="chart-card">
       <h3>Phone reservations by location — YTD</h3>
-      <p>2025 In-House · 2026 In-House · 2026 AI</p>
+      <p>2025 Phone/In-House · 2026 stacked Phone/In-House + Phone/AI</p>
       <div class="chart-wrap" style="height:280px"><canvas id="ov-phone-by-loc"></canvas></div>
     </div>
   </div>
 
-  <div class="chart-row cols-2">
+  <div class="chart-row cols-1">
     <div class="chart-card">
       <h3>Before vs After AI — phone totals by location</h3>
-      <p>Split at each restaurant’s AI Live week · same weeks vs 2025</p>
-      <div class="chart-wrap" style="height:260px"><canvas id="ov-phone-prepost-loc"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <h3>Net phone YoY by location</h3>
-      <p>(IH 2026 + AI 2026) − IH 2025 · before AI vs after AI</p>
-      <div class="chart-wrap" style="height:260px"><canvas id="ov-phone-net-loc"></canvas></div>
+      <p>Split at each restaurant’s AI Live week · 2025 IH vs 2026 stacked IH + AI</p>
+      <div class="chart-wrap" style="height:280px"><canvas id="ov-phone-prepost-loc"></canvas></div>
     </div>
   </div>
 
   <div class="chart-row cols-1">
     <div class="chart-card">
       <h3>Weekly phone reservations — all locations</h3>
-      <p>2025 In-House · 2026 In-House · 2026 AI · phone total lines</p>
+      <p>Each week: 2025 Phone/In-House vs 2026 stacked Phone/In-House + Phone/AI</p>
       <div class="chart-wrap" style="height:280px"><canvas id="ov-phone-weekly"></canvas></div>
     </div>
   </div>
@@ -1519,16 +1490,16 @@ function paintOverviewPhoneImpact(rests) {
   mkChart('ov-phone-by-loc', 'bar', {
     labels,
     datasets: [
-      { label: '2025 Phone/In-House', data: ih25, backgroundColor: 'rgba(255,159,46,.5)', borderRadius: 4 },
-      { label: '2026 Phone/In-House', data: ih26, backgroundColor: 'rgba(34,217,142,.75)', borderRadius: 4 },
-      { label: '2026 Phone/AI', data: ai26, backgroundColor: 'rgba(176,110,245,.85)', borderRadius: 4 },
+      { label: '2025 Phone/In-House', data: ih25, backgroundColor: 'rgba(255,159,46,.55)', borderRadius: 4, stack: 'y25' },
+      { label: '2026 Phone/In-House', data: ih26, backgroundColor: 'rgba(34,217,142,.8)', borderRadius: 4, stack: 'y26' },
+      { label: '2026 Phone/AI', data: ai26, backgroundColor: 'rgba(176,110,245,.9)', borderRadius: 4, stack: 'y26' },
     ],
   }, {
     plugins: { legend: { display: true, labels: { color: '#8890b8', boxWidth: 10, font: { size: 10 } } } },
     scales: {
-      y: { beginAtZero: true, ticks: { color: '#8890b8' }, grid: { color: 'rgba(37,45,74,.6)' },
+      x: { stacked: true, ticks: { color: '#8890b8' } },
+      y: { stacked: true, beginAtZero: true, ticks: { color: '#8890b8' }, grid: { color: 'rgba(37,45,74,.6)' },
         title: { display: true, text: 'Phone reservations', color: '#8890b8' } },
-      x: { ticks: { color: '#8890b8' } },
     },
   });
 
@@ -1549,45 +1520,40 @@ function paintOverviewPhoneImpact(rests) {
     a26ih.push(sum(s26.after, 'bookingsPhoneHuman'));
     a26ai.push(sum(s26.after, 'bookingsPhoneAI'));
   });
+
+  const prepostLabels = rests.flatMap(r => [`${r.label} · Before`, `${r.label} · After`]);
   mkChart('ov-phone-prepost-loc', 'bar', {
-    labels,
+    labels: prepostLabels,
     datasets: [
-      { label: 'Before · IH 2025', data: b25, backgroundColor: 'rgba(255,159,46,.35)', borderRadius: 3 },
-      { label: 'Before · IH 2026', data: b26ih, backgroundColor: 'rgba(34,217,142,.45)', borderRadius: 3 },
-      { label: 'After · IH 2025', data: a25, backgroundColor: 'rgba(255,159,46,.65)', borderRadius: 3 },
-      { label: 'After · IH 2026', data: a26ih, backgroundColor: 'rgba(34,217,142,.85)', borderRadius: 3 },
-      { label: 'After · AI 2026', data: a26ai, backgroundColor: 'rgba(176,110,245,.9)', borderRadius: 3 },
+      {
+        label: '2025 Phone/In-House',
+        data: rests.flatMap((_, i) => [b25[i], a25[i]]),
+        backgroundColor: 'rgba(255,159,46,.55)',
+        borderRadius: 3,
+        stack: 'y25',
+      },
+      {
+        label: '2026 Phone/In-House',
+        data: rests.flatMap((_, i) => [b26ih[i], a26ih[i]]),
+        backgroundColor: 'rgba(34,217,142,.8)',
+        borderRadius: 3,
+        stack: 'y26',
+      },
+      {
+        label: '2026 Phone/AI',
+        data: rests.flatMap((_, i) => [b26ai[i], a26ai[i]]),
+        backgroundColor: 'rgba(176,110,245,.9)',
+        borderRadius: 3,
+        stack: 'y26',
+      },
     ],
   }, {
-    plugins: { legend: { display: true, labels: { color: '#8890b8', boxWidth: 8, font: { size: 9 } } } },
-    scales: {
-      y: { beginAtZero: true, ticks: { color: '#8890b8' }, grid: { color: 'rgba(37,45,74,.6)' } },
-      x: { ticks: { color: '#8890b8' } },
-    },
-  });
-
-  const netBefore = [], netAfter = [];
-  rests.forEach((_, i) => {
-    netBefore.push((b26ih[i] + b26ai[i]) - b25[i]);
-    netAfter.push((a26ih[i] + a26ai[i]) - a25[i]);
-  });
-  mkChart('ov-phone-net-loc', 'bar', {
-    labels,
-    datasets: [
-      { label: 'Net phone YoY · Before AI', data: netBefore, backgroundColor: 'rgba(255,159,46,.6)', borderRadius: 4 },
-      { label: 'Net phone YoY · After AI', data: netAfter, backgroundColor: 'rgba(176,110,245,.75)', borderRadius: 4 },
-    ],
-  }, mergeChartOptions(Y_AUTO, {
     plugins: { legend: { display: true, labels: { color: '#8890b8', boxWidth: 10, font: { size: 10 } } } },
     scales: {
-      y: {
-        title: { display: true, text: 'Net phone Δ vs 2025', color: '#8890b8' },
-        ticks: { color: '#8890b8' },
-        grid: { color: 'rgba(37,45,74,.6)' },
-      },
-      x: { ticks: { color: '#8890b8' } },
+      x: { stacked: true, ticks: { color: '#8890b8', maxRotation: 45, font: { size: 10 } } },
+      y: { stacked: true, beginAtZero: true, ticks: { color: '#8890b8' }, grid: { color: 'rgba(37,45,74,.6)' } },
     },
-  }));
+  });
 
   // Weekly all locations (respect location filter via rests)
   const weeks = [];
