@@ -1167,7 +1167,7 @@ function mergeChartOptions(base, extra) {
 // YoY variance bars may be negative — let Chart.js auto-scale
 const Y_AUTO = { scales: { y: { min: undefined } } };
 
-function mkChart(id, type, data, options={}) {
+function mkChart(id, type, data, options={}, extraPlugins=[]) {
   const canvas = document.getElementById(id);
   if (!canvas) return;
   if (CHARTS[id]) { CHARTS[id].destroy(); delete CHARTS[id]; }
@@ -1184,7 +1184,12 @@ function mkChart(id, type, data, options={}) {
       y: { min: 0, grid: { color: 'rgba(42,48,80,.5)' }, ticks: { color: '#7b82a6' } },
     },
   };
-  CHARTS[id] = new Chart(canvas, { type, data, options: mergeChartOptions(defaults, options) });
+  CHARTS[id] = new Chart(canvas, {
+    type,
+    data,
+    options: mergeChartOptions(defaults, options),
+    plugins: extraPlugins,
+  });
   return CHARTS[id];
 }
 
@@ -1445,8 +1450,8 @@ function renderOverview() {
 
     <div class="chart-row cols-1" style="margin-bottom:16px">
       <div class="chart-card">
-        <h3>Before vs After AI — calls &amp; bookings by location</h3>
-        <p>Split at each site’s AI Live week · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff} · labels show volume · 2026 bars also show YoY vs same weeks 2025</p>
+        <h3>Before vs After AI — phone bookings by location</h3>
+        <p>2025 Phone/In-House vs 2026 stacked Phone/In-House + Phone/AI · split at each site’s AI Live · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
         <div class="chart-wrap" style="height:380px"><canvas id="ov-ai-impact-by-loc"></canvas></div>
       </div>
     </div>
@@ -1469,14 +1474,22 @@ function overviewAiImpactMetrics(rest) {
   F.wkFrom = savedFrom;
   F.wkTo = savedTo;
 
-  const pack = (rows26, rows25) => ({
-    calls: sum(rows26, 'callsTotal'),
-    callsYoY: signedPct(sum(rows26, 'callsTotal'), sum(rows25, 'callsTotal')),
-    books: sum(rows26, 'bookingsTotal'),
-    booksYoY: signedPct(sum(rows26, 'bookingsTotal'), sum(rows25, 'bookingsTotal')),
-    calls25: sum(rows25, 'callsTotal'),
-    books25: sum(rows25, 'bookingsTotal'),
-  });
+  const pack = (rows26, rows25) => {
+    const ih26 = sum(rows26, 'bookingsPhoneHuman');
+    const ai26 = sum(rows26, 'bookingsPhoneAI');
+    const phone26 = ih26 + ai26;
+    const phone25 = sum(rows25, 'bookingsPhoneHuman');
+    return {
+      ih26, ai26, phone26, phone25,
+      phoneYoY: signedPct(phone26, phone25),
+      calls: sum(rows26, 'callsTotal'),
+      callsYoY: signedPct(sum(rows26, 'callsTotal'), sum(rows25, 'callsTotal')),
+      books: sum(rows26, 'bookingsTotal'),
+      booksYoY: signedPct(sum(rows26, 'bookingsTotal'), sum(rows25, 'bookingsTotal')),
+      calls25: sum(rows25, 'callsTotal'),
+      books25: sum(rows25, 'bookingsTotal'),
+    };
+  };
   return {
     go: rest.goLive,
     before: pack(s26.before, s25.before),
@@ -1543,67 +1556,63 @@ function paintOverviewAiImpactChart() {
     phaseAtIndex.push('after');
   });
 
-  const calls26 = [], calls25 = [], books26 = [], books25 = [];
-  const callsYoY = [], booksYoY = [];
+  const phone25 = [], ih26 = [], ai26 = [], phoneYoY = [], phoneTot26 = [];
   locAtIndex.forEach((rest, i) => {
     if (!rest) {
-      calls26.push(null); calls25.push(null); books26.push(null); books25.push(null);
-      callsYoY.push(null); booksYoY.push(null);
+      phone25.push(null); ih26.push(null); ai26.push(null);
+      phoneYoY.push(null); phoneTot26.push(null);
       return;
     }
     const m = overviewAiImpactMetrics(rest);
     const side = phaseAtIndex[i] === 'before' ? m.before : m.after;
-    calls26.push(side.calls);
-    calls25.push(side.calls25);
-    books26.push(side.books);
-    books25.push(side.books25);
-    callsYoY.push(side.callsYoY);
-    booksYoY.push(side.booksYoY);
+    phone25.push(side.phone25);
+    ih26.push(side.ih26);
+    ai26.push(side.ai26);
+    phoneYoY.push(side.phoneYoY);
+    phoneTot26.push(side.phone26);
   });
 
-  const labelCfg = (yoyArr, is26) => ({
-    display: ctx => (ctx.dataset.data[ctx.dataIndex] || 0) > 0,
+  // Total label on top of 2026 stack only (AI segment); IH segment unlabeled to avoid clutter
+  const stackTotalLabels = {
+    display: ctx => ctx.dataset.label === '2026 Phone/AI' && (phoneTot26[ctx.dataIndex] || 0) > 0,
     anchor: 'end',
     align: 'top',
-    offset: -2,
+    offset: 2,
     clamp: true,
-    font: { size: 9, weight: is26 ? '700' : '500' },
+    font: { size: 9, weight: '700' },
     color: ctx => {
-      if (!is26) return '#8890b8';
-      const y = yoyArr[ctx.dataIndex];
+      const y = phoneYoY[ctx.dataIndex];
       if (y == null) return '#c8cde0';
       return y >= 0 ? '#22d98e' : '#ff5c6a';
     },
-    formatter: (v, ctx) => {
-      if (!(v > 0)) return '';
-      const base = fmt(v);
-      if (!is26) return base;
-      const y = yoyArr[ctx.dataIndex];
-      return y == null ? base : `${base}\n${fmtSigned(y)}`;
+    formatter: (_v, ctx) => {
+      const tot = phoneTot26[ctx.dataIndex];
+      const y = phoneYoY[ctx.dataIndex];
+      if (!(tot > 0)) return '';
+      return y == null ? fmt(tot) : `${fmt(tot)}\n${fmtSigned(y)}`;
     },
-  });
+  };
+  const pyLabels = {
+    display: ctx => (ctx.dataset.data[ctx.dataIndex] || 0) > 0,
+    anchor: 'end',
+    align: 'top',
+    offset: 0,
+    clamp: true,
+    font: { size: 9, weight: '500' },
+    color: '#8890b8',
+    formatter: v => (v > 0 ? fmt(v) : ''),
+  };
 
   const annotations = {};
   rests.forEach((rest, ri) => {
     const beforeIdx = ri * 3;
     const afterIdx = beforeIdx + 1;
-    const mid = (beforeIdx + afterIdx) / 2;
     annotations[`band${ri}`] = {
       type: 'box',
       xMin: beforeIdx - 0.48,
       xMax: afterIdx + 0.48,
       backgroundColor: ri % 2 === 0 ? 'rgba(61,142,248,.06)' : 'rgba(176,110,245,.06)',
       borderWidth: 0,
-    };
-    annotations[`loc${ri}`] = {
-      type: 'label',
-      xValue: mid,
-      yValue: 'max',
-      content: [`${rest.label}`, `AI Live W${rest.goLive}`],
-      color: rest.color,
-      font: [{ weight: '700', size: 12 }, { weight: '500', size: 9 }],
-      position: { x: 'center', y: 'start' },
-      yAdjust: -10,
     };
     if (ri < rests.length - 1) {
       const sepAt = afterIdx + 0.5;
@@ -1618,20 +1627,70 @@ function paintOverviewAiImpactChart() {
     }
   });
 
+  // Draw location names in top padding — never over the bars
+  const locHeaderPlugin = {
+    id: 'ovPhoneLocHeaders',
+    afterDraw(chart) {
+      const { ctx, chartArea, scales: { x } } = chart;
+      if (!chartArea || !x) return;
+      rests.forEach((rest, ri) => {
+        const beforeIdx = ri * 3;
+        const afterIdx = beforeIdx + 1;
+        const cx = (x.getPixelForValue(beforeIdx) + x.getPixelForValue(afterIdx)) / 2;
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillStyle = rest.color;
+        ctx.font = '700 12px Inter, system-ui, sans-serif';
+        ctx.fillText(rest.label, cx, chartArea.top - 18);
+        ctx.fillStyle = '#8890b8';
+        ctx.font = '500 9px Inter, system-ui, sans-serif';
+        ctx.fillText(`AI Live W${rest.goLive}`, cx, chartArea.top - 5);
+        ctx.restore();
+      });
+    },
+  };
+
   mkChart('ov-ai-impact-by-loc', 'bar', {
     labels,
     datasets: [
-      { label: 'Calls 2025', data: calls25, backgroundColor: 'rgba(255,159,46,.45)', borderRadius: 3, datalabels: labelCfg(null, false), categoryPercentage: 0.78, barPercentage: 0.9 },
-      { label: 'Calls 2026', data: calls26, backgroundColor: 'rgba(61,142,248,.9)', borderRadius: 3, datalabels: labelCfg(callsYoY, true), categoryPercentage: 0.78, barPercentage: 0.9 },
-      { label: 'Bookings 2025', data: books25, backgroundColor: 'rgba(34,217,142,.35)', borderRadius: 3, datalabels: labelCfg(null, false), categoryPercentage: 0.78, barPercentage: 0.9 },
-      { label: 'Bookings 2026', data: books26, backgroundColor: 'rgba(34,217,142,.95)', borderRadius: 3, datalabels: labelCfg(booksYoY, true), categoryPercentage: 0.78, barPercentage: 0.9 },
+      {
+        label: '2025 Phone/In-House',
+        data: phone25,
+        backgroundColor: 'rgba(255,159,46,.55)',
+        borderRadius: 3,
+        stack: 'y25',
+        datalabels: pyLabels,
+        categoryPercentage: 0.72,
+        barPercentage: 0.9,
+      },
+      {
+        label: '2026 Phone/In-House',
+        data: ih26,
+        backgroundColor: 'rgba(34,217,142,.85)',
+        borderRadius: 0,
+        stack: 'y26',
+        datalabels: { display: false },
+        categoryPercentage: 0.72,
+        barPercentage: 0.9,
+      },
+      {
+        label: '2026 Phone/AI',
+        data: ai26,
+        backgroundColor: 'rgba(176,110,245,.95)',
+        borderRadius: 3,
+        stack: 'y26',
+        datalabels: stackTotalLabels,
+        categoryPercentage: 0.72,
+        barPercentage: 0.9,
+      },
     ],
   }, {
-    layout: { padding: { top: 40 } },
+    layout: { padding: { top: 36 } },
     plugins: {
       legend: { display: true, labels: { color: '#8890b8', boxWidth: 10, font: { size: 10 } } },
       tooltip: {
-        filter: item => item.parsed.y != null,
+        filter: item => item.parsed.y != null && item.parsed.y !== 0,
         callbacks: {
           title: items => {
             const i = items[0]?.dataIndex;
@@ -1644,10 +1703,16 @@ function paintOverviewAiImpactChart() {
             const v = ctx.parsed.y;
             if (v == null) return null;
             const ds = ctx.dataset.label || '';
-            const yoy = ds.includes('Calls 2026') ? callsYoY[ctx.dataIndex]
-              : ds.includes('Bookings 2026') ? booksYoY[ctx.dataIndex] : null;
-            const base = ` ${ds}: ${v.toLocaleString()}`;
-            return yoy == null ? base : `${base} (${fmtSigned(yoy)} vs PY)`;
+            if (ds.startsWith('2026')) {
+              const tot = phoneTot26[ctx.dataIndex];
+              const y = phoneYoY[ctx.dataIndex];
+              const line = ` ${ds}: ${v.toLocaleString()}`;
+              if (ds.includes('AI') && tot != null) {
+                return [line, ` Phone total 2026: ${tot.toLocaleString()}${y == null ? '' : ` (${fmtSigned(y)} vs PY)`}`];
+              }
+              return line;
+            }
+            return ` ${ds}: ${v.toLocaleString()}`;
           },
         },
       },
@@ -1656,6 +1721,7 @@ function paintOverviewAiImpactChart() {
     },
     scales: {
       x: {
+        stacked: true,
         ticks: {
           color: (ctx) => {
             const phase = phaseAtIndex[ctx.index];
@@ -1670,13 +1736,14 @@ function paintOverviewAiImpactChart() {
         grid: { display: false },
       },
       y: {
+        stacked: true,
         beginAtZero: true,
         ticks: { color: '#8890b8' },
         grid: { color: 'rgba(37,45,74,.6)' },
-        title: { display: true, text: 'Calls & bookings', color: '#8890b8' },
+        title: { display: true, text: 'Phone bookings', color: '#8890b8' },
       },
     },
-  });
+  }, [locHeaderPlugin]);
 }
 
 /** Exercise: total call volume (lines) + reservations by source (2025 vs 2026 stacked bars) */
