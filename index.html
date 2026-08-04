@@ -235,10 +235,8 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
   <div class="nav-brand"><span>◆</span>RDG AI Impact Dashboard</div>
   <div class="tabs">
     <button class="tab-btn active" data-tab="overview" onclick="showTab('overview')">Overview</button>
-    <button class="tab-btn" data-tab="report" onclick="showTab('report')">Report</button>
     <button class="tab-btn" data-tab="byrest" onclick="showTab('byrest')">By Restaurant</button>
-    <button class="tab-btn" data-tab="calls" onclick="showTab('calls')">Call Center</button>
-    <button class="tab-btn" data-tab="people" onclick="showTab('people')">People</button>
+    <button class="tab-btn" data-tab="people" onclick="showTab('people')">Call Center</button>
     <button class="tab-btn" data-tab="reservations" onclick="showTab('reservations')">Reservations</button>
     <button class="tab-btn" data-tab="conversation" onclick="showTab('conversation')">Conversation</button>
     <button class="tab-btn" data-tab="settings" onclick="showTab('settings')">Settings</button>
@@ -279,10 +277,8 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 
 <!-- PAGES -->
 <div id="page-overview" class="page active"><div class="loading">Loading data…</div></div>
-<div id="page-report" class="page"><div class="loading">Loading report…</div></div>
 <div id="page-byrest"   class="page"><div class="loading">Loading data…</div></div>
-<div id="page-calls"    class="page"><div class="loading">Loading data…</div></div>
-<div id="page-people"   class="page"><div class="loading">Loading people data…</div></div>
+<div id="page-people"   class="page"><div class="loading">Loading call center data…</div></div>
 <div id="page-reservations" class="page"><div class="loading">Loading data…</div></div>
 <div id="page-conversation" class="page"><div class="loading">Loading data…</div></div>
 <div id="page-settings" class="page"><div class="loading">Loading data…</div></div>
@@ -351,9 +347,7 @@ function applyFilters() {
 
 function renderAll() {
   renderOverview();
-  renderReport();
   renderByRest();
-  renderCalls();
   renderPeople();
   renderReservations();
   renderConversation();
@@ -1156,166 +1150,121 @@ function buildExecLocationKpiTableHtml(r26, r25) {
   </div>`;
 }
 
+/** Exec period table: calls, phone IH/AI, conv, transfer — with YoY */
+function buildPeriodCompareTableHtml(period, title) {
+  const rests = (F.location && F.location !== 'all')
+    ? RESTS.filter(r => r.id === F.location)
+    : RESTS;
+  const body = rests.map(rest => {
+    const r26 = locSummaryScope(D.rows26, period).filter(r => r.restaurantId === rest.id);
+    const r25 = locSummaryScope(D.rows25, period).filter(r => r.restaurantId === rest.id);
+    const calls = sum(r26, 'callsTotal');
+    const callsYoY = signedPct(calls, sum(r25, 'callsTotal'));
+    const books = sum(r26, 'bookingsTotal');
+    const booksYoY = signedPct(books, sum(r25, 'bookingsTotal'));
+    const ih = sum(r26, 'bookingsPhoneHuman');
+    const ai = sum(r26, 'bookingsPhoneAI');
+    const ihYoY = signedPct(ih, sum(r25, 'bookingsPhoneHuman'));
+    const conv = totalConvRateAgg(r26);
+    const conv25 = totalConvRateAgg(r25);
+    const tr = hostieTransferRateAgg(r26);
+    return `<tr>
+      <td><span style="color:${rest.color};font-weight:700">${rest.label}</span></td>
+      <td><b>${fmt(calls)}</b> <span class="${(callsYoY ?? 0) >= 0 ? 'up' : 'dn'}" style="font-size:11px">${fmtSigned(callsYoY)}</span></td>
+      <td><b>${fmt(books)}</b> <span class="${(booksYoY ?? 0) >= 0 ? 'up' : 'dn'}" style="font-size:11px">${fmtSigned(booksYoY)}</span></td>
+      <td style="color:var(--human)"><b>${fmt(ih)}</b> <span class="${(ihYoY ?? 0) >= 0 ? 'up' : 'dn'}" style="font-size:11px">${fmtSigned(ihYoY)}</span></td>
+      <td style="color:var(--ai)"><b>${fmt(ai)}</b></td>
+      <td><b>${fmtConvPct(conv)}</b> <span style="font-size:11px;color:var(--muted)">vs ${fmtConvPct(conv25)}</span></td>
+      <td><b>${fmtHostiePct(tr)}</b></td>
+    </tr>`;
+  }).join('');
+
+  const all26 = locSummaryScope(D.rows26, period).filter(r => rests.some(x => x.id === r.restaurantId));
+  const all25 = locSummaryScope(D.rows25, period).filter(r => rests.some(x => x.id === r.restaurantId));
+  const tCalls = sum(all26, 'callsTotal');
+  const tCallsYoY = signedPct(tCalls, sum(all25, 'callsTotal'));
+  const tBooks = sum(all26, 'bookingsTotal');
+  const tBooksYoY = signedPct(tBooks, sum(all25, 'bookingsTotal'));
+  const tIh = sum(all26, 'bookingsPhoneHuman');
+  const tIhYoY = signedPct(tIh, sum(all25, 'bookingsPhoneHuman'));
+  const tAi = sum(all26, 'bookingsPhoneAI');
+  const tConv = totalConvRateAgg(all26);
+  const tConv25 = totalConvRateAgg(all25);
+  const tTr = hostieTransferRateAgg(all26);
+
+  return `<div class="table-card exec-kpi-card">
+    <h3>${title}</h3>
+    <p class="loc-summary-note">2026 vs same weeks 2025 · green/red = YoY</p>
+    <table class="exec-kpi-table">
+      <thead><tr>
+        <th>Location</th>
+        <th>Calls</th>
+        <th>Reservations</th>
+        <th>Phone/In-House</th>
+        <th>Phone/AI</th>
+        <th>Conv %</th>
+        <th>Transfer %</th>
+      </tr></thead>
+      <tbody>${body}
+        <tr class="total-row">
+          <td>All</td>
+          <td><b>${fmt(tCalls)}</b> <span class="${(tCallsYoY ?? 0) >= 0 ? 'up' : 'dn'}" style="font-size:11px">${fmtSigned(tCallsYoY)}</span></td>
+          <td><b>${fmt(tBooks)}</b> <span class="${(tBooksYoY ?? 0) >= 0 ? 'up' : 'dn'}" style="font-size:11px">${fmtSigned(tBooksYoY)}</span></td>
+          <td style="color:var(--human)"><b>${fmt(tIh)}</b> <span class="${(tIhYoY ?? 0) >= 0 ? 'up' : 'dn'}" style="font-size:11px">${fmtSigned(tIhYoY)}</span></td>
+          <td style="color:var(--ai)"><b>${fmt(tAi)}</b></td>
+          <td><b>${fmtConvPct(tConv)}</b> <span style="font-size:11px;color:var(--muted)">vs ${fmtConvPct(tConv25)}</span></td>
+          <td><b>${fmtHostiePct(tTr)}</b></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function buildOverviewPeriodStrip() {
+  const mtdFrom = Math.max(ANALYSIS_START_WEEK, D.cutoff - 3);
+  const periods = [
+    { key: 'lw', label: `Last week W${D.cutoff}` },
+    { key: 'mtd', label: `MTD W${mtdFrom}–W${D.cutoff}` },
+    { key: 'ytd', label: `YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}` },
+  ];
+  const cards = periods.map(p => {
+    const r26 = locSummaryScope(D.rows26, p.key);
+    const r25 = locSummaryScope(D.rows25, p.key);
+    const c = signedPct(sum(r26, 'callsTotal'), sum(r25, 'callsTotal'));
+    const b = signedPct(sum(r26, 'bookingsTotal'), sum(r25, 'bookingsTotal'));
+    const ph = signedPct(phoneBooks(r26), phoneBooks(r25));
+    const conv26 = totalConvRateAgg(r26);
+    const conv25 = totalConvRateAgg(r25);
+    return `<div class="kpi" style="border-top:3px solid #3d8ef8">
+      <div class="kpi-label">${p.label}</div>
+      <div class="kpi-sub" style="margin-top:8px">Calls <b class="${(c ?? 0) >= 0 ? 'up' : 'dn'}">${fmtSigned(c)}</b></div>
+      <div class="kpi-sub">Reservations <b class="${(b ?? 0) >= 0 ? 'up' : 'dn'}">${fmtSigned(b)}</b></div>
+      <div class="kpi-sub">Phone books <b class="${(ph ?? 0) >= 0 ? 'up' : 'dn'}">${fmtSigned(ph)}</b></div>
+      <div class="kpi-sub">Conv ${fmtConvPct(conv25)} → <b>${fmtConvPct(conv26)}</b></div>
+    </div>`;
+  }).join('');
+  return `<div class="kpi-row" style="grid-template-columns:repeat(3,1fr)">${cards}</div>`;
+}
+
 function renderOverview() {
-  const r26 = filtered(D.rows26);
-  const r25 = filtered(D.rows25);
-  const weeks = getWeeks();
   const mtdFrom = Math.max(ANALYSIS_START_WEEK, D.cutoff - 3);
 
   document.getElementById('page-overview').innerHTML = `
-  ${buildOverviewRecapBanner()}
+  <div class="section-head" style="margin-top:0">Executive overview · vs prior year</div>
+  <p class="loc-summary-note" style="margin:-4px 0 14px">Always Last week · MTD (4 weeks) · YTD (W${ANALYSIS_START_WEEK}–W${D.cutoff}) · data through <b>W${D.cutoff}</b></p>
+  ${buildOverviewPeriodStrip()}
 
-  <div class="section-head">Top KPIs by restaurant</div>
-  ${buildExecLocationKpiTableHtml(r26, r25)}
+  <div class="section-head">Last week</div>
+  ${buildPeriodCompareTableHtml('lw', `Last week — W${D.cutoff} vs 2025`)}
 
-  <div class="section-head">Calls + Reservations by Source (2025 vs 2026)</div>
-  <div class="chart-row cols-1">
-    <div class="chart-card">
-      <h3>Exercise — weekly mix &amp; call volume</h3>
-      <p>Read left→right by week (W${F.wkFrom}–W${F.wkTo}): stacked bars = where reservations came from; lines = how many calls we took. Mute vs bright = prior year vs this year.</p>
-      ${exerciseLegendHtml()}
-      <div class="chart-wrap" style="height:360px"><canvas id="ov-exercise"></canvas></div>
-    </div>
-  </div>
+  <div class="section-head">MTD</div>
+  ${buildPeriodCompareTableHtml('mtd', `MTD — W${mtdFrom}–W${D.cutoff} vs 2025`)}
 
-  <div class="section-head">Call Volume Trends</div>
-  <div class="chart-row cols-1"><div class="chart-card">
-    <h3>Total Calls — Weekly Trend (2025 vs 2026)</h3>
-    <p>All locations combined · 2025 = human-only baseline · 2026 includes AI</p>
-    <div class="legend">
-      <div class="legend-item"><div class="legend-line" style="background:var(--y25)"></div>2025 Total</div>
-      <div class="legend-item"><div class="legend-line" style="background:var(--y26)"></div>2026 Total</div>
-      <div class="legend-item"><div class="legend-line" style="background:var(--ai)"></div>2026 AI Handled</div>
-      <div class="legend-item"><div class="legend-line" style="background:var(--human)"></div>2026 Human</div>
-    </div>
-    <div class="chart-wrap" style="height:240px"><canvas id="ov-calls-trend"></canvas></div>
-  </div></div>
+  <div class="section-head">YTD</div>
+  ${buildPeriodCompareTableHtml('ytd', `YTD — W${ANALYSIS_START_WEEK}–W${D.cutoff} vs 2025`)}
 
-  <div class="chart-row cols-2">
-    <div class="chart-card">
-      <h3>Total Reservations — 2025 vs 2026</h3>
-      <p>All sources combined by week</p>
-      <div class="legend">
-        <div class="legend-item"><div class="legend-line" style="background:var(--y25)"></div>2025</div>
-        <div class="legend-item"><div class="legend-line" style="background:var(--y26)"></div>2026</div>
-      </div>
-      <div class="chart-wrap" style="height:200px"><canvas id="ov-books-trend"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <h3>Conversion Rates — 2025 vs 2026</h3>
-      <p>Human, AI, and total phone booking rates weekly</p>
-      <div class="legend">
-        <div class="legend-item"><div class="legend-line" style="background:#ff9f2e"></div>2025 Human</div>
-        <div class="legend-item"><div class="legend-line" style="background:#22d98e"></div>2026 Human</div>
-        <div class="legend-item"><div class="legend-line" style="background:#b06ef5"></div>2026 AI</div>
-        <div class="legend-item"><div class="legend-line" style="background:#f43f8e"></div>2026 Total</div>
-      </div>
-      <div class="chart-wrap" style="height:200px"><canvas id="ov-conv-trend"></canvas></div>
-    </div>
-  </div>
-
-  <div class="table-card">
-    <h3>MTD by Location — W${mtdFrom}–W${D.cutoff} vs 2025</h3>
-    <p class="loc-summary-note">Calls, reservations, phone bookings, and conversion vs same weeks prior year</p>
-    <table>
-      <thead><tr>
-        <th>Location</th>
-        <th>Calls 2026</th><th>Calls 2025</th><th>Var</th>
-        <th>Reservations 2026</th><th>Reservations 2025</th><th>Var</th>
-        <th>Phone Books 2026</th><th>Phone Books 2025</th><th>Var</th>
-        <th>Human Conv 2026</th><th>Human Conv 2025</th>
-        <th>AI Conv 2026</th><th>AI Conv 2025</th>
-      </tr></thead>
-      <tbody id="ov-mtd-table"></tbody>
-    </table>
-  </div>
-
-  <div class="table-card">
-    <h3>YTD by Location — W${ANALYSIS_START_WEEK}–W${D.cutoff} vs 2025</h3>
-    <p class="loc-summary-note">Same metrics · analysis window W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
-    <table>
-      <thead><tr>
-        <th>Location</th>
-        <th>Calls 2026</th><th>Calls 2025</th><th>Var</th>
-        <th>Reservations 2026</th><th>Reservations 2025</th><th>Var</th>
-        <th>Phone Books 2026</th><th>Phone Books 2025</th><th>Var</th>
-        <th>Human Conv 2026</th><th>Human Conv 2025</th>
-        <th>AI Conv 2026</th><th>AI Conv 2025</th>
-      </tr></thead>
-      <tbody id="ov-ytd-table"></tbody>
-    </table>
-  </div>
-
-  <div class="section-head">Abandoned Calls &amp; Phone Bookings</div>
-  <div class="chart-row cols-2">
-    <div class="chart-card">
-      <h3>Abandoned Call Rate — 2025 vs 2026</h3>
-      <p>Calls abandoned ÷ total calls — AI impact on abandonment</p>
-      <div class="legend">
-        <div class="legend-item"><div class="legend-line" style="background:var(--y25)"></div>2025</div>
-        <div class="legend-item"><div class="legend-line" style="background:var(--y26)"></div>2026</div>
-      </div>
-      <div class="chart-wrap" style="height:200px"><canvas id="ov-abn-trend"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <h3>Phone Bookings — 2025 vs 2026</h3>
-      <p>Phone/In-House vs Phone/AI weekly bookings</p>
-      <div class="legend">
-        <div class="legend-item"><div class="legend-line" style="background:var(--y25)"></div>2025 Phone</div>
-        <div class="legend-item"><div class="legend-line" style="background:var(--human)"></div>2026 Human</div>
-        <div class="legend-item"><div class="legend-line" style="background:var(--ai)"></div>2026 AI</div>
-      </div>
-      <div class="chart-wrap" style="height:200px"><canvas id="ov-phone-trend"></canvas></div>
-    </div>
-  </div>
-
-  <div class="section-head">YoY Impact by Location</div>
-  <div class="chart-row cols-3">
-    <div class="chart-card">
-      <h3>Calls Volume Variance %</h3>
-      <p>2026 vs 2025 — same weeks</p>
-      <div class="chart-wrap" style="height:200px"><canvas id="ov-yoy-calls"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <h3>Bookings Variance %</h3>
-      <p>2026 vs 2025 — total bookings</p>
-      <div class="chart-wrap" style="height:200px"><canvas id="ov-yoy-books"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <h3>Abandoned Rate Change</h3>
-      <p>2025 rate minus 2026 rate (positive = improvement)</p>
-      <div class="chart-wrap" style="height:200px"><canvas id="ov-yoy-abn"></canvas></div>
-    </div>
-  </div>
-
-  <div class="section-head">Last Week Snapshot — W${D.lastWeek}</div>
-  <div class="table-card">
-    <h3>W${D.lastWeek} Performance by Location</h3>
-    <table>
-      <thead><tr>
-        <th>Location</th>
-        <th>Total Calls</th><th>AI Calls</th><th>Human Calls</th><th>Abandoned</th>
-        <th>Phone/AI Books</th><th>Phone/InHouse Books</th><th>OT Network</th>
-        <th>Human Conv%</th><th>Hostie Transfer %</th>
-      </tr></thead>
-      <tbody id="lw-table"></tbody>
-    </table>
-  </div>
+  <div class="stat-note">Conv % = (Phone/In-House + Phone/AI) ÷ (Human + AI calls) · Transfer % = Hostie transferred ÷ Hostie AI calls · YoY vs same ISO weeks in 2025.</div>
   `;
-
-  // build charts after DOM insert
-  requestAnimationFrame(() => {
-    buildExerciseChart('ov-exercise', weeks, filteredWeeks(D.rows26), filteredWeeks(D.rows25), null, false);
-    buildOvCallsTrend(weeks, r26, r25);
-    buildOvBooksTrend(weeks, r26, r25);
-    buildOvConvTrend(weeks, r26, r25);
-    buildLocSummaryTable('ov-mtd-table', 'mtd');
-    buildLocSummaryTable('ov-ytd-table', 'ytd');
-    buildOvAbnTrend(weeks, r26, r25);
-    buildOvPhoneTrend(weeks, r26, r25);
-    buildOvYoyBars();
-    buildLwTable();
-  });
 }
 
 /** Exercise: total call volume (lines) + reservations by source (2025 vs 2026 stacked bars) */
@@ -1522,6 +1471,9 @@ function locSummaryScope(rowsAll, period) {
   let rows = rowsAll || [];
   if (F.location && F.location !== 'all') {
     rows = rows.filter(r => r.restaurantId === F.location);
+  }
+  if (period === 'lw' || period === 'lastweek') {
+    return rows.filter(r => r.week === cutoff);
   }
   if (period === 'mtd') {
     const from = Math.max(ANALYSIS_START_WEEK, cutoff - 3);
@@ -2268,83 +2220,115 @@ function buildRcTable(id, rest, weeks, r26, r25) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  CALL CENTER TAB
+//  CALL CENTER TAB (was People + Call Center KPIs)
 // ═══════════════════════════════════════════════════════════════
-function renderCalls() {
-  const r26 = filtered(D.rows26);
-  const r25 = filtered(D.rows25);
-  const weeks = getWeeks();
 
-  document.getElementById('page-calls').innerHTML = `
-    <div class="section-head">Call Center — All Locations</div>
-    <div class="chart-row cols-2">
-      <div class="chart-card">
-        <h3>Total Calls by Location — 2026 Weekly</h3>
-        <p>Stacked by restaurant</p>
-        <div class="chart-wrap" style="height:260px"><canvas id="cc-calls-stack"></canvas></div>
+/** Latest YTD weeks through cutoff (ignores week filter — always current data). */
+function callCenterLatestRows() {
+  const to = D.cutoff;
+  const from = ANALYSIS_START_WEEK;
+  let r26 = (D.rows26 || []).filter(r => r.week >= from && r.week <= to);
+  let r25 = (D.rows25 || []).filter(r => r.week >= from && r.week <= to);
+  if (F.location && F.location !== 'all') {
+    r26 = r26.filter(r => r.restaurantId === F.location);
+    r25 = r25.filter(r => r.restaurantId === F.location);
+  }
+  const weeks = [];
+  for (let w = from; w <= to; w++) weeks.push(w);
+  return { r26, r25, weeks, from, to };
+}
+
+function callCenterSummaryHtml() {
+  const { from, to } = callCenterLatestRows();
+  return `
+    <div id="people-panel-cc">
+      <div class="section-head">Summary — Call Center</div>
+      <p class="loc-summary-note" style="margin:-4px 0 12px">Through <b>W${to}</b> (W${from}–W${to}) · refreshed with latest TalkDesk / Hostie snapshot</p>
+      <div class="chart-row cols-2">
+        <div class="chart-card">
+          <h3>Total Calls by Location — 2026 Weekly</h3>
+          <p>Stacked by restaurant</p>
+          <div class="chart-wrap" style="height:260px"><canvas id="cc-calls-stack"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3>AI vs Human Calls — 2026 Weekly</h3>
+          <p>AI handled vs human answered</p>
+          <div class="chart-wrap" style="height:260px"><canvas id="cc-ai-human"></canvas></div>
+        </div>
       </div>
-      <div class="chart-card">
-        <h3>AI vs Human Calls — 2026 Weekly (All RDG)</h3>
-        <p>AI handled vs human answered</p>
-        <div class="chart-wrap" style="height:260px"><canvas id="cc-ai-human"></canvas></div>
+      <div class="chart-row cols-2">
+        <div class="chart-card">
+          <h3>AI Transfer Rate by Location — YTD</h3>
+          <p>Hostie: transferred to host ÷ Hostie AI calls</p>
+          <div class="chart-wrap" style="height:240px"><canvas id="cc-transfer"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3>Abandoned Rate — 2025 vs 2026 by Location</h3>
+          <p>YTD abandonment rate comparison</p>
+          <div class="chart-wrap" style="height:240px"><canvas id="cc-abn-bar"></canvas></div>
+        </div>
       </div>
-    </div>
-    <div class="chart-row cols-2">
-      <div class="chart-card">
-        <h3>AI Transfer Rate by Location — YTD</h3>
-        <p>Hostie: transferred to host (TRUE) ÷ total Hostie AI calls</p>
-        <div class="chart-wrap" style="height:240px"><canvas id="cc-transfer"></canvas></div>
-      </div>
-      <div class="chart-card">
-        <h3>Abandoned Rate — 2025 vs 2026 by Location</h3>
-        <p>YTD abandonment rate comparison</p>
-        <div class="chart-wrap" style="height:240px"><canvas id="cc-abn-bar"></canvas></div>
-      </div>
-    </div>
-  `;
+    </div>`;
+}
 
-  requestAnimationFrame(() => {
-    // Stacked by restaurant
-    mkChart('cc-calls-stack','bar',{
-      labels:weeks.map(w=>'W'+w),
-      datasets:RESTS.map(rest=>({
-        label:rest.label,
-        data:weeks.map(w=>{const r=r26.find(x=>x.restaurantId===rest.id&&x.week===w);return r?.callsTotal||0;}),
-        backgroundColor:rest.color+'99',stack:'s'
-      }))
-    },{scales:{x:{stacked:true},y:{stacked:true}}});
+function paintCallCenterSummaryCharts() {
+  const { r26, r25, weeks } = callCenterLatestRows();
+  if (!document.getElementById('cc-calls-stack')) return;
 
-    // AI vs Human
-    const mai=aggByWeek(r26,'callsAI'), mhum=aggByWeek(r26,'callsHuman');
-    mkChart('cc-ai-human','bar',{
-      labels:weeks.map(w=>'W'+w),
-      datasets:[
-        {label:'AI',data:weeks.map(w=>mai[w]||0),backgroundColor:'rgba(167,139,250,.6)',stack:'s'},
-        {label:'Human',data:weeks.map(w=>mhum[w]||0),backgroundColor:'rgba(52,211,153,.5)',stack:'s'},
-      ]
-    },{scales:{x:{stacked:true},y:{stacked:true}}});
+  mkChart('cc-calls-stack', 'bar', {
+    labels: weeks.map(w => 'W' + w),
+    datasets: RESTS.map(rest => ({
+      label: rest.label,
+      data: weeks.map(w => {
+        const r = r26.find(x => x.restaurantId === rest.id && x.week === w);
+        return r?.callsTotal || 0;
+      }),
+      backgroundColor: rest.color + '99',
+      stack: 's',
+    })),
+  }, { scales: { x: { stacked: true }, y: { stacked: true } } });
 
-    // Transfer rate by location
-    const labels=RESTS.map(r=>r.label);
-    const tr = RESTS.map(rest=>{
-      const rows=r26.filter(x=>x.restaurantId===rest.id);
-      const rate = hostieTransferRateAgg(rows);
-      return rate != null ? +rate.toFixed(1) : 0;
-    });
-    mkChart('cc-transfer','bar',{labels,datasets:[{label:'Transfer Rate%',data:tr,backgroundColor:RESTS.map(r=>r.color+'99'),borderRadius:4}]},
-      {scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%'}}},plugins:{legend:{display:false}}});
+  const mai = aggByWeek(r26, 'callsAI'), mhum = aggByWeek(r26, 'callsHuman');
+  mkChart('cc-ai-human', 'bar', {
+    labels: weeks.map(w => 'W' + w),
+    datasets: [
+      { label: 'AI', data: weeks.map(w => mai[w] || 0), backgroundColor: 'rgba(167,139,250,.6)', stack: 's' },
+      { label: 'Human', data: weeks.map(w => mhum[w] || 0), backgroundColor: 'rgba(52,211,153,.5)', stack: 's' },
+    ],
+  }, { scales: { x: { stacked: true }, y: { stacked: true } } });
 
-    // Abandoned bar
-    const abn26=RESTS.map(rest=>{const rows=r26.filter(x=>x.restaurantId===rest.id);const t=sum(rows,'callsTotal');return t>0?+(sum(rows,'callsAbandoned')/t*100).toFixed(1):0;});
-    const abn25=RESTS.map(rest=>{const rows=r25.filter(x=>x.restaurantId===rest.id);const t=sum(rows,'callsTotal');return t>0?+(sum(rows,'callsAbandoned')/t*100).toFixed(1):0;});
-    mkChart('cc-abn-bar','bar',{
-      labels,
-      datasets:[
-        {label:'2025 Abn%',data:abn25,backgroundColor:'rgba(245,158,11,.5)',borderRadius:4},
-        {label:'2026 Abn%',data:abn26,backgroundColor:'rgba(79,142,247,.6)',borderRadius:4},
-      ]
-    },{scales:{y:{ticks:{callback:v=>v+'%'}}}});
+  const labels = RESTS.map(r => r.label);
+  const tr = RESTS.map(rest => {
+    const rows = r26.filter(x => x.restaurantId === rest.id);
+    const rate = hostieTransferRateAgg(rows);
+    return rate != null ? +rate.toFixed(1) : 0;
   });
+  mkChart('cc-transfer', 'bar', {
+    labels,
+    datasets: [{ label: 'Transfer Rate%', data: tr, backgroundColor: RESTS.map(r => r.color + '99'), borderRadius: 4 }],
+  }, { scales: { y: { min: 0, max: 100, ticks: { callback: v => v + '%' } } }, plugins: { legend: { display: false } } });
+
+  const abn26 = RESTS.map(rest => {
+    const rows = r26.filter(x => x.restaurantId === rest.id);
+    const t = sum(rows, 'callsTotal');
+    return t > 0 ? +(sum(rows, 'callsAbandoned') / t * 100).toFixed(1) : 0;
+  });
+  const abn25 = RESTS.map(rest => {
+    const rows = r25.filter(x => x.restaurantId === rest.id);
+    const t = sum(rows, 'callsTotal');
+    return t > 0 ? +(sum(rows, 'callsAbandoned') / t * 100).toFixed(1) : 0;
+  });
+  mkChart('cc-abn-bar', 'bar', {
+    labels,
+    datasets: [
+      { label: '2025 Abn%', data: abn25, backgroundColor: 'rgba(245,158,11,.5)', borderRadius: 4 },
+      { label: '2026 Abn%', data: abn26, backgroundColor: 'rgba(79,142,247,.6)', borderRadius: 4 },
+    ],
+  }, { scales: { y: { ticks: { callback: v => v + '%' } } } });
+}
+
+function renderCalls() {
+  // Legacy no-op — Call Center KPIs now live under Call Center → Summary — Call Center
 }
 
 let _peopleStatic = null;   // cached ./people.json when no backend
@@ -2397,13 +2381,15 @@ async function loadPeople(week) {
 async function renderPeople() {
   const el = document.getElementById('page-people');
   if (!el) return;
-  el.innerHTML = `<div class="loading">Loading Reservation Call Report…</div>`;
+  el.innerHTML = `<div class="loading">Loading Call Center…</div>`;
   try {
-    const week = F.wkTo || D.cutoff || 24;
+    const week = D.cutoff || F.wkTo || 24;
     const j = await loadPeople(week);
     if (!j.ok) {
-      el.innerHTML = `<div class="table-card"><p>${j.error || 'People report not available.'}</p>
-        <div class="stat-note">Ensure TalkDesk CSV is in <code>data/</code> and the dashboard server is running.</div></div>`;
+      el.innerHTML = `${callCenterSummaryHtml()}
+        <div class="table-card"><p>${j.error || 'Agent report not available.'}</p>
+        <div class="stat-note">Ensure TalkDesk CSV is in <code>data/</code> and re-export the dashboard.</div></div>`;
+      requestAnimationFrame(() => paintCallCenterSummaryCharts());
       return;
     }
 
@@ -2496,21 +2482,24 @@ async function renderPeople() {
     </tr>`;
 
     el.innerHTML = `
-      <div class="section-head">People — Reservation Call Report</div>
-      ${insightBanner(`Matches Excel <b>Reservation Call Report</b>: Ring Groups, Type of Call, and Peak Times. Week uses dashboard filter <b>W${j.selectedWeek}</b>; MTD = <b>W${j.mtdFromWeek}–W${j.mtdToWeek}</b> (4-week period). ${_peopleReadOnly ? '<b>Worked Hours</b> are view-only on the shared link — edit them in the local dashboard.' : '<b>Worked Hours</b> are editable — enter payroll hours to compute Call Per Hour.'}`)}
+      <div class="section-head">Call Center</div>
+      ${insightBanner(`Agent ops + location call KPIs. Week <b>W${j.selectedWeek}</b> (latest cutoff) · MTD = <b>W${j.mtdFromWeek}–W${j.mtdToWeek}</b>. ${_peopleReadOnly ? '<b>Worked Hours</b> are view-only on the shared link.' : '<b>Worked Hours</b> are editable locally.'}`)}
       <div class="people-week-bar">
         <label>Report week</label>
         <input type="number" id="people-week" min="1" max="53" value="${j.selectedWeek}">
         <button class="rest-btn" id="people-week-go" style="padding:6px 12px">Apply</button>
-        <span class="people-note">Source: ${j.sources?.csv || '—'} · Generated ${j.generatedAt ? new Date(j.generatedAt).toLocaleString() : '—'}<span id="people-save-hint"></span></span>
+        <span class="people-note">Source: ${j.sources?.csv || '—'} · Generated ${j.generatedAt ? new Date(j.generatedAt).toLocaleString() : '—'} · through W${D.cutoff}<span id="people-save-hint"></span></span>
       </div>
       <div class="people-subtabs" id="people-subtabs">
-        <button class="people-subtab active" data-people-panel="ring">Summary — Ring Groups</button>
+        <button class="people-subtab active" data-people-panel="cc">Summary — Call Center</button>
+        <button class="people-subtab" data-people-panel="ring">Summary — Ring Groups</button>
         <button class="people-subtab" data-people-panel="type">Summary — Type of Call</button>
-        <button class="people-subtab" data-people-panel="peak">Summary — Peak Times BreakDown</button>
+        <button class="people-subtab" data-people-panel="peak">Summary — Peak Times</button>
       </div>
 
-      <div id="people-panel-ring">
+      ${callCenterSummaryHtml()}
+
+      <div id="people-panel-ring" style="display:none">
         <div class="table-card" style="overflow:auto">
           <h3>Summary — Ring Groups</h3>
           <p class="people-note"># calls = inbound + outbound · ASA = avg Agent Speed to Answer · AI Agent row = If-No-Answer Agent</p>
@@ -2623,14 +2612,17 @@ async function renderPeople() {
         document.querySelectorAll('.people-subtab').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         const panel = btn.dataset.peoplePanel;
-        ['ring','type','peak'].forEach(p => {
+        ['cc','ring','type','peak'].forEach(p => {
           const node = document.getElementById('people-panel-' + p);
           if (node) node.style.display = p === panel ? '' : 'none';
         });
+        if (panel === 'cc') requestAnimationFrame(() => paintCallCenterSummaryCharts());
         if (panel === 'type') requestAnimationFrame(() => renderPeopleTypeCharts(window._peopleReport));
         if (panel === 'peak') requestAnimationFrame(() => renderPeoplePeakCharts(window._peopleReport));
       });
     });
+
+    requestAnimationFrame(() => paintCallCenterSummaryCharts());
 
     el.querySelectorAll('.hours-input').forEach(input => {
       input.addEventListener('change', async () => {
@@ -2656,7 +2648,7 @@ async function renderPeople() {
       });
     });
   } catch (e) {
-    el.innerHTML = `<div class="error">People report failed: ${e.message}</div>`;
+    el.innerHTML = `<div class="error">Call Center load failed: ${e.message}</div>`;
   }
 }
 
@@ -3259,13 +3251,6 @@ async function renderSettings() {
       <div class="section-head">Settings — Sanity Check</div>
       ${insightBanner(`Updates are scheduled for <b>every Monday at 8:30 AM</b> via Windows Task <b>${j.schedule?.windowsTaskName || 'RDG Dashboard - Weekly Refresh'}</b>. This page checks whether Hostie, TalkDesk, and OpenTable caches look complete and fresh.${onStaticHost ? ' <b>Shared link shows the last exported snapshot</b> — run sanity locally for live file ages.' : ''}`)}
 
-      <div class="section-head">Executive report</div>
-      <div class="table-card">
-        <h3>Report tab</h3>
-        <p class="loc-summary-note">Use the <b>Report</b> tab for KPIs + call volume, conversion, bookings, and phone bookings — then click <b>Export PDF</b>.</p>
-        <button type="button" class="btn-export" onclick="showTab('report')">Open Report tab</button>
-      </div>
-
       <div class="section-head">Schedule</div>
       <div class="table-card">
         <h3>Monday refresh control</h3>
@@ -3313,13 +3298,13 @@ async function renderSettings() {
 //  TAB SWITCHING
 // ═══════════════════════════════════════════════════════════════
 function showTab(name) {
+  if (name === 'report' || name === 'calls') name = name === 'calls' ? 'people' : 'overview';
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav .tab-btn').forEach(b => b.classList.remove('active'));
   const page = document.getElementById('page-' + name);
   if (page) page.classList.add('active');
   const btn = document.querySelector(`.nav .tab-btn[data-tab="${name}"]`);
   if (btn) btn.classList.add('active');
-  if (name === 'report') renderReport();
   try { history.replaceState(null, '', name === 'overview' ? location.pathname + location.search : '#' + name); } catch (_) {}
 }
 
