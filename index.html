@@ -6,6 +6,7 @@
 <title>RDG AI Impact Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
 <style>
 :root{
@@ -295,6 +296,10 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 let D = null;          // raw /api/compare response
 let F = {};            // current filter state
 const CHARTS = {};     // chart instances keyed by canvas id
+if (typeof ChartDataLabels !== 'undefined') {
+  Chart.register(ChartDataLabels);
+  Chart.defaults.plugins.datalabels = { display: false };
+}
 
 const RESTS = [
   {id:'mila',      label:'MILA',      color:'#3d8ef8', goLive:23},
@@ -1167,6 +1172,7 @@ function mkChart(id, type, data, options={}) {
     maintainAspectRatio: false,
     plugins: {
       legend: { display: false },
+      datalabels: { display: false },
       tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y?.toLocaleString() ?? ctx.parsed}` } },
     },
     scales: {
@@ -1424,6 +1430,15 @@ function renderOverview() {
   document.getElementById('page-overview').innerHTML = `
   <div class="section-head" style="margin-top:0">Executive overview · vs prior year</div>
   <p class="loc-summary-note" style="margin:-4px 0 14px">Last week · MTD (4 weeks) · YTD (W${ANALYSIS_START_WEEK}–W${D.cutoff}) · data through <b>W${D.cutoff}</b></p>
+
+  <div class="chart-row cols-1" style="margin-bottom:8px">
+    <div class="chart-card">
+      <h3>Before vs After AI — calls &amp; bookings by location</h3>
+      <p>Split at each site’s AI Live week · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff} · labels show volume · 2026 bars also show YoY gap vs same weeks 2025</p>
+      <div class="chart-wrap" style="height:360px"><canvas id="ov-ai-impact-by-loc"></canvas></div>
+    </div>
+  </div>
+
   ${buildOverviewPeriodStrip()}
   ${buildOverviewUnifiedTableHtml()}
   <div class="stat-note">Calls vs PY = TalkDesk total calls YoY · Phone booked = Phone/In-House + Phone/AI · Conv % = phone booked ÷ (human + AI calls).</div>
@@ -1435,20 +1450,10 @@ function renderOverview() {
       <div class="chart-wrap" style="height:300px"><canvas id="ov-vol-phone-by-loc"></canvas></div>
     </div>
   </div>
-
-  <div class="section-head">AI impact · before vs after</div>
-  ${buildOverviewAiImpactTableHtml()}
-  <div class="chart-row cols-1" style="margin-top:8px">
-    <div class="chart-card">
-      <h3>Before vs After AI — calls &amp; bookings by location</h3>
-      <p>Split at each site’s AI Live week · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff} · same weeks prior year shown as muted bars</p>
-      <div class="chart-wrap" style="height:300px"><canvas id="ov-ai-impact-by-loc"></canvas></div>
-    </div>
-  </div>
   `;
   requestAnimationFrame(() => {
-    paintOverviewVolumeChart();
     paintOverviewAiImpactChart();
+    paintOverviewVolumeChart();
   });
 }
 
@@ -1468,8 +1473,6 @@ function overviewAiImpactMetrics(rest) {
     callsYoY: signedPct(sum(rows26, 'callsTotal'), sum(rows25, 'callsTotal')),
     books: sum(rows26, 'bookingsTotal'),
     booksYoY: signedPct(sum(rows26, 'bookingsTotal'), sum(rows25, 'bookingsTotal')),
-    conv: totalConvRateAgg(rows26),
-    conv25: totalConvRateAgg(rows25),
     calls25: sum(rows25, 'callsTotal'),
     books25: sum(rows25, 'bookingsTotal'),
   });
@@ -1477,85 +1480,7 @@ function overviewAiImpactMetrics(rest) {
     go: rest.goLive,
     before: pack(s26.before, s25.before),
     after: pack(s26.after, s25.after),
-    beforeLabel: s26.beforeLabel,
-    afterLabel: s26.afterLabel,
   };
-}
-
-function overviewAiImpactPeriodCells(m) {
-  return `
-    <td><b>${fmt(m.calls)}</b> <span class="${(m.callsYoY ?? 0) >= 0 ? 'up' : 'dn'}" style="font-size:11px">${fmtSigned(m.callsYoY)}</span></td>
-    <td><b>${fmtConvPct(m.conv)}</b> <span style="font-size:11px;color:var(--muted)">vs ${fmtConvPct(m.conv25)}</span></td>
-    <td><b>${fmt(m.books)}</b> <span class="${(m.booksYoY ?? 0) >= 0 ? 'up' : 'dn'}" style="font-size:11px">${fmtSigned(m.booksYoY)}</span></td>`;
-}
-
-function buildOverviewAiImpactTableHtml() {
-  const rests = (F.location && F.location !== 'all')
-    ? RESTS.filter(r => r.id === F.location)
-    : RESTS;
-  const metrics = rests.map(rest => ({ rest, m: overviewAiImpactMetrics(rest) }));
-  const body = metrics.map(({ rest, m }) => `<tr>
-      <td><span style="color:${rest.color};font-weight:700">${rest.label}</span>
-        <span class="pill pill-ai" style="margin-left:6px">W${m.go}</span></td>
-      ${overviewAiImpactPeriodCells(m.before)}
-      ${overviewAiImpactPeriodCells(m.after)}
-    </tr>`).join('');
-
-  const sumPack = (key) => {
-    const calls = metrics.reduce((s, x) => s + x.m[key].calls, 0);
-    const calls25 = metrics.reduce((s, x) => s + x.m[key].calls25, 0);
-    const books = metrics.reduce((s, x) => s + x.m[key].books, 0);
-    const books25 = metrics.reduce((s, x) => s + x.m[key].books25, 0);
-    // Weighted conv via re-aggregation would be ideal; approximate from location rows
-    const ids = new Set(rests.map(r => r.id));
-    const savedFrom = F.wkFrom, savedTo = F.wkTo;
-    F.wkFrom = ANALYSIS_START_WEEK;
-    F.wkTo = D.cutoff;
-    const r26 = (D.rows26 || []).filter(r => ids.has(r.restaurantId) && r.week >= ANALYSIS_START_WEEK && r.week <= D.cutoff);
-    const r25 = (D.rows25 || []).filter(r => ids.has(r.restaurantId) && r.week >= ANALYSIS_START_WEEK && r.week <= D.cutoff);
-    const before26 = [], after26 = [], before25 = [], after25 = [];
-    rests.forEach(rest => {
-      const s26 = splitPrePostAi(r26.filter(r => r.restaurantId === rest.id), rest);
-      const s25 = splitPrePostAi(r25.filter(r => r.restaurantId === rest.id), rest);
-      before26.push(...s26.before); after26.push(...s26.after);
-      before25.push(...s25.before); after25.push(...s25.after);
-    });
-    F.wkFrom = savedFrom;
-    F.wkTo = savedTo;
-    const rows26 = key === 'before' ? before26 : after26;
-    const rows25 = key === 'before' ? before25 : after25;
-    return {
-      calls, callsYoY: signedPct(calls, calls25),
-      books, booksYoY: signedPct(books, books25),
-      conv: totalConvRateAgg(rows26),
-      conv25: totalConvRateAgg(rows25),
-    };
-  };
-
-  return `<div class="table-card exec-kpi-card">
-    <h3>AI impact by location · before vs after</h3>
-    <p class="loc-summary-note">Split at each site’s AI Live week · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff} · Calls &amp; bookings vs same weeks 2025 · Conv % = phone booked ÷ (human + AI calls)</p>
-    <table class="exec-kpi-table">
-      <thead>
-        <tr class="group-row">
-          <th rowspan="2" style="vertical-align:bottom;text-align:left">Location</th>
-          <th colspan="3" class="group-lw">Before AI</th>
-          <th colspan="3" class="group-ytd">After AI</th>
-        </tr>
-        <tr class="sub-row">
-          <th>Total calls</th><th>Conv %</th><th>Bookings</th>
-          <th>Total calls</th><th>Conv %</th><th>Bookings</th>
-        </tr>
-      </thead>
-      <tbody>${body}
-        <tr class="total-row">
-          <td>All</td>
-          ${overviewAiImpactPeriodCells(sumPack('before'))}
-          ${overviewAiImpactPeriodCells(sumPack('after'))}
-        </tr>
-      </tbody>
-    </table>
-  </div>`;
 }
 
 function paintOverviewVolumeChart() {
@@ -1582,6 +1507,7 @@ function paintOverviewVolumeChart() {
   }, {
     plugins: {
       legend: { display: true, labels: { color: '#8890b8', boxWidth: 10, font: { size: 10 } } },
+      datalabels: { display: false },
     },
     scales: {
       x: { ticks: { color: '#8890b8' }, grid: { display: false } },
@@ -1600,55 +1526,73 @@ function paintOverviewAiImpactChart() {
     ? RESTS.filter(r => r.id === F.location)
     : RESTS;
   const labels = rests.flatMap(r => [`${r.label} · Before`, `${r.label} · After`]);
-  const calls26 = [], calls25 = [], books26 = [], books25 = [], conv26 = [];
+  const calls26 = [], calls25 = [], books26 = [], books25 = [];
+  const callsYoY = [], booksYoY = [];
   rests.forEach(rest => {
     const m = overviewAiImpactMetrics(rest);
     calls26.push(m.before.calls, m.after.calls);
     calls25.push(m.before.calls25, m.after.calls25);
     books26.push(m.before.books, m.after.books);
     books25.push(m.before.books25, m.after.books25);
-    conv26.push(m.before.conv, m.after.conv);
+    callsYoY.push(m.before.callsYoY, m.after.callsYoY);
+    booksYoY.push(m.before.booksYoY, m.after.booksYoY);
   });
+
+  const labelCfg = (yoyArr, is26) => ({
+    display: ctx => (ctx.dataset.data[ctx.dataIndex] || 0) > 0,
+    anchor: 'end',
+    align: 'top',
+    offset: -2,
+    clamp: true,
+    font: { size: 9, weight: is26 ? '700' : '500' },
+    color: ctx => {
+      if (!is26) return '#8890b8';
+      const y = yoyArr[ctx.dataIndex];
+      if (y == null) return '#c8cde0';
+      return y >= 0 ? '#22d98e' : '#ff5c6a';
+    },
+    formatter: (v, ctx) => {
+      if (!(v > 0)) return '';
+      const base = fmt(v);
+      if (!is26) return base;
+      const y = yoyArr[ctx.dataIndex];
+      return y == null ? base : `${base}\n${fmtSigned(y)}`;
+    },
+  });
+
   mkChart('ov-ai-impact-by-loc', 'bar', {
     labels,
     datasets: [
-      { label: 'Calls 2025', data: calls25, backgroundColor: 'rgba(255,159,46,.4)', borderRadius: 3, yAxisID: 'y' },
-      { label: 'Calls 2026', data: calls26, backgroundColor: 'rgba(61,142,248,.85)', borderRadius: 3, yAxisID: 'y' },
-      { label: 'Bookings 2025', data: books25, backgroundColor: 'rgba(34,217,142,.3)', borderRadius: 3, yAxisID: 'y' },
-      { label: 'Bookings 2026', data: books26, backgroundColor: 'rgba(34,217,142,.9)', borderRadius: 3, yAxisID: 'y' },
-      {
-        label: 'Conv % 2026', type: 'line', data: conv26,
-        borderColor: '#f43f8e', backgroundColor: '#f43f8e',
-        borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5,
-        yAxisID: 'y1', tension: 0.25, fill: false,
-      },
+      { label: 'Calls 2025', data: calls25, backgroundColor: 'rgba(255,159,46,.45)', borderRadius: 3, datalabels: labelCfg(null, false) },
+      { label: 'Calls 2026', data: calls26, backgroundColor: 'rgba(61,142,248,.9)', borderRadius: 3, datalabels: labelCfg(callsYoY, true) },
+      { label: 'Bookings 2025', data: books25, backgroundColor: 'rgba(34,217,142,.35)', borderRadius: 3, datalabels: labelCfg(null, false) },
+      { label: 'Bookings 2026', data: books26, backgroundColor: 'rgba(34,217,142,.95)', borderRadius: 3, datalabels: labelCfg(booksYoY, true) },
     ],
   }, {
+    layout: { padding: { top: 28 } },
     plugins: {
       legend: { display: true, labels: { color: '#8890b8', boxWidth: 10, font: { size: 10 } } },
       tooltip: {
         callbacks: {
           label: ctx => {
             const v = ctx.parsed.y;
-            if (ctx.dataset.yAxisID === 'y1') return ` ${ctx.dataset.label}: ${v != null ? v.toFixed(1) + '%' : '—'}`;
-            return ` ${ctx.dataset.label}: ${v?.toLocaleString?.() ?? v}`;
+            const ds = ctx.dataset.label || '';
+            const yoy = ds.includes('Calls 2026') ? callsYoY[ctx.dataIndex]
+              : ds.includes('Bookings 2026') ? booksYoY[ctx.dataIndex] : null;
+            const base = ` ${ds}: ${(v ?? 0).toLocaleString()}`;
+            return yoy == null ? base : `${base} (${fmtSigned(yoy)} vs PY)`;
           },
         },
       },
+      datalabels: { display: true },
     },
     scales: {
       x: { ticks: { color: '#8890b8', maxRotation: 45, font: { size: 10 } }, grid: { display: false } },
       y: {
-        beginAtZero: true, position: 'left',
+        beginAtZero: true,
         ticks: { color: '#8890b8' },
         grid: { color: 'rgba(37,45,74,.6)' },
         title: { display: true, text: 'Calls & bookings', color: '#8890b8' },
-      },
-      y1: {
-        beginAtZero: true, max: 100, position: 'right',
-        grid: { drawOnChartArea: false },
-        ticks: { color: '#f43f8e', callback: v => v + '%' },
-        title: { display: true, text: 'Conv %', color: '#f43f8e' },
       },
     },
   });
