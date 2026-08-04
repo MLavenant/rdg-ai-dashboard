@@ -131,12 +131,13 @@ tbody tr.total-row td{font-weight:700;color:var(--text)}
 .stat-note{font-size:10px;color:var(--muted);margin-top:8px;font-style:italic}
 .conv-flag{color:var(--red);font-weight:700}
 .conv-footnote{font-size:11px;color:var(--muted);margin:6px 0 12px;line-height:1.45}
+.conv-over{color:#fbbf24;font-weight:700;border-bottom:1px dotted rgba(251,191,36,.55);cursor:help}
 .report-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
 .report-bar h2{font-size:18px;font-weight:700;margin:0;flex:1}
 .btn-export{background:linear-gradient(90deg,#3d8ef8,#b06ef5);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer}
 .btn-export:disabled{opacity:.55;cursor:wait}
 .btn-export:hover{filter:brightness(1.08)}
-@media print{
+@media print, screen {
   body.print-overview .nav,
   body.print-overview .filters,
   body.print-overview .no-print{display:none!important}
@@ -146,6 +147,11 @@ tbody tr.total-row td{font-weight:700;color:var(--text)}
   body.print-overview .chart-card,
   body.print-overview .table-card,
   body.print-overview .exec-kpi-card{break-inside:avoid}
+  #overview-pdf-root,
+  #overview-pdf-root *{
+    -webkit-print-color-adjust:exact!important;
+    print-color-adjust:exact!important;
+  }
 }
 .overview-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
 .overview-toolbar .section-head{margin:0}
@@ -393,43 +399,47 @@ function filteredWeeks(rows) {
 //   Human Conv% = Phone/In-House bookings ÷ Human Calls
 //   AI Conv%    = Phone/AI bookings ÷ AI Calls
 //   Total Conv% = (Phone/In-House + Phone/AI) ÷ (Human Calls + AI Calls)
-// Cap at 100%: OT Phone/In-House can exceed TalkDesk humanAnswered on smaller sites
-// (attribution mismatch) — same formulas as MILA, display cannot exceed 100%.
+// OT Phone/In-House can exceed TalkDesk humanAnswered (attribution mismatch).
+// Show the true rate (may exceed 100%) and flag those cells — do not fake 100%.
 
-function clampConvPct(v) {
+function convPctRaw(v) {
   if (v == null || isNaN(v)) return v;
-  return Math.min(100, Math.max(0, v));
+  return Math.max(0, v);
+}
+/** Soft ceiling only where a chart axis needs it — prefer convPctRaw for metrics. */
+function clampConvPct(v) {
+  return convPctRaw(v);
 }
 
 function humanConvRate(row) {
   if (!row) return null;
   const h = row.callsHuman || 0;
-  return h > 0 ? clampConvPct((row.bookingsPhoneHuman || 0) / h * 100) : null;
+  return h > 0 ? convPctRaw((row.bookingsPhoneHuman || 0) / h * 100) : null;
 }
 function humanConvRateAgg(rows) {
   const books = sum(rows, 'bookingsPhoneHuman');
   const h = sum(rows, 'callsHuman');
-  return h > 0 ? clampConvPct(books / h * 100) : 0;
+  return h > 0 ? convPctRaw(books / h * 100) : 0;
 }
 function aiConvRate(row) {
   if (!row) return null;
   const ai = row.callsAI || 0;
-  return ai > 0 ? clampConvPct((row.bookingsPhoneAI || 0) / ai * 100) : null;
+  return ai > 0 ? convPctRaw((row.bookingsPhoneAI || 0) / ai * 100) : null;
 }
 function aiConvRateAgg(rows) {
   const books = sum(rows, 'bookingsPhoneAI');
   const ai = sum(rows, 'callsAI');
-  return ai > 0 ? clampConvPct(books / ai * 100) : 0;
+  return ai > 0 ? convPctRaw(books / ai * 100) : 0;
 }
 function totalConvRate(row) {
   if (!row) return null;
   const denom = (row.callsHuman || 0) + (row.callsAI || 0);
-  return denom > 0 ? clampConvPct(((row.bookingsPhoneHuman || 0) + (row.bookingsPhoneAI || 0)) / denom * 100) : null;
+  return denom > 0 ? convPctRaw(((row.bookingsPhoneHuman || 0) + (row.bookingsPhoneAI || 0)) / denom * 100) : null;
 }
 function totalConvRateAgg(rows) {
   const books = sum(rows, 'bookingsPhoneHuman') + sum(rows, 'bookingsPhoneAI');
   const denom = sum(rows, 'callsHuman') + sum(rows, 'callsAI');
-  return denom > 0 ? clampConvPct(books / denom * 100) : 0;
+  return denom > 0 ? convPctRaw(books / denom * 100) : 0;
 }
 
 // Hostie transfer rate: "Transferred to Host" = TRUE ÷ total Hostie AI calls (by location)
@@ -1123,19 +1133,24 @@ function sum(rows, field) { return rows.reduce((s,r) => s + (r[field]||0), 0); }
 
 function pct(num, den) { return den > 0 ? (num/den*100).toFixed(1)+'%' : '—'; }
 
-/** Conversion % — capped at 100% (OT phone books can exceed TalkDesk human calls). */
+/** Conversion % — true rate (may exceed 100% when OT phone books > TalkDesk human calls). */
 function convPctValue(num, den) {
   if (!(den > 0)) return null;
-  return clampConvPct((num / den) * 100);
+  return convPctRaw((num / den) * 100);
 }
 function fmtConvPct(v) {
   if (v == null || isNaN(v)) return '—';
-  return clampConvPct(v).toFixed(1) + '%';
+  const n = convPctRaw(v);
+  const txt = n.toFixed(1) + '%';
+  if (n > 100) {
+    return `<span class="conv-over" title="OT Phone/In-House bookings exceed TalkDesk human-answered calls (attribution mismatch). True rate shown.">${txt}†</span>`;
+  }
+  return txt;
 }
 function pctConv(num, den) {
   return fmtConvPct(convPctValue(num, den));
 }
-const CONV_FOOTNOTE = `<div class="conv-footnote">Conversion is capped at 100%. OT Phone/In-House can exceed TalkDesk human-answered calls on some sites (attribution mismatch) — rates use the same MILA formulas, capped for display.</div>`;
+const CONV_FOOTNOTE = `<div class="conv-footnote">Conv % uses TalkDesk answered calls as the denominator and OpenTable phone bookings as the numerator. When OT Phone/In-House &gt; TalkDesk human calls (e.g. Claudie W21: 148 books ÷ 136 human calls = 108.8%†), Human Conv can exceed 100% — that is attribution mismatch, not a formula error. Prefer <b>Total Conv %</b> = (Phone IH + Phone AI) ÷ (Human + AI calls) for an apples-to-apples phone conversion.</div>`;
 
 function fmt(n) { return n == null ? '—' : n >= 1000 ? (n/1000).toFixed(1)+'k' : String(n); }
 
@@ -1457,7 +1472,7 @@ function renderOverview() {
     </div>
 
     ${buildOverviewUnifiedTableHtml()}
-    <div class="stat-note">Calls vs PY = TalkDesk total calls YoY · Phone booked = Phone/In-House + Phone/AI · Conv % = phone booked ÷ (human + AI calls).</div>
+    <div class="stat-note">Calls vs PY = TalkDesk total calls YoY · Phone booked = Phone/In-House + Phone/AI · Conv % = phone booked ÷ (human + AI calls). † = Human Conv can exceed 100% when OT Phone/IH bookings &gt; TalkDesk human-answered calls.</div>
   </div>
   `;
   requestAnimationFrame(() => paintOverviewAiImpactChart());
@@ -1508,10 +1523,32 @@ async function exportOverviewPdf() {
   if (btn) { btn.disabled = true; btn.textContent = 'Preparing PDF…'; }
   if (title) title.style.display = 'block';
   document.body.classList.add('print-overview');
+
+  // Snapshot chart canvases as images so PDF keeps the rendered dark chart pixels
+  const canvasSwaps = [];
+  root.querySelectorAll('canvas').forEach(canvas => {
+    try {
+      const img = document.createElement('img');
+      img.src = canvas.toDataURL('image/png');
+      img.style.width = canvas.style.width || (canvas.width + 'px');
+      img.style.height = canvas.style.height || (canvas.height + 'px');
+      img.style.maxWidth = '100%';
+      img.style.display = 'block';
+      img.className = 'pdf-chart-snap';
+      canvas.parentNode.insertBefore(img, canvas);
+      canvas.style.display = 'none';
+      canvasSwaps.push({ canvas, img });
+    } catch (e) {
+      console.warn('canvas snapshot failed', e);
+    }
+  });
+
   try {
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const w = Math.max(root.scrollWidth, 1280);
+    const h = Math.max(root.scrollHeight, 900);
     await html2pdf().set({
-      margin: [8, 8, 8, 8],
+      margin: [6, 6, 6, 6],
       filename: `RDG-Overview-through-W${D.cutoff}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: {
@@ -1519,7 +1556,69 @@ async function exportOverviewPdf() {
         backgroundColor: '#0d0f18',
         useCORS: true,
         logging: false,
-        windowWidth: Math.max(root.scrollWidth, 1200),
+        windowWidth: w,
+        windowHeight: h,
+        onclone: (clonedDoc) => {
+          const style = clonedDoc.createElement('style');
+          style.textContent = `
+            html, body {
+              background: #0d0f18 !important;
+              color: #eef0fb !important;
+            }
+            #overview-pdf-root {
+              background: #0d0f18 !important;
+              color: #eef0fb !important;
+              padding: 8px !important;
+            }
+            #overview-pdf-root, #overview-pdf-root * {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            #overview-pdf-root .chart-card,
+            #overview-pdf-root .table-card,
+            #overview-pdf-root .exec-kpi-card {
+              background: #141720 !important;
+              border: 1px solid #252d4a !important;
+              color: #eef0fb !important;
+              border-radius: 10px !important;
+            }
+            #overview-pdf-root .exec-kpi-card {
+              background: linear-gradient(180deg, rgba(61,142,248,.08), #141720) !important;
+              border-color: rgba(61,142,248,.35) !important;
+            }
+            #overview-pdf-root h3,
+            #overview-pdf-root .section-head { color: #eef0fb !important; }
+            #overview-pdf-root p,
+            #overview-pdf-root .loc-summary-note,
+            #overview-pdf-root .stat-note { color: #8890b8 !important; }
+            #overview-pdf-root table { color: #eef0fb !important; width: 100% !important; border-collapse: collapse !important; }
+            #overview-pdf-root thead th {
+              color: #8890b8 !important;
+              border-bottom: 1px solid #252d4a !important;
+              background: transparent !important;
+            }
+            #overview-pdf-root .group-lw { color: #3d8ef8 !important; border-bottom: 2px solid rgba(61,142,248,.55) !important; }
+            #overview-pdf-root .group-mtd { color: #22d98e !important; border-bottom: 2px solid rgba(34,217,142,.55) !important; }
+            #overview-pdf-root .group-ytd { color: #b06ef5 !important; border-bottom: 2px solid rgba(176,110,245,.55) !important; }
+            #overview-pdf-root tbody td { color: #eef0fb !important; border-bottom: 1px solid rgba(42,48,80,.5) !important; }
+            #overview-pdf-root tbody tr.total-row { background: rgba(61,142,248,.08) !important; }
+            #overview-pdf-root .up { color: #22d98e !important; }
+            #overview-pdf-root .dn { color: #ff5c6a !important; }
+            #overview-pdf-root .pill-ai {
+              background: rgba(167,139,250,.2) !important;
+              color: #b06ef5 !important;
+            }
+            #overview-pdf-title { display: block !important; color: #eef0fb !important; margin-bottom: 12px !important; }
+            #overview-pdf-root canvas { display: none !important; }
+            #overview-pdf-root .pdf-chart-snap { display: block !important; max-width: 100% !important; }
+          `;
+          clonedDoc.head.appendChild(style);
+          const clonedRoot = clonedDoc.getElementById('overview-pdf-root');
+          if (clonedRoot) {
+            clonedRoot.style.background = '#0d0f18';
+            clonedRoot.style.color = '#eef0fb';
+          }
+        },
       },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
       pagebreak: { mode: ['css', 'legacy'] },
@@ -1528,6 +1627,10 @@ async function exportOverviewPdf() {
     console.error(e);
     alert('PDF export failed: ' + (e.message || e));
   } finally {
+    canvasSwaps.forEach(({ canvas, img }) => {
+      img.remove();
+      canvas.style.display = '';
+    });
     if (title) title.style.display = 'none';
     document.body.classList.remove('print-overview');
     if (btn) { btn.disabled = false; btn.textContent = 'Export PDF'; }
@@ -2336,6 +2439,7 @@ function renderRestDetail(restId) {
     <div class="table-card">
       <h3>${rest.label} — Week-by-Week (W${F.wkFrom}–W${F.wkTo})</h3>
       <p style="font-size:11px;color:var(--muted);margin-bottom:10px">Human Calls = total calls answered by a real agent (excl. If-No-Answer &amp; empty) · Human Conv % = Phone/In-House ÷ Human Calls · AI Conv % = Phone/AI ÷ AI Calls · Total Conv % = (Phone/In-House + Phone/AI) ÷ (Human + AI calls)</p>
+      ${CONV_FOOTNOTE}
       <table>
         <thead><tr>
           <th>Week</th><th>AI?</th>
@@ -2405,10 +2509,8 @@ function buildRcConv(id, rest, weeks, r26, r25) {
       {label:'2026 AI',data:weeks.map(conv26ai),borderColor:'#b06ef5',tension:.3,fill:false,borderWidth:2,borderDash:[5,3],spanGaps:true,pointRadius:0,pointHoverRadius:4},
       {label:'2026 Total',data:weeks.map(conv26tot),borderColor:'#f43f8e',tension:.3,fill:false,borderWidth:2,borderDash:[3,3],spanGaps:true,pointRadius:0,pointHoverRadius:4},
     ]
-  },{scales:{y:{ticks:{callback:v=>v?.toFixed(1)+'%'}}},plugins:{annotation:{annotations:goLiveAnno(rest,weeks)}}});
+  },{scales:{y:{beginAtZero:true,ticks:{callback:v=>v?.toFixed(1)+'%'}}},plugins:{annotation:{annotations:goLiveAnno(rest,weeks)},datalabels:{display:false}}});
 }
-
-function buildRcPhone(id, rest, weeks, r26, r25) {
   const m25h=aggByWeek(r25,'bookingsPhoneHuman'), m26h=aggByWeek(r26,'bookingsPhoneHuman'), m26ai=aggByWeek(r26,'bookingsPhoneAI');
   mkChart(`rc-phone-${id}`,'bar',{
     labels:weeks.map(w=>'W'+w),
