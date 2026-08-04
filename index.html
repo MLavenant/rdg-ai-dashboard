@@ -1435,8 +1435,127 @@ function renderOverview() {
       <div class="chart-wrap" style="height:300px"><canvas id="ov-vol-phone-by-loc"></canvas></div>
     </div>
   </div>
+
+  <div class="section-head">AI impact · before vs after</div>
+  ${buildOverviewAiImpactTableHtml()}
+  <div class="chart-row cols-1" style="margin-top:8px">
+    <div class="chart-card">
+      <h3>Before vs After AI — calls &amp; bookings by location</h3>
+      <p>Split at each site’s AI Live week · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff} · same weeks prior year shown as muted bars</p>
+      <div class="chart-wrap" style="height:300px"><canvas id="ov-ai-impact-by-loc"></canvas></div>
+    </div>
+  </div>
   `;
-  requestAnimationFrame(() => paintOverviewVolumeChart());
+  requestAnimationFrame(() => {
+    paintOverviewVolumeChart();
+    paintOverviewAiImpactChart();
+  });
+}
+
+function overviewAiImpactMetrics(rest) {
+  const savedFrom = F.wkFrom, savedTo = F.wkTo;
+  F.wkFrom = ANALYSIS_START_WEEK;
+  F.wkTo = D.cutoff;
+  const r26 = (D.rows26 || []).filter(r => r.restaurantId === rest.id && r.week >= ANALYSIS_START_WEEK && r.week <= D.cutoff);
+  const r25 = (D.rows25 || []).filter(r => r.restaurantId === rest.id && r.week >= ANALYSIS_START_WEEK && r.week <= D.cutoff);
+  const s26 = splitPrePostAi(r26, rest);
+  const s25 = splitPrePostAi(r25, rest);
+  F.wkFrom = savedFrom;
+  F.wkTo = savedTo;
+
+  const pack = (rows26, rows25) => ({
+    calls: sum(rows26, 'callsTotal'),
+    callsYoY: signedPct(sum(rows26, 'callsTotal'), sum(rows25, 'callsTotal')),
+    books: sum(rows26, 'bookingsTotal'),
+    booksYoY: signedPct(sum(rows26, 'bookingsTotal'), sum(rows25, 'bookingsTotal')),
+    conv: totalConvRateAgg(rows26),
+    conv25: totalConvRateAgg(rows25),
+    calls25: sum(rows25, 'callsTotal'),
+    books25: sum(rows25, 'bookingsTotal'),
+  });
+  return {
+    go: rest.goLive,
+    before: pack(s26.before, s25.before),
+    after: pack(s26.after, s25.after),
+    beforeLabel: s26.beforeLabel,
+    afterLabel: s26.afterLabel,
+  };
+}
+
+function overviewAiImpactPeriodCells(m) {
+  return `
+    <td><b>${fmt(m.calls)}</b> <span class="${(m.callsYoY ?? 0) >= 0 ? 'up' : 'dn'}" style="font-size:11px">${fmtSigned(m.callsYoY)}</span></td>
+    <td><b>${fmtConvPct(m.conv)}</b> <span style="font-size:11px;color:var(--muted)">vs ${fmtConvPct(m.conv25)}</span></td>
+    <td><b>${fmt(m.books)}</b> <span class="${(m.booksYoY ?? 0) >= 0 ? 'up' : 'dn'}" style="font-size:11px">${fmtSigned(m.booksYoY)}</span></td>`;
+}
+
+function buildOverviewAiImpactTableHtml() {
+  const rests = (F.location && F.location !== 'all')
+    ? RESTS.filter(r => r.id === F.location)
+    : RESTS;
+  const metrics = rests.map(rest => ({ rest, m: overviewAiImpactMetrics(rest) }));
+  const body = metrics.map(({ rest, m }) => `<tr>
+      <td><span style="color:${rest.color};font-weight:700">${rest.label}</span>
+        <span class="pill pill-ai" style="margin-left:6px">W${m.go}</span></td>
+      ${overviewAiImpactPeriodCells(m.before)}
+      ${overviewAiImpactPeriodCells(m.after)}
+    </tr>`).join('');
+
+  const sumPack = (key) => {
+    const calls = metrics.reduce((s, x) => s + x.m[key].calls, 0);
+    const calls25 = metrics.reduce((s, x) => s + x.m[key].calls25, 0);
+    const books = metrics.reduce((s, x) => s + x.m[key].books, 0);
+    const books25 = metrics.reduce((s, x) => s + x.m[key].books25, 0);
+    // Weighted conv via re-aggregation would be ideal; approximate from location rows
+    const ids = new Set(rests.map(r => r.id));
+    const savedFrom = F.wkFrom, savedTo = F.wkTo;
+    F.wkFrom = ANALYSIS_START_WEEK;
+    F.wkTo = D.cutoff;
+    const r26 = (D.rows26 || []).filter(r => ids.has(r.restaurantId) && r.week >= ANALYSIS_START_WEEK && r.week <= D.cutoff);
+    const r25 = (D.rows25 || []).filter(r => ids.has(r.restaurantId) && r.week >= ANALYSIS_START_WEEK && r.week <= D.cutoff);
+    const before26 = [], after26 = [], before25 = [], after25 = [];
+    rests.forEach(rest => {
+      const s26 = splitPrePostAi(r26.filter(r => r.restaurantId === rest.id), rest);
+      const s25 = splitPrePostAi(r25.filter(r => r.restaurantId === rest.id), rest);
+      before26.push(...s26.before); after26.push(...s26.after);
+      before25.push(...s25.before); after25.push(...s25.after);
+    });
+    F.wkFrom = savedFrom;
+    F.wkTo = savedTo;
+    const rows26 = key === 'before' ? before26 : after26;
+    const rows25 = key === 'before' ? before25 : after25;
+    return {
+      calls, callsYoY: signedPct(calls, calls25),
+      books, booksYoY: signedPct(books, books25),
+      conv: totalConvRateAgg(rows26),
+      conv25: totalConvRateAgg(rows25),
+    };
+  };
+
+  return `<div class="table-card exec-kpi-card">
+    <h3>AI impact by location · before vs after</h3>
+    <p class="loc-summary-note">Split at each site’s AI Live week · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff} · Calls &amp; bookings vs same weeks 2025 · Conv % = phone booked ÷ (human + AI calls)</p>
+    <table class="exec-kpi-table">
+      <thead>
+        <tr class="group-row">
+          <th rowspan="2" style="vertical-align:bottom;text-align:left">Location</th>
+          <th colspan="3" class="group-lw">Before AI</th>
+          <th colspan="3" class="group-ytd">After AI</th>
+        </tr>
+        <tr class="sub-row">
+          <th>Total calls</th><th>Conv %</th><th>Bookings</th>
+          <th>Total calls</th><th>Conv %</th><th>Bookings</th>
+        </tr>
+      </thead>
+      <tbody>${body}
+        <tr class="total-row">
+          <td>All</td>
+          ${overviewAiImpactPeriodCells(sumPack('before'))}
+          ${overviewAiImpactPeriodCells(sumPack('after'))}
+        </tr>
+      </tbody>
+    </table>
+  </div>`;
 }
 
 function paintOverviewVolumeChart() {
@@ -1471,6 +1590,65 @@ function paintOverviewVolumeChart() {
         ticks: { color: '#8890b8' },
         grid: { color: 'rgba(37,45,74,.6)' },
         title: { display: true, text: 'Volume', color: '#8890b8' },
+      },
+    },
+  });
+}
+
+function paintOverviewAiImpactChart() {
+  const rests = (F.location && F.location !== 'all')
+    ? RESTS.filter(r => r.id === F.location)
+    : RESTS;
+  const labels = rests.flatMap(r => [`${r.label} · Before`, `${r.label} · After`]);
+  const calls26 = [], calls25 = [], books26 = [], books25 = [], conv26 = [];
+  rests.forEach(rest => {
+    const m = overviewAiImpactMetrics(rest);
+    calls26.push(m.before.calls, m.after.calls);
+    calls25.push(m.before.calls25, m.after.calls25);
+    books26.push(m.before.books, m.after.books);
+    books25.push(m.before.books25, m.after.books25);
+    conv26.push(m.before.conv, m.after.conv);
+  });
+  mkChart('ov-ai-impact-by-loc', 'bar', {
+    labels,
+    datasets: [
+      { label: 'Calls 2025', data: calls25, backgroundColor: 'rgba(255,159,46,.4)', borderRadius: 3, yAxisID: 'y' },
+      { label: 'Calls 2026', data: calls26, backgroundColor: 'rgba(61,142,248,.85)', borderRadius: 3, yAxisID: 'y' },
+      { label: 'Bookings 2025', data: books25, backgroundColor: 'rgba(34,217,142,.3)', borderRadius: 3, yAxisID: 'y' },
+      { label: 'Bookings 2026', data: books26, backgroundColor: 'rgba(34,217,142,.9)', borderRadius: 3, yAxisID: 'y' },
+      {
+        label: 'Conv % 2026', type: 'line', data: conv26,
+        borderColor: '#f43f8e', backgroundColor: '#f43f8e',
+        borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5,
+        yAxisID: 'y1', tension: 0.25, fill: false,
+      },
+    ],
+  }, {
+    plugins: {
+      legend: { display: true, labels: { color: '#8890b8', boxWidth: 10, font: { size: 10 } } },
+      tooltip: {
+        callbacks: {
+          label: ctx => {
+            const v = ctx.parsed.y;
+            if (ctx.dataset.yAxisID === 'y1') return ` ${ctx.dataset.label}: ${v != null ? v.toFixed(1) + '%' : '—'}`;
+            return ` ${ctx.dataset.label}: ${v?.toLocaleString?.() ?? v}`;
+          },
+        },
+      },
+    },
+    scales: {
+      x: { ticks: { color: '#8890b8', maxRotation: 45, font: { size: 10 } }, grid: { display: false } },
+      y: {
+        beginAtZero: true, position: 'left',
+        ticks: { color: '#8890b8' },
+        grid: { color: 'rgba(37,45,74,.6)' },
+        title: { display: true, text: 'Calls & bookings', color: '#8890b8' },
+      },
+      y1: {
+        beginAtZero: true, max: 100, position: 'right',
+        grid: { drawOnChartArea: false },
+        ticks: { color: '#f43f8e', callback: v => v + '%' },
+        title: { display: true, text: 'Conv %', color: '#f43f8e' },
       },
     },
   });
