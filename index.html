@@ -2511,6 +2511,8 @@ function buildRcConv(id, rest, weeks, r26, r25) {
     ]
   },{scales:{y:{beginAtZero:true,ticks:{callback:v=>v?.toFixed(1)+'%'}}},plugins:{annotation:{annotations:goLiveAnno(rest,weeks)},datalabels:{display:false}}});
 }
+
+function buildRcPhone(id, rest, weeks, r26, r25) {
   const m25h=aggByWeek(r25,'bookingsPhoneHuman'), m26h=aggByWeek(r26,'bookingsPhoneHuman'), m26ai=aggByWeek(r26,'bookingsPhoneAI');
   mkChart(`rc-phone-${id}`,'bar',{
     labels:weeks.map(w=>'W'+w),
