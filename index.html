@@ -1427,7 +1427,53 @@ function renderOverview() {
   ${buildOverviewPeriodStrip()}
   ${buildOverviewUnifiedTableHtml()}
   <div class="stat-note">Calls vs PY = TalkDesk total calls YoY · Phone booked = Phone/In-House + Phone/AI · Conv % = phone booked ÷ (human + AI calls).</div>
+
+  <div class="chart-row cols-1" style="margin-top:16px">
+    <div class="chart-card">
+      <h3>Calls &amp; phone booked by location — YTD vs prior year</h3>
+      <p>Same weeks 2025 · Phone booked = In-House + AI · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
+      <div class="chart-wrap" style="height:300px"><canvas id="ov-vol-phone-by-loc"></canvas></div>
+    </div>
+  </div>
   `;
+  requestAnimationFrame(() => paintOverviewVolumeChart());
+}
+
+function paintOverviewVolumeChart() {
+  const rests = (F.location && F.location !== 'all')
+    ? RESTS.filter(r => r.id === F.location)
+    : RESTS;
+  const calls25 = [], calls26 = [], phone25 = [], phone26 = [];
+  rests.forEach(rest => {
+    const r26 = locSummaryScope(D.rows26, 'ytd').filter(r => r.restaurantId === rest.id);
+    const r25 = locSummaryScope(D.rows25, 'ytd').filter(r => r.restaurantId === rest.id);
+    calls25.push(sum(r25, 'callsTotal'));
+    calls26.push(sum(r26, 'callsTotal'));
+    phone25.push(phoneBooks(r25));
+    phone26.push(phoneBooks(r26));
+  });
+  mkChart('ov-vol-phone-by-loc', 'bar', {
+    labels: rests.map(r => r.label),
+    datasets: [
+      { label: 'Calls 2025', data: calls25, backgroundColor: 'rgba(255,159,46,.55)', borderRadius: 4 },
+      { label: 'Calls 2026', data: calls26, backgroundColor: 'rgba(61,142,248,.85)', borderRadius: 4 },
+      { label: 'Phone booked 2025', data: phone25, backgroundColor: 'rgba(34,217,142,.35)', borderRadius: 4 },
+      { label: 'Phone booked 2026', data: phone26, backgroundColor: 'rgba(34,217,142,.9)', borderRadius: 4 },
+    ],
+  }, {
+    plugins: {
+      legend: { display: true, labels: { color: '#8890b8', boxWidth: 10, font: { size: 10 } } },
+    },
+    scales: {
+      x: { ticks: { color: '#8890b8' }, grid: { display: false } },
+      y: {
+        beginAtZero: true,
+        ticks: { color: '#8890b8' },
+        grid: { color: 'rgba(37,45,74,.6)' },
+        title: { display: true, text: 'Volume', color: '#8890b8' },
+      },
+    },
+  });
 }
 
 /** Exercise: total call volume (lines) + reservations by source (2025 vs 2026 stacked bars) */
