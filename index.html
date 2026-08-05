@@ -1758,9 +1758,9 @@ async function exportOverviewPdf() {
     const pdf = new JsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
     const pageW = pdf.internal.pageSize.getWidth();
     const pageH = pdf.internal.pageSize.getHeight();
-    const m = 7;
+    const m = 6.5;
     const contentW = pageW - m * 2;
-    const footerReserve = 6;
+    const footerReserve = 5.5;
 
     pdf.setFillColor(13, 15, 24);
     pdf.rect(0, 0, pageW, pageH, 'F');
@@ -1782,13 +1782,13 @@ async function exportOverviewPdf() {
 
     // Scorecard sizing first so chart uses leftover height (keeps table fully on-page)
     const { rows, mtdFrom } = collectOverviewScorecardRows();
-    const rowH = 5.6;
-    const headerH = 10.5;
-    const tablePad = 2;
-    const scoreTitleH = 4 + 3.5 + 3.2 + 1.5;
+    const rowH = 6.4;
+    const headerH = 11.5;
+    const tablePad = 3;
+    const scoreTitleH = 4 + 3.2 + 3 + 1.4;
     const tableH = headerH + rows.length * rowH + tablePad;
     const scoreBlockH = scoreTitleH + tableH + footerReserve + 2;
-    const chartBoxH = Math.max(48, Math.min(70, pageH - y - scoreBlockH - 4));
+    const chartBoxH = Math.max(46, Math.min(64, pageH - y - scoreBlockH - 3));
 
     pdf.setFillColor(20, 23, 32);
     pdf.setDrawColor(37, 45, 74);
@@ -1805,7 +1805,7 @@ async function exportOverviewPdf() {
       imgW = imgH * imgAspect;
     }
     pdf.addImage(chartPng, 'PNG', m + (contentW - imgW) / 2, y + (chartBoxH - imgH) / 2, imgW, imgH);
-    y += chartBoxH + 3.5;
+    y += chartBoxH + 4;
 
     y = pdfTitleRule(pdf, 'Locations · Last week · MTD · YTD · vs PY', m, y, contentW, { size: 10, after: 3.2 });
     pdf.setFont('helvetica', 'normal');
@@ -1816,15 +1816,15 @@ async function exportOverviewPdf() {
       'Scorecard vs PY: calls, phone booked, Hostie transfer %, human conv, and AI conv across last week, MTD (4 weeks), and YTD.',
       m, y, contentW, 3
     );
-    y += 1.2;
+    y += 1.5;
 
     const tableTop = y;
-    const tableInnerPad = 1.2;
+    const tableInnerPad = 2;
     pdf.setFillColor(20, 23, 32);
     pdf.setDrawColor(37, 45, 74);
     pdf.roundedRect(m, tableTop, contentW, tableH, 2, 2, 'FD');
 
-    const locW = 22;
+    const locW = 24;
     const colsPerPeriod = 5;
     const periodW = (contentW - locW - tableInnerPad * 2) / 3;
     const subW = periodW / colsPerPeriod;
@@ -1841,46 +1841,46 @@ async function exportOverviewPdf() {
     pdf.setFontSize(7);
     periodMeta.forEach((p) => {
       pdf.setTextColor(...p.color);
-      pdf.text(p.label + ' · vs PY', hx + periodW / 2, tableTop + 3.6, { align: 'center' });
+      pdf.text(p.label + ' · vs PY', hx + periodW / 2, tableTop + 4, { align: 'center' });
       pdf.setDrawColor(...p.color);
       pdf.setLineWidth(0.4);
-      pdf.line(hx + 1, tableTop + 4.8, hx + periodW - 1, tableTop + 4.8);
+      pdf.line(hx + 1.5, tableTop + 5.2, hx + periodW - 1.5, tableTop + 5.2);
       hx += periodW;
     });
 
     pdf.setFont('helvetica', 'normal');
-    pdf.setFontSize(5.5);
+    pdf.setFontSize(5.6);
     pdf.setTextColor(136, 144, 184);
-    pdf.text('Location', tableLeft + 0.8, tableTop + 8.6);
+    pdf.text('Location', tableLeft + 1.2, tableTop + 9.4);
     hx = tableLeft + locW;
     periodMeta.forEach(() => {
       subLabels.forEach((lab, si) => {
-        pdf.text(lab, hx + subW * (si + 0.5), tableTop + 8.6, { align: 'center' });
+        pdf.text(lab, hx + subW * (si + 0.5), tableTop + 9.4, { align: 'center' });
       });
       hx += periodW;
     });
     pdf.setDrawColor(37, 45, 74);
     pdf.setLineWidth(0.2);
-    pdf.line(m + 1.2, tableTop + headerH - 0.6, m + contentW - 1.2, tableTop + headerH - 0.6);
+    pdf.line(m + 1.5, tableTop + headerH - 0.5, m + contentW - 1.5, tableTop + headerH - 0.5);
 
     for (let i = 1; i < 3; i++) {
       const gx = tableLeft + locW + periodW * i;
       pdf.setDrawColor(37, 45, 74);
       pdf.setLineWidth(0.15);
-      pdf.line(gx, tableTop + 1.5, gx, tableTop + tableH - 1.5);
+      pdf.line(gx, tableTop + 1.8, gx, tableTop + tableH - 1.8);
     }
 
     rows.forEach((row, ri) => {
-      const ry = tableTop + headerH + ri * rowH + 3.5;
+      const ry = tableTop + headerH + ri * rowH + 4.1;
       if (row.isTotal) {
         pdf.setFillColor(24, 30, 48);
-        pdf.rect(m + 0.6, tableTop + headerH + ri * rowH, contentW - 1.2, rowH, 'F');
+        pdf.rect(m + 0.8, tableTop + headerH + ri * rowH, contentW - 1.6, rowH, 'F');
       }
       const [cr, cg, cb] = hexToRgb(row.color);
       pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(7);
+      pdf.setFontSize(7.2);
       pdf.setTextColor(cr, cg, cb);
-      pdf.text(row.label, tableLeft + 0.8, ry);
+      pdf.text(row.label, tableLeft + 1.2, ry);
 
       let cx = tableLeft + locW;
       row.metrics.forEach((metric) => {
@@ -1900,7 +1900,7 @@ async function exportOverviewPdf() {
             pdfMetricPair(pdf, cx + subW * si, subW, ry, cell.main, cell.sub, subRgb);
           } else {
             pdf.setFont('helvetica', 'bold');
-            pdf.setFontSize(7);
+            pdf.setFontSize(7.2);
             pdf.setTextColor(238, 240, 251);
             pdf.text(String(cell.main), cx + subW * (si + 0.5), ry, { align: 'center' });
           }
@@ -1909,7 +1909,7 @@ async function exportOverviewPdf() {
       });
     });
 
-    y = tableTop + tableH + 3;
+    y = tableTop + tableH + 3.5;
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(5.8);
     pdf.setTextColor(136, 144, 184);
