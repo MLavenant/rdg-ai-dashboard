@@ -86,11 +86,13 @@ select:focus,input:focus{border-color:var(--y26)}
 #overview-pdf-root > .chart-card h3{display:flex;align-items:center;gap:10px;width:100%}
 #overview-pdf-root > .chart-card h3::after{content:'';flex:1;height:1px;background:var(--border)}
 #overview-pdf-root > .chart-card .report-blurb{max-width:none}
-.overview-scorecard .exec-kpi-table{table-layout:fixed;width:100%}
+.overview-scorecard .exec-kpi-table{table-layout:fixed;width:100%;min-width:1100px}
 .overview-scorecard .exec-kpi-table th:first-child,
-.overview-scorecard .exec-kpi-table td:first-child{width:88px;padding-left:8px;padding-right:6px}
+.overview-scorecard .exec-kpi-table td:first-child{width:78px;padding-left:6px;padding-right:4px}
 .overview-scorecard .exec-kpi-table th:not(:first-child),
-.overview-scorecard .exec-kpi-table td:not(:first-child){padding:10px 6px;overflow:hidden;text-overflow:ellipsis}
+.overview-scorecard .exec-kpi-table td:not(:first-child){padding:8px 4px;overflow:hidden;text-overflow:ellipsis;font-size:12px}
+.overview-scorecard .exec-kpi-table td b{font-size:13px}
+.overview-scorecard .exec-kpi-table thead tr.sub-row th{font-size:9px;letter-spacing:.2px}
 .overview-scorecard .group-lw{color:#3d8ef8;border-bottom:2px solid rgba(61,142,248,.55)}
 .overview-scorecard .group-mtd{color:#22d98e;border-bottom:2px solid rgba(34,217,142,.55)}
 .overview-scorecard .group-ytd{color:#b06ef5;border-bottom:2px solid rgba(176,110,245,.55)}
@@ -422,8 +424,10 @@ function filteredWeeks(rows) {
 //   Human Calls = total calls where agent ≠ If-No-Answer Agent and agent ≠ empty  → callsHuman
 //   AI Calls    = total calls where agent = If-No-Answer Agent only               → callsAI
 //   Human Conv% = Phone/In-House bookings ÷ Human Calls
-//   AI Conv%    = Phone/AI bookings ÷ AI Calls
+//   AI Conv%    = Phone/AI bookings ÷ AI Calls (TalkDesk If-No-Answer)
+//   AI Conv% (resolved) = Phone/AI bookings ÷ Hostie AI resolved (not transferred)
 //   Total Conv% = (Phone/In-House + Phone/AI) ÷ (Human Calls + AI Calls)
+//   Transfer%   = Hostie transferred ÷ Hostie AI calls
 // OT Phone/In-House can exceed TalkDesk humanAnswered (attribution mismatch).
 // Show the true rate (may exceed 100%) and flag those cells — do not fake 100%.
 
@@ -455,6 +459,18 @@ function aiConvRateAgg(rows) {
   const books = sum(rows, 'bookingsPhoneAI');
   const ai = sum(rows, 'callsAI');
   return ai > 0 ? convPctRaw(books / ai * 100) : 0;
+}
+/** Phone/AI bookings ÷ Hostie conversations that were not transferred (resolved). */
+function aiConvResolvedRateAgg(rows) {
+  const books = sum(rows, 'bookingsPhoneAI');
+  const resolved = sum(rows, 'hostieAiResolved');
+  return resolved > 0 ? convPctRaw(books / resolved * 100) : null;
+}
+/** Phone/AI bookings ÷ all TalkDesk calls (share of total call volume). */
+function aiConvOfTotalCallsAgg(rows) {
+  const books = sum(rows, 'bookingsPhoneAI');
+  const tot = sum(rows, 'callsTotal');
+  return tot > 0 ? convPctRaw(books / tot * 100) : null;
 }
 function totalConvRate(row) {
   if (!row) return null;
@@ -1374,7 +1390,7 @@ function buildExecLocationKpiTableHtml(r26, r25) {
   </div>`;
 }
 
-/** One Overview table: Locations × Last week / MTD / YTD (calls vs PY, phone booked, conv). */
+/** One Overview table: Locations × Last week / MTD / YTD (calls, booked, transfer, human/AI conv vs PY). */
 function overviewPeriodMetrics(restId, period) {
   const r26 = locSummaryScope(D.rows26, period).filter(r => !restId || r.restaurantId === restId);
   const r25 = locSummaryScope(D.rows25, period).filter(r => !restId || r.restaurantId === restId);
@@ -1382,16 +1398,27 @@ function overviewPeriodMetrics(restId, period) {
   const callsYoY = signedPct(calls, sum(r25, 'callsTotal'));
   const phoneBooked = phoneBooks(r26);
   const phoneBookedYoY = signedPct(phoneBooked, phoneBooks(r25));
-  const conv = totalConvRateAgg(r26);
-  const conv25 = totalConvRateAgg(r25);
-  return { calls, callsYoY, phoneBooked, phoneBookedYoY, conv, conv25 };
+  const transfer = hostieTransferRateAgg(r26);
+  const humanConv = humanConvRateAgg(r26);
+  const humanConv25 = humanConvRateAgg(r25);
+  const aiConv = sum(r26, 'callsAI') > 0 ? aiConvRateAgg(r26) : null;
+  const aiConv25 = sum(r25, 'callsAI') > 0 ? aiConvRateAgg(r25) : null;
+  return {
+    calls, callsYoY, phoneBooked, phoneBookedYoY,
+    transfer, humanConv, humanConv25, aiConv, aiConv25,
+  };
 }
 
 function overviewPeriodCells(m) {
+  const trHtml = m.transfer != null && !isNaN(m.transfer)
+    ? `<b>${fmtHostiePct(m.transfer)}</b>`
+    : `<b>—</b>`;
   return `
     <td><b>${fmt(m.calls)}</b> <span class="${(m.callsYoY ?? 0) >= 0 ? 'up' : 'dn'}" style="font-size:11px">${fmtSigned(m.callsYoY)}</span></td>
     <td><b>${fmt(m.phoneBooked)}</b> <span class="${(m.phoneBookedYoY ?? 0) >= 0 ? 'up' : 'dn'}" style="font-size:11px">${fmtSigned(m.phoneBookedYoY)}</span></td>
-    <td><b>${fmtConvPct(m.conv)}</b> <span style="font-size:11px;color:var(--muted)">vs ${fmtConvPct(m.conv25)}</span></td>`;
+    <td>${trHtml}</td>
+    <td><b>${fmtConvPct(m.humanConv)}</b> <span style="font-size:11px;color:var(--muted)">vs ${fmtConvPct(m.humanConv25)}</span></td>
+    <td><b style="color:var(--ai)">${m.aiConv != null ? fmtConvPct(m.aiConv) : '—'}</b> <span style="font-size:11px;color:var(--muted)">vs ${m.aiConv25 != null ? fmtConvPct(m.aiConv25) : '—'}</span></td>`;
 }
 
 function buildOverviewUnifiedTableHtml() {
@@ -1408,7 +1435,7 @@ function buildOverviewUnifiedTableHtml() {
     </tr>`;
   }).join('');
 
-  const totCells = periods.map(p => {
+  const totCellsScoped = periods.map(p => {
     const ids = new Set(rests.map(r => r.id));
     const r26 = locSummaryScope(D.rows26, p).filter(r => ids.has(r.restaurantId));
     const r25 = locSummaryScope(D.rows25, p).filter(r => ids.has(r.restaurantId));
@@ -1417,33 +1444,36 @@ function buildOverviewUnifiedTableHtml() {
       callsYoY: signedPct(sum(r26, 'callsTotal'), sum(r25, 'callsTotal')),
       phoneBooked: phoneBooks(r26),
       phoneBookedYoY: signedPct(phoneBooks(r26), phoneBooks(r25)),
-      conv: totalConvRateAgg(r26),
-      conv25: totalConvRateAgg(r25),
+      transfer: hostieTransferRateAgg(r26),
+      humanConv: humanConvRateAgg(r26),
+      humanConv25: humanConvRateAgg(r25),
+      aiConv: sum(r26, 'callsAI') > 0 ? aiConvRateAgg(r26) : null,
+      aiConv25: sum(r25, 'callsAI') > 0 ? aiConvRateAgg(r25) : null,
     });
   }).join('');
 
   return `<div class="table-card overview-scorecard">
     <h3>Locations · Last week · MTD · YTD · vs PY</h3>
-    <p class="report-blurb">This scorecard compares each restaurant to the same weeks last year (vs PY) across three windows — last week, month-to-date (4 weeks), and year-to-date. Use it to see whether call volume, phone bookings (In-House + AI), and phone conversion are up or down vs prior year.</p>
-    <p class="loc-summary-note">All deltas vs PY · Calls · Phone booked = In-House + AI · Conv % = phone booked ÷ (human + AI calls) · Last week W${D.cutoff} · MTD W${mtdFrom}–W${D.cutoff} · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
+    <p class="report-blurb">This scorecard compares each restaurant to the same weeks last year (vs PY) across three windows — last week, month-to-date (4 weeks), and year-to-date. Calls, phone bookings, Hostie transfer rate, human conversion, and AI conversion.</p>
+    <p class="loc-summary-note">Calls &amp; Phone booked vs PY · Transfer % = Hostie transferred ÷ Hostie AI calls · Human Conv = Phone/IH ÷ human calls · AI Conv = Phone/AI ÷ AI calls · Last week W${D.cutoff} · MTD W${mtdFrom}–W${D.cutoff} · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
     <table class="exec-kpi-table">
       <thead>
         <tr class="group-row">
           <th rowspan="2" style="vertical-align:bottom;text-align:left">Location</th>
-          <th colspan="3" class="group-lw">Last week · W${D.cutoff} · vs PY</th>
-          <th colspan="3" class="group-mtd">MTD · W${mtdFrom}–W${D.cutoff} · vs PY</th>
-          <th colspan="3" class="group-ytd">YTD · W${ANALYSIS_START_WEEK}–W${D.cutoff} · vs PY</th>
+          <th colspan="5" class="group-lw">Last week · W${D.cutoff} · vs PY</th>
+          <th colspan="5" class="group-mtd">MTD · W${mtdFrom}–W${D.cutoff} · vs PY</th>
+          <th colspan="5" class="group-ytd">YTD · W${ANALYSIS_START_WEEK}–W${D.cutoff} · vs PY</th>
         </tr>
         <tr class="sub-row">
-          <th>Calls vs PY</th><th>Phone booked vs PY</th><th>Conv % vs PY</th>
-          <th>Calls vs PY</th><th>Phone booked vs PY</th><th>Conv % vs PY</th>
-          <th>Calls vs PY</th><th>Phone booked vs PY</th><th>Conv % vs PY</th>
+          <th>Calls</th><th>Phone booked</th><th>Transfer %</th><th>Human Conv</th><th>AI Conv</th>
+          <th>Calls</th><th>Phone booked</th><th>Transfer %</th><th>Human Conv</th><th>AI Conv</th>
+          <th>Calls</th><th>Phone booked</th><th>Transfer %</th><th>Human Conv</th><th>AI Conv</th>
         </tr>
       </thead>
       <tbody>${body}
         <tr class="total-row">
           <td>All</td>
-          ${totCells}
+          ${totCellsScoped}
         </tr>
       </tbody>
     </table>
@@ -1499,7 +1529,7 @@ function renderOverview() {
     </div>
 
     ${buildOverviewUnifiedTableHtml()}
-    <div class="stat-note">All figures vs PY (same weeks last year) · Calls = TalkDesk total · Phone booked = Phone/In-House + Phone/AI · Conv % = phone booked ÷ (human + AI calls).</div>
+    <div class="stat-note">vs PY · Transfer % = Hostie transferred ÷ Hostie AI calls · Human Conv = Phone/In-House ÷ human calls · AI Conv = Phone/AI ÷ AI calls · Phone booked = In-House + AI.</div>
   </div>
   `;
   requestAnimationFrame(() => paintOverviewAiImpactChart());
@@ -1689,8 +1719,11 @@ function collectOverviewScorecardRows() {
       callsYoY: signedPct(sum(r26, 'callsTotal'), sum(r25, 'callsTotal')),
       phoneBooked: phoneBooks(r26),
       phoneBookedYoY: signedPct(phoneBooks(r26), phoneBooks(r25)),
-      conv: totalConvRateAgg(r26),
-      conv25: totalConvRateAgg(r25),
+      transfer: hostieTransferRateAgg(r26),
+      humanConv: humanConvRateAgg(r26),
+      humanConv25: humanConvRateAgg(r25),
+      aiConv: sum(r26, 'callsAI') > 0 ? aiConvRateAgg(r26) : null,
+      aiConv25: sum(r25, 'callsAI') > 0 ? aiConvRateAgg(r25) : null,
     };
   });
   rows.push({ label: 'All', color: '#eef0fb', metrics: allMetrics, isTotal: true });
@@ -1748,13 +1781,13 @@ async function exportOverviewPdf() {
 
     // Scorecard sizing first so chart uses leftover height (keeps table fully on-page)
     const { rows, mtdFrom } = collectOverviewScorecardRows();
-    const rowH = 5.8;
+    const rowH = 5.6;
     const headerH = 10.5;
     const tablePad = 2;
-    const scoreTitleH = 4 + 3.5 + 3.2 + 1.5; // title + blurb ~1 line + gap
+    const scoreTitleH = 4 + 3.5 + 3.2 + 1.5;
     const tableH = headerH + rows.length * rowH + tablePad;
     const scoreBlockH = scoreTitleH + tableH + footerReserve + 2;
-    const chartBoxH = Math.max(52, Math.min(76, pageH - y - scoreBlockH - 4));
+    const chartBoxH = Math.max(48, Math.min(70, pageH - y - scoreBlockH - 4));
 
     pdf.setFillColor(20, 23, 32);
     pdf.setDrawColor(37, 45, 74);
@@ -1771,58 +1804,57 @@ async function exportOverviewPdf() {
       imgW = imgH * imgAspect;
     }
     pdf.addImage(chartPng, 'PNG', m + (contentW - imgW) / 2, y + (chartBoxH - imgH) / 2, imgW, imgH);
-    y += chartBoxH + 4;
+    y += chartBoxH + 3.5;
 
-    y = pdfTitleRule(pdf, 'Locations · Last week · MTD · YTD · vs PY', m, y, contentW, { size: 10, after: 3.5 });
+    y = pdfTitleRule(pdf, 'Locations · Last week · MTD · YTD · vs PY', m, y, contentW, { size: 10, after: 3.2 });
     pdf.setFont('helvetica', 'normal');
-    pdf.setFontSize(7.5);
+    pdf.setFontSize(7);
     pdf.setTextColor(200, 205, 224);
     y = pdfWrapText(
       pdf,
-      'Scorecard vs PY (same weeks last year): call volume, phone bookings (In-House + AI), and phone conversion across last week, MTD (4 weeks), and YTD.',
-      m, y, contentW, 3.2
+      'Scorecard vs PY: calls, phone booked, Hostie transfer %, human conv, and AI conv across last week, MTD (4 weeks), and YTD.',
+      m, y, contentW, 3
     );
-    y += 1.5;
+    y += 1.2;
 
     const tableTop = y;
-    const tableInnerPad = 1.5;
+    const tableInnerPad = 1.2;
     pdf.setFillColor(20, 23, 32);
     pdf.setDrawColor(37, 45, 74);
     pdf.roundedRect(m, tableTop, contentW, tableH, 2, 2, 'FD');
 
-    const locW = 26;
+    const locW = 22;
+    const colsPerPeriod = 5;
     const periodW = (contentW - locW - tableInnerPad * 2) / 3;
-    const subW = periodW / 3;
+    const subW = periodW / colsPerPeriod;
     const tableLeft = m + tableInnerPad;
     const periodMeta = [
-      { label: `Last week · W${D.cutoff} · vs PY`, color: [61, 142, 248] },
-      { label: `MTD · W${mtdFrom}–W${D.cutoff} · vs PY`, color: [34, 217, 142] },
-      { label: `YTD · W${ANALYSIS_START_WEEK}–W${D.cutoff} · vs PY`, color: [176, 110, 245] },
+      { label: `Last week · W${D.cutoff}`, color: [61, 142, 248] },
+      { label: `MTD · W${mtdFrom}–W${D.cutoff}`, color: [34, 217, 142] },
+      { label: `YTD · W${ANALYSIS_START_WEEK}–W${D.cutoff}`, color: [176, 110, 245] },
     ];
-    const subLabels = ['Calls vs PY', 'Booked vs PY', 'Conv vs PY'];
+    const subLabels = ['Calls', 'Booked', 'Xfer%', 'H Conv', 'AI Conv'];
 
-    // Group headers — centered in each period band
     let hx = tableLeft + locW;
     pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(7.5);
+    pdf.setFontSize(7);
     periodMeta.forEach((p) => {
       pdf.setTextColor(...p.color);
-      pdf.text(p.label, hx + periodW / 2, tableTop + 3.8, { align: 'center' });
+      pdf.text(p.label + ' · vs PY', hx + periodW / 2, tableTop + 3.6, { align: 'center' });
       pdf.setDrawColor(...p.color);
-      pdf.setLineWidth(0.45);
-      pdf.line(hx + 1.5, tableTop + 5, hx + periodW - 1.5, tableTop + 5);
+      pdf.setLineWidth(0.4);
+      pdf.line(hx + 1, tableTop + 4.8, hx + periodW - 1, tableTop + 4.8);
       hx += periodW;
     });
 
-    // Sub headers
     pdf.setFont('helvetica', 'normal');
-    pdf.setFontSize(6);
+    pdf.setFontSize(5.5);
     pdf.setTextColor(136, 144, 184);
-    pdf.text('Location', tableLeft + 1, tableTop + 8.8);
+    pdf.text('Location', tableLeft + 0.8, tableTop + 8.6);
     hx = tableLeft + locW;
     periodMeta.forEach(() => {
       subLabels.forEach((lab, si) => {
-        pdf.text(lab, hx + subW * (si + 0.5), tableTop + 8.8, { align: 'center' });
+        pdf.text(lab, hx + subW * (si + 0.5), tableTop + 8.6, { align: 'center' });
       });
       hx += periodW;
     });
@@ -1830,7 +1862,6 @@ async function exportOverviewPdf() {
     pdf.setLineWidth(0.2);
     pdf.line(m + 1.2, tableTop + headerH - 0.6, m + contentW - 1.2, tableTop + headerH - 0.6);
 
-    // Light vertical guides between periods
     for (let i = 1; i < 3; i++) {
       const gx = tableLeft + locW + periodW * i;
       pdf.setDrawColor(37, 45, 74);
@@ -1839,41 +1870,50 @@ async function exportOverviewPdf() {
     }
 
     rows.forEach((row, ri) => {
-      const ry = tableTop + headerH + ri * rowH + 3.6;
+      const ry = tableTop + headerH + ri * rowH + 3.5;
       if (row.isTotal) {
         pdf.setFillColor(24, 30, 48);
         pdf.rect(m + 0.6, tableTop + headerH + ri * rowH, contentW - 1.2, rowH, 'F');
       }
       const [cr, cg, cb] = hexToRgb(row.color);
       pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(7.5);
+      pdf.setFontSize(7);
       pdf.setTextColor(cr, cg, cb);
-      pdf.text(row.label, tableLeft + 1, ry);
+      pdf.text(row.label, tableLeft + 0.8, ry);
 
       let cx = tableLeft + locW;
       row.metrics.forEach((metric) => {
         const cells = [
           { main: fmt(metric.calls), sub: pdfPlainSigned(metric.callsYoY), yoy: metric.callsYoY },
           { main: fmt(metric.phoneBooked), sub: pdfPlainSigned(metric.phoneBookedYoY), yoy: metric.phoneBookedYoY },
-          { main: pdfPlainConv(metric.conv), sub: `vs ${pdfPlainConv(metric.conv25)}`, yoy: null, mutedSub: true },
+          { main: metric.transfer != null ? pdfPlainConv(metric.transfer) : '—', sub: '', yoy: null, mutedSub: true },
+          { main: pdfPlainConv(metric.humanConv), sub: `vs ${pdfPlainConv(metric.humanConv25)}`, yoy: null, mutedSub: true },
+          { main: metric.aiConv != null ? pdfPlainConv(metric.aiConv) : '—', sub: `vs ${metric.aiConv25 != null ? pdfPlainConv(metric.aiConv25) : '—'}`, yoy: null, mutedSub: true },
         ];
         cells.forEach((cell, si) => {
           let subRgb = [136, 144, 184];
           if (!cell.mutedSub && cell.yoy != null && !isNaN(cell.yoy)) {
             subRgb = cell.yoy >= 0 ? [34, 217, 142] : [255, 92, 106];
           }
-          pdfMetricPair(pdf, cx + subW * si, subW, ry, cell.main, cell.sub, subRgb);
+          if (cell.sub) {
+            pdfMetricPair(pdf, cx + subW * si, subW, ry, cell.main, cell.sub, subRgb);
+          } else {
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(7);
+            pdf.setTextColor(238, 240, 251);
+            pdf.text(String(cell.main), cx + subW * (si + 0.5), ry, { align: 'center' });
+          }
         });
         cx += periodW;
       });
     });
 
-    y = tableTop + tableH + 3.5;
+    y = tableTop + tableH + 3;
     pdf.setFont('helvetica', 'normal');
-    pdf.setFontSize(6.2);
+    pdf.setFontSize(5.8);
     pdf.setTextColor(136, 144, 184);
     pdf.text(
-      'Calls vs PY = TalkDesk total · Phone booked = In-House + AI · Conv % = phone booked ÷ (human + AI calls)',
+      'vs PY · Transfer = Hostie transferred ÷ Hostie AI · Human Conv = Phone/IH ÷ human calls · AI Conv = Phone/AI ÷ AI calls',
       m, Math.min(y, pageH - 4)
     );
 
@@ -2665,7 +2705,7 @@ function renderRestDetail(restId) {
     </div>
 
     <div class="section-head">AI Performance (Hostie)</div>
-    <div class="kpi-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:12px" id="rc-hostie-kpis-${restId}"></div>
+    <div class="kpi-row" style="grid-template-columns:repeat(5,1fr);margin-bottom:12px" id="rc-hostie-kpis-${restId}"></div>
     <div class="chart-row cols-2">
       <div class="chart-card">
         <h3>AI Call Volume &amp; Transfer Rate — Weekly</h3>
@@ -2809,18 +2849,21 @@ function buildRcHostieKpis(id, rest, r26) {
 
   const totalAI    = sum(post, 'hostieAiCalls');
   const totalTransferred = sum(post, 'hostieTransferred');
+  const totalResolved = sum(post, 'hostieAiResolved');
   const totalCalls = sum(post, 'callsTotal');
+  const tdAiCalls = sum(post, 'callsAI');
   const transferRate = fmtHostiePct(hostieTransferRateAgg(post));
   const resolvedRate = fmtHostiePct(hostieResolveRateAgg(post));
-  // AI conv rate
-  const bAI = sum(post,'bookingsPhoneAI');
-  const aiConv = sum(post,'callsAI') > 0 ? (bAI/sum(post,'callsAI')*100).toFixed(1) : '—';
+  const bAI = sum(post, 'bookingsPhoneAI');
+  const aiConvAll = aiConvRateAgg(post);
+  const aiConvOfTotal = aiConvOfTotalCallsAgg(post);
+  const aiConvResolved = aiConvResolvedRateAgg(post);
 
   el.innerHTML = `
     <div class="kpi" style="border-top:3px solid var(--ai)">
       <div class="kpi-label">AI Calls (Post Go-Live)</div>
       <div class="kpi-value" style="color:var(--ai)">${totalAI.toLocaleString()}</div>
-      <div class="kpi-sub">Hostie conversations · ${totalCalls > 0 ? (sum(post,'callsAI')/totalCalls*100).toFixed(1) : 0}% TalkDesk AI share</div>
+      <div class="kpi-sub">Hostie conversations · ${totalCalls > 0 ? (tdAiCalls/totalCalls*100).toFixed(1) : 0}% TalkDesk AI share</div>
     </div>
     <div class="kpi" style="border-top:3px solid #f43f8e">
       <div class="kpi-label">Transfer Rate (→ Human)</div>
@@ -2830,12 +2873,17 @@ function buildRcHostieKpis(id, rest, r26) {
     <div class="kpi" style="border-top:3px solid var(--human)">
       <div class="kpi-label">AI Resolved (No Transfer)</div>
       <div class="kpi-value" style="color:var(--human)">${resolvedRate}</div>
-      <div class="kpi-sub">Hostie handled end-to-end</div>
+      <div class="kpi-sub">${totalResolved.toLocaleString()} Hostie handled end-to-end</div>
     </div>
     <div class="kpi" style="border-top:3px solid var(--y26)">
-      <div class="kpi-label">AI Conv %</div>
-      <div class="kpi-value" style="color:var(--y26)">${aiConv}%</div>
-      <div class="kpi-sub">${bAI} Phone/AI bookings</div>
+      <div class="kpi-label">AI Conv % (AI Calls)</div>
+      <div class="kpi-value" style="color:var(--y26)">${aiConvAll != null ? aiConvAll.toFixed(1) + '%' : '—'}</div>
+      <div class="kpi-sub">${bAI} Phone/AI ÷ ${tdAiCalls.toLocaleString()} AI calls · ${aiConvOfTotal != null ? aiConvOfTotal.toFixed(1) + '%' : '—'} of total calls</div>
+    </div>
+    <div class="kpi" style="border-top:3px solid #22d98e">
+      <div class="kpi-label">AI Conv % (Resolved)</div>
+      <div class="kpi-value" style="color:#22d98e">${aiConvResolved != null ? aiConvResolved.toFixed(1) + '%' : '—'}</div>
+      <div class="kpi-sub">Phone/AI ÷ ${totalResolved.toLocaleString()} non-transferred AI calls</div>
     </div>
   `;
 }
