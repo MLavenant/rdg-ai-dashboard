@@ -1544,7 +1544,8 @@ function overviewAiImpactRowCells(before, after) {
     ${overviewAiImpactValCell(after.phone26, after.phoneYoY)}`;
 }
 
-function buildOverviewAiImpactTableHtml() {
+/** Shared Before/After rows for Overview HTML table + PDF export. */
+function collectOverviewAiImpactRows() {
   const rests = (F.location && F.location !== 'all')
     ? RESTS.filter(r => r.id === F.location)
     : RESTS;
@@ -1552,7 +1553,7 @@ function buildOverviewAiImpactTableHtml() {
   let totBeforeCalls = 0, totAfterCalls = 0, totBeforePhone = 0, totAfterPhone = 0;
   let totBeforeCalls25 = 0, totAfterCalls25 = 0, totBeforePhone25 = 0, totAfterPhone25 = 0;
 
-  const body = rests.map(rest => {
+  const rows = rests.map(rest => {
     const m = overviewAiImpactMetrics(rest);
     totBeforeCalls += m.before.calls;
     totAfterCalls += m.after.calls;
@@ -1562,31 +1563,51 @@ function buildOverviewAiImpactTableHtml() {
     totAfterCalls25 += m.after.calls25;
     totBeforePhone25 += m.before.phone25;
     totAfterPhone25 += m.after.phone25;
-    return `<tr style="--row-accent:${rest.color}">
+    return {
+      label: rest.label,
+      color: rest.color,
+      goLive: rest.goLive,
+      before: m.before,
+      after: m.after,
+      isTotal: false,
+    };
+  });
+
+  rows.push({
+    label: 'All locations',
+    color: '#eef0fb',
+    goLive: null,
+    before: {
+      calls: totBeforeCalls,
+      callsYoY: signedPct(totBeforeCalls, totBeforeCalls25),
+      phone26: totBeforePhone,
+      phoneYoY: signedPct(totBeforePhone, totBeforePhone25),
+    },
+    after: {
+      calls: totAfterCalls,
+      callsYoY: signedPct(totAfterCalls, totAfterCalls25),
+      phone26: totAfterPhone,
+      phoneYoY: signedPct(totAfterPhone, totAfterPhone25),
+    },
+    isTotal: true,
+  });
+  return rows;
+}
+
+function buildOverviewAiImpactTableHtml() {
+  const rows = collectOverviewAiImpactRows();
+  const body = rows.filter(r => !r.isTotal).map(row => `<tr style="--row-accent:${row.color}">
       <td>
         <div class="loc-cell">
-          <span class="loc-name" style="color:${rest.color}">${rest.label}</span>
-          <span class="loc-meta">AI Live W${rest.goLive} · Before → After</span>
+          <span class="loc-name" style="color:${row.color}">${row.label}</span>
+          <span class="loc-meta">AI Live W${row.goLive} · Before → After</span>
         </div>
       </td>
-      ${overviewAiImpactRowCells(m.before, m.after)}
-    </tr>`;
-  }).join('');
+      ${overviewAiImpactRowCells(row.before, row.after)}
+    </tr>`).join('');
+  const tot = rows.find(r => r.isTotal);
 
-  const totBefore = {
-    calls: totBeforeCalls,
-    callsYoY: signedPct(totBeforeCalls, totBeforeCalls25),
-    phone26: totBeforePhone,
-    phoneYoY: signedPct(totBeforePhone, totBeforePhone25),
-  };
-  const totAfter = {
-    calls: totAfterCalls,
-    callsYoY: signedPct(totAfterCalls, totAfterCalls25),
-    phone26: totAfterPhone,
-    phoneYoY: signedPct(totAfterPhone, totAfterPhone25),
-  };
-
-  return `<div class="ov-ai-impact-table no-print">
+  return `<div class="ov-ai-impact-table">
     <table class="exec-kpi-table">
       <thead>
         <tr class="group-row">
@@ -1607,7 +1628,7 @@ function buildOverviewAiImpactTableHtml() {
               <span class="loc-meta">Sum of sites · Before → After</span>
             </div>
           </td>
-          ${overviewAiImpactRowCells(totBefore, totAfter)}
+          ${overviewAiImpactRowCells(tot.before, tot.after)}
         </tr>
       </tbody>
     </table>
@@ -1840,7 +1861,7 @@ function collectOverviewScorecardRows() {
   return { rows, mtdFrom, periods };
 }
 
-/** Native one-page PDF: crisp text table + high-res chart image (not a page screenshot). */
+/** Native PDF: page 1 = chart + Before/After table; page 2 = LW/MTD/YTD scorecard. */
 async function exportOverviewPdf() {
   const btn = document.getElementById('overview-pdf-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Preparing PDF…'; }
@@ -1863,77 +1884,158 @@ async function exportOverviewPdf() {
     }
 
     const chartPng = chart.toBase64Image('image/png', 1.0);
+    const baRows = collectOverviewAiImpactRows();
+    const { rows, mtdFrom } = collectOverviewScorecardRows();
 
     const pdf = new JsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
     const pageW = pdf.internal.pageSize.getWidth();
     const pageH = pdf.internal.pageSize.getHeight();
-    const m = 6.5;
+    const m = 7;
     const contentW = pageW - m * 2;
-    const footerReserve = 5.5;
 
-    pdf.setFillColor(13, 15, 24);
-    pdf.rect(0, 0, pageW, pageH, 'F');
+    const fillPage = () => {
+      pdf.setFillColor(13, 15, 24);
+      pdf.rect(0, 0, pageW, pageH, 'F');
+    };
 
+    // ── Page 1: chart + Before/After table ──
+    fillPage();
     let y = m + 1;
-    y = pdfTitleRule(pdf, `RDG AI Impact · Overview · through W${D.cutoff}`, m, y + 3, contentW, { size: 13, after: 6 });
-
-    y = pdfTitleRule(pdf, 'Before vs After AI — phone bookings by location', m, y, contentW, { size: 10, after: 3.5 });
+    y = pdfTitleRule(pdf, `RDG AI Impact · Overview · through W${D.cutoff}`, m, y + 3, contentW, { size: 13, after: 5.5 });
+    y = pdfTitleRule(pdf, 'Before vs After AI — phone bookings by location', m, y, contentW, { size: 10, after: 3.2 });
 
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(7.5);
     pdf.setTextColor(200, 205, 224);
     y = pdfWrapText(
       pdf,
-      'Phone reservations before vs after each site’s AI Live week. Amber = 2025 Phone/In-House; 2026 = stacked In-House (green) + AI (purple). Labels show volume and YoY vs the same weeks last year.',
+      'Phone reservations before vs after each site’s AI Live week. Amber = 2025 Phone/In-House; 2026 = stacked In-House (green) + AI (purple).',
       m, y, contentW, 3.2
     );
     y += 1.5;
 
-    // Scorecard sizing first so chart uses leftover height (keeps table fully on-page)
-    const { rows, mtdFrom } = collectOverviewScorecardRows();
-    const rowH = 6.4;
-    const headerH = 11.5;
-    const tablePad = 3;
-    const scoreTitleH = 4 + 3.2 + 3 + 1.4;
-    const tableH = headerH + rows.length * rowH + tablePad;
-    const scoreBlockH = scoreTitleH + tableH + footerReserve + 2;
-    const chartBoxH = Math.max(46, Math.min(64, pageH - y - scoreBlockH - 3));
+    const baRowH = 6.2;
+    const baHeaderH = 11;
+    const baTableH = baHeaderH + baRows.length * baRowH + 2.5;
+    const baBlockH = 4 + baTableH + 5;
+    const chartBoxH = Math.max(55, Math.min(95, pageH - y - baBlockH - 6));
 
     pdf.setFillColor(20, 23, 32);
     pdf.setDrawColor(37, 45, 74);
     pdf.roundedRect(m, y, contentW, chartBoxH, 2, 2, 'FD');
     const chartPad = 2.5;
-    const imgMaxW = contentW - chartPad * 2;
-    const imgMaxH = chartBoxH - chartPad * 2;
     const imgProps = pdf.getImageProperties(chartPng);
     const imgAspect = imgProps.width / imgProps.height;
-    let imgW = imgMaxW;
+    let imgW = contentW - chartPad * 2;
     let imgH = imgW / imgAspect;
-    if (imgH > imgMaxH) {
-      imgH = imgMaxH;
+    if (imgH > chartBoxH - chartPad * 2) {
+      imgH = chartBoxH - chartPad * 2;
       imgW = imgH * imgAspect;
     }
     pdf.addImage(chartPng, 'PNG', m + (contentW - imgW) / 2, y + (chartBoxH - imgH) / 2, imgW, imgH);
     y += chartBoxH + 4;
 
+    y = pdfTitleRule(pdf, 'Total Calls & Phone Bookings · Before vs After', m, y, contentW, { size: 10, after: 3 });
+
+    const baTop = y;
+    const baInner = 2;
+    pdf.setFillColor(20, 23, 32);
+    pdf.setDrawColor(37, 45, 74);
+    pdf.roundedRect(m, baTop, contentW, baTableH, 2, 2, 'FD');
+
+    const baLocW = 36;
+    const baHalf = (contentW - baLocW - baInner * 2) / 2;
+    const baSubW = baHalf / 2;
+    const baLeft = m + baInner;
+
+    // Group headers
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(8);
+    pdf.setTextColor(61, 142, 248);
+    pdf.text('Total Calls · Before vs After', baLeft + baLocW + baHalf / 2, baTop + 4, { align: 'center' });
+    pdf.setDrawColor(61, 142, 248);
+    pdf.setLineWidth(0.4);
+    pdf.line(baLeft + baLocW + 2, baTop + 5.2, baLeft + baLocW + baHalf - 2, baTop + 5.2);
+
+    pdf.setTextColor(176, 110, 245);
+    pdf.text('Total Phone Bookings · Before vs After', baLeft + baLocW + baHalf + baHalf / 2, baTop + 4, { align: 'center' });
+    pdf.setDrawColor(176, 110, 245);
+    pdf.line(baLeft + baLocW + baHalf + 2, baTop + 5.2, baLeft + baLocW + baHalf * 2 - 2, baTop + 5.2);
+
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(6.2);
+    pdf.setTextColor(136, 144, 184);
+    pdf.text('Location', baLeft + 1.5, baTop + 9.2);
+    ['Before', 'After', 'Before', 'After'].forEach((lab, i) => {
+      const x = baLeft + baLocW + baSubW * (i + 0.5);
+      pdf.text(lab, x, baTop + 9.2, { align: 'center' });
+    });
+    pdf.setDrawColor(37, 45, 74);
+    pdf.setLineWidth(0.2);
+    pdf.line(m + 1.5, baTop + baHeaderH - 0.5, m + contentW - 1.5, baTop + baHeaderH - 0.5);
+    // Divider between Calls and Phone
+    pdf.line(baLeft + baLocW + baHalf, baTop + 1.5, baLeft + baLocW + baHalf, baTop + baTableH - 1.5);
+
+    baRows.forEach((row, ri) => {
+      const ry = baTop + baHeaderH + ri * baRowH + 4;
+      if (row.isTotal) {
+        pdf.setFillColor(24, 30, 48);
+        pdf.rect(m + 0.8, baTop + baHeaderH + ri * baRowH, contentW - 1.6, baRowH, 'F');
+      }
+      const [cr, cg, cb] = hexToRgb(row.color);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(7.5);
+      pdf.setTextColor(cr, cg, cb);
+      const locLabel = row.goLive != null ? `${row.label}  W${row.goLive}` : row.label;
+      pdf.text(locLabel, baLeft + 1.5, ry);
+
+      const cells = [
+        { main: fmt(row.before.calls), sub: pdfPlainSigned(row.before.callsYoY), yoy: row.before.callsYoY },
+        { main: fmt(row.after.calls), sub: pdfPlainSigned(row.after.callsYoY), yoy: row.after.callsYoY },
+        { main: fmt(row.before.phone26), sub: pdfPlainSigned(row.before.phoneYoY), yoy: row.before.phoneYoY },
+        { main: fmt(row.after.phone26), sub: pdfPlainSigned(row.after.phoneYoY), yoy: row.after.phoneYoY },
+      ];
+      cells.forEach((cell, si) => {
+        const subRgb = (cell.yoy == null || isNaN(cell.yoy))
+          ? [136, 144, 184]
+          : (cell.yoy >= 0 ? [34, 217, 142] : [255, 92, 106]);
+        pdfMetricPair(pdf, baLeft + baLocW + baSubW * si, baSubW, ry, cell.main, cell.sub || '—', subRgb);
+      });
+    });
+
+    y = baTop + baTableH + 3.5;
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(5.8);
+    pdf.setTextColor(136, 144, 184);
+    pdf.text('Small % next to volumes = YoY vs same weeks 2025 · Phone booked = In-House + AI · split at each site’s AI Live week', m, Math.min(y, pageH - 4));
+
+    // ── Page 2: LW / MTD / YTD scorecard ──
+    pdf.addPage();
+    fillPage();
+    y = m + 1;
+    y = pdfTitleRule(pdf, `RDG AI Impact · Overview · through W${D.cutoff}`, m, y + 3, contentW, { size: 13, after: 5.5 });
     y = pdfTitleRule(pdf, 'Locations · Last week · MTD · YTD · vs PY', m, y, contentW, { size: 10, after: 3.2 });
     pdf.setFont('helvetica', 'normal');
-    pdf.setFontSize(7);
+    pdf.setFontSize(7.5);
     pdf.setTextColor(200, 205, 224);
     y = pdfWrapText(
       pdf,
       'Scorecard vs PY: calls, phone booked, Hostie transfer %, human conv, and AI conv across last week, MTD (4 weeks), and YTD.',
-      m, y, contentW, 3
+      m, y, contentW, 3.2
     );
-    y += 1.5;
+    y += 2;
 
+    const rowH = 7.2;
+    const headerH = 12;
+    const tablePad = 3.5;
+    const tableH = headerH + rows.length * rowH + tablePad;
     const tableTop = y;
-    const tableInnerPad = 2;
+    const tableInnerPad = 2.5;
     pdf.setFillColor(20, 23, 32);
     pdf.setDrawColor(37, 45, 74);
     pdf.roundedRect(m, tableTop, contentW, tableH, 2, 2, 'FD');
 
-    const locW = 24;
+    const locW = 26;
     const colsPerPeriod = 5;
     const periodW = (contentW - locW - tableInnerPad * 2) / 3;
     const subW = periodW / colsPerPeriod;
@@ -1947,24 +2049,24 @@ async function exportOverviewPdf() {
 
     let hx = tableLeft + locW;
     pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(7);
+    pdf.setFontSize(7.5);
     periodMeta.forEach((p) => {
       pdf.setTextColor(...p.color);
-      pdf.text(p.label + ' · vs PY', hx + periodW / 2, tableTop + 4, { align: 'center' });
+      pdf.text(p.label + ' · vs PY', hx + periodW / 2, tableTop + 4.2, { align: 'center' });
       pdf.setDrawColor(...p.color);
       pdf.setLineWidth(0.4);
-      pdf.line(hx + 1.5, tableTop + 5.2, hx + periodW - 1.5, tableTop + 5.2);
+      pdf.line(hx + 1.5, tableTop + 5.5, hx + periodW - 1.5, tableTop + 5.5);
       hx += periodW;
     });
 
     pdf.setFont('helvetica', 'normal');
-    pdf.setFontSize(5.6);
+    pdf.setFontSize(6);
     pdf.setTextColor(136, 144, 184);
-    pdf.text('Location', tableLeft + 1.2, tableTop + 9.4);
+    pdf.text('Location', tableLeft + 1.2, tableTop + 10);
     hx = tableLeft + locW;
     periodMeta.forEach(() => {
       subLabels.forEach((lab, si) => {
-        pdf.text(lab, hx + subW * (si + 0.5), tableTop + 9.4, { align: 'center' });
+        pdf.text(lab, hx + subW * (si + 0.5), tableTop + 10, { align: 'center' });
       });
       hx += periodW;
     });
@@ -1974,20 +2076,18 @@ async function exportOverviewPdf() {
 
     for (let i = 1; i < 3; i++) {
       const gx = tableLeft + locW + periodW * i;
-      pdf.setDrawColor(37, 45, 74);
-      pdf.setLineWidth(0.15);
       pdf.line(gx, tableTop + 1.8, gx, tableTop + tableH - 1.8);
     }
 
     rows.forEach((row, ri) => {
-      const ry = tableTop + headerH + ri * rowH + 4.1;
+      const ry = tableTop + headerH + ri * rowH + 4.5;
       if (row.isTotal) {
         pdf.setFillColor(24, 30, 48);
         pdf.rect(m + 0.8, tableTop + headerH + ri * rowH, contentW - 1.6, rowH, 'F');
       }
       const [cr, cg, cb] = hexToRgb(row.color);
       pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(7.2);
+      pdf.setFontSize(7.5);
       pdf.setTextColor(cr, cg, cb);
       pdf.text(row.label, tableLeft + 1.2, ry);
 
@@ -2018,9 +2118,9 @@ async function exportOverviewPdf() {
       });
     });
 
-    y = tableTop + tableH + 3.5;
+    y = tableTop + tableH + 4;
     pdf.setFont('helvetica', 'normal');
-    pdf.setFontSize(5.8);
+    pdf.setFontSize(6);
     pdf.setTextColor(136, 144, 184);
     pdf.text(
       'vs PY · Transfer = Hostie transferred ÷ Hostie AI · Human Conv = Phone/IH ÷ human calls · AI Conv = Phone/AI ÷ AI calls',
