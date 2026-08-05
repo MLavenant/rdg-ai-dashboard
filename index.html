@@ -74,6 +74,13 @@ select:focus,input:focus{border-color:var(--y26)}
 .chart-card h3{font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px}
 .chart-card p{font-size:11px;color:var(--muted);margin-bottom:12px}
 .chart-wrap{position:relative}
+.ov-ai-impact-table{margin-top:14px;overflow-x:auto;border-top:1px solid var(--border);padding-top:12px}
+.ov-ai-impact-table .exec-kpi-table{min-width:620px;width:100%}
+.ov-ai-impact-table .exec-kpi-table th,.ov-ai-impact-table .exec-kpi-table td{padding:8px 10px;font-size:12px}
+.ov-ai-impact-table .exec-kpi-table td b{font-size:13px}
+.ov-ai-impact-table .exec-kpi-table thead tr.group-row th.group-calls{color:#3d8ef8;border-bottom:2px solid rgba(61,142,248,.55)}
+.ov-ai-impact-table .exec-kpi-table thead tr.group-row th.group-phone{color:#b06ef5;border-bottom:2px solid rgba(176,110,245,.55)}
+.ov-ai-impact-table .yoy-hint{font-size:10px;font-weight:500;margin-left:4px}
 
 /* ── TABLES ── */
 .table-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px;overflow-x:auto}
@@ -1507,6 +1514,94 @@ function buildOverviewPeriodStrip() {
   return `<div class="kpi-row" style="grid-template-columns:repeat(3,1fr)">${cards}</div>`;
 }
 
+function overviewAiImpactDeltaCell(after, before) {
+  const d = signedPct(after, before);
+  const abs = after - before;
+  const cls = (d == null ? abs : d) >= 0 ? 'up' : 'dn';
+  const absTxt = abs > 0 ? `+${fmt(abs)}` : fmt(abs);
+  if (d == null) return `<td><span class="${cls}">${absTxt}</span></td>`;
+  return `<td><b class="${cls}">${fmtSigned(d)}</b> <span class="yoy-hint" style="color:var(--muted)">${absTxt}</span></td>`;
+}
+
+function overviewAiImpactValCell(val, yoy) {
+  const yoyHtml = yoy == null
+    ? ''
+    : ` <span class="yoy-hint ${(yoy >= 0 ? 'up' : 'dn')}">${fmtSigned(yoy)}</span>`;
+  return `<td><b>${fmt(val)}</b>${yoyHtml}</td>`;
+}
+
+function overviewAiImpactRowCells(before, after) {
+  return `
+    ${overviewAiImpactValCell(before.calls, before.callsYoY)}
+    ${overviewAiImpactValCell(after.calls, after.callsYoY)}
+    ${overviewAiImpactDeltaCell(after.calls, before.calls)}
+    ${overviewAiImpactValCell(before.phone26, before.phoneYoY)}
+    ${overviewAiImpactValCell(after.phone26, after.phoneYoY)}
+    ${overviewAiImpactDeltaCell(after.phone26, before.phone26)}`;
+}
+
+function buildOverviewAiImpactTableHtml() {
+  const rests = (F.location && F.location !== 'all')
+    ? RESTS.filter(r => r.id === F.location)
+    : RESTS;
+
+  let totBeforeCalls = 0, totAfterCalls = 0, totBeforePhone = 0, totAfterPhone = 0;
+  let totBeforeCalls25 = 0, totAfterCalls25 = 0, totBeforePhone25 = 0, totAfterPhone25 = 0;
+
+  const body = rests.map(rest => {
+    const m = overviewAiImpactMetrics(rest);
+    totBeforeCalls += m.before.calls;
+    totAfterCalls += m.after.calls;
+    totBeforePhone += m.before.phone26;
+    totAfterPhone += m.after.phone26;
+    totBeforeCalls25 += m.before.calls25;
+    totAfterCalls25 += m.after.calls25;
+    totBeforePhone25 += m.before.phone25;
+    totAfterPhone25 += m.after.phone25;
+    return `<tr>
+      <td><span style="color:${rest.color};font-weight:700">${rest.label}</span>
+        <span style="color:var(--muted);font-size:10px;font-weight:500;margin-left:4px">W${rest.goLive}</span></td>
+      ${overviewAiImpactRowCells(m.before, m.after)}
+    </tr>`;
+  }).join('');
+
+  const totBefore = {
+    calls: totBeforeCalls,
+    callsYoY: signedPct(totBeforeCalls, totBeforeCalls25),
+    phone26: totBeforePhone,
+    phoneYoY: signedPct(totBeforePhone, totBeforePhone25),
+  };
+  const totAfter = {
+    calls: totAfterCalls,
+    callsYoY: signedPct(totAfterCalls, totAfterCalls25),
+    phone26: totAfterPhone,
+    phoneYoY: signedPct(totAfterPhone, totAfterPhone25),
+  };
+
+  return `<div class="ov-ai-impact-table no-print">
+    <table class="exec-kpi-table">
+      <thead>
+        <tr class="group-row">
+          <th rowspan="2" style="vertical-align:bottom;text-align:left">Location</th>
+          <th colspan="3" class="group-calls">Total Calls</th>
+          <th colspan="3" class="group-phone">Total Phone Bookings</th>
+        </tr>
+        <tr class="sub-row">
+          <th>Before AI</th><th>After AI</th><th>Δ</th>
+          <th>Before AI</th><th>After AI</th><th>Δ</th>
+        </tr>
+      </thead>
+      <tbody>${body}
+        <tr class="total-row">
+          <td>All</td>
+          ${overviewAiImpactRowCells(totBefore, totAfter)}
+        </tr>
+      </tbody>
+    </table>
+    <p class="loc-summary-note" style="margin:8px 0 0">Δ = After vs Before · small % next to volumes = YoY vs same weeks in 2025 · Phone booked = In-House + AI · split at each site’s AI Live week</p>
+  </div>`;
+}
+
 function renderOverview() {
   document.getElementById('page-overview').innerHTML = `
   <div class="overview-toolbar no-print">
@@ -1526,6 +1621,7 @@ function renderOverview() {
         <p class="report-blurb">This chart shows whether phone reservations held up after AI went live at each site. Amber bars are 2025 Phone/In-House; 2026 is stacked green (In-House) + purple (AI). Before/After splits at each restaurant’s AI Live week — green/red labels are YoY vs the same weeks last year.</p>
         <p>YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
         <div class="chart-wrap" style="height:380px"><canvas id="ov-ai-impact-by-loc"></canvas></div>
+        ${buildOverviewAiImpactTableHtml()}
       </div>
     </div>
 
