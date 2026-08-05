@@ -79,6 +79,10 @@ select:focus,input:focus{border-color:var(--y26)}
 .table-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px;overflow-x:auto}
 .table-card h3{font-size:13px;font-weight:600;margin-bottom:12px}
 .exec-kpi-card{border:1px solid rgba(61,142,248,.35);background:linear-gradient(180deg,rgba(61,142,248,.08),var(--surface))}
+.overview-scorecard{border:1px solid var(--border);background:var(--surface)}
+.overview-scorecard .group-lw{color:#3d8ef8;border-bottom:2px solid rgba(61,142,248,.55)}
+.overview-scorecard .group-mtd{color:#22d98e;border-bottom:2px solid rgba(34,217,142,.55)}
+.overview-scorecard .group-ytd{color:#b06ef5;border-bottom:2px solid rgba(176,110,245,.55)}
 .exec-kpi-table th,.exec-kpi-table td{padding:12px 14px;font-size:13px;white-space:nowrap}
 .exec-kpi-table th{font-size:11px;letter-spacing:.4px}
 .exec-kpi-table td b{font-size:15px;font-weight:700}
@@ -1407,7 +1411,7 @@ function buildOverviewUnifiedTableHtml() {
     });
   }).join('');
 
-  return `<div class="table-card exec-kpi-card">
+  return `<div class="table-card overview-scorecard">
     <h3>Locations · Last week · MTD · YTD</h3>
     <p class="report-blurb">This scorecard compares each restaurant to the same weeks last year across three windows — last week, month-to-date (4 weeks), and year-to-date. Use it to see whether call volume, phone bookings (In-House + AI), and phone conversion are up or down vs prior year.</p>
     <p class="loc-summary-note">Calls vs PY · Phone booked = In-House + AI · Conv % = phone booked ÷ (human + AI calls) · Last week W${D.cutoff} · MTD W${mtdFrom}–W${D.cutoff} · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
@@ -1548,22 +1552,19 @@ function resolveJsPdfCtor() {
 }
 
 async function ensurePdfLibs() {
-  let h2c = window.html2canvas;
   let JsPDF = resolveJsPdfCtor();
-  if (typeof h2c === 'function' && typeof JsPDF === 'function') return { h2c, JsPDF };
+  if (typeof JsPDF === 'function') return { JsPDF };
 
   const cdns = [
-    ['https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js', 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js'],
-    ['https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js', 'https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js'],
+    'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js',
+    'https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js',
   ];
   let lastErr = null;
-  for (const [h2cSrc, pdfSrc] of cdns) {
+  for (const src of cdns) {
     try {
-      if (typeof window.html2canvas !== 'function') await loadScriptOnce(h2cSrc);
-      if (!resolveJsPdfCtor()) await loadScriptOnce(pdfSrc);
-      h2c = window.html2canvas;
+      await loadScriptOnce(src);
       JsPDF = resolveJsPdfCtor();
-      if (typeof h2c === 'function' && typeof JsPDF === 'function') return { h2c, JsPDF };
+      if (typeof JsPDF === 'function') return { JsPDF };
     } catch (e) {
       lastErr = e;
     }
@@ -1571,134 +1572,256 @@ async function ensurePdfLibs() {
   throw lastErr || new Error('PDF libraries unavailable');
 }
 
+function hexToRgb(hex) {
+  const h = String(hex || '#eef0fb').replace('#', '');
+  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+}
+
+function pdfPlainConv(v) {
+  if (v == null || isNaN(v)) return '—';
+  return convPctRaw(v).toFixed(1) + '%';
+}
+
+function pdfPlainSigned(v) {
+  if (v == null || isNaN(v)) return '—';
+  const sign = v > 0 ? '+' : '';
+  return `${sign}${v.toFixed(1)}%`;
+}
+
+function pdfWrapText(pdf, text, x, y, maxW, lineH) {
+  const lines = pdf.splitTextToSize(String(text || ''), maxW);
+  pdf.text(lines, x, y);
+  return y + lines.length * lineH;
+}
+
+function collectOverviewScorecardRows() {
+  const mtdFrom = Math.max(ANALYSIS_START_WEEK, D.cutoff - 3);
+  const rests = (F.location && F.location !== 'all')
+    ? RESTS.filter(r => r.id === F.location)
+    : RESTS;
+  const periods = ['lw', 'mtd', 'ytd'];
+  const rows = rests.map(rest => ({
+    label: rest.label,
+    color: rest.color,
+    metrics: periods.map(p => overviewPeriodMetrics(rest.id, p)),
+  }));
+  const ids = new Set(rests.map(r => r.id));
+  const allMetrics = periods.map(p => {
+    const r26 = locSummaryScope(D.rows26, p).filter(r => ids.has(r.restaurantId));
+    const r25 = locSummaryScope(D.rows25, p).filter(r => ids.has(r.restaurantId));
+    return {
+      calls: sum(r26, 'callsTotal'),
+      callsYoY: signedPct(sum(r26, 'callsTotal'), sum(r25, 'callsTotal')),
+      phoneBooked: phoneBooks(r26),
+      phoneBookedYoY: signedPct(phoneBooks(r26), phoneBooks(r25)),
+      conv: totalConvRateAgg(r26),
+      conv25: totalConvRateAgg(r25),
+    };
+  });
+  rows.push({ label: 'All', color: '#eef0fb', metrics: allMetrics, isTotal: true });
+  return { rows, mtdFrom, periods };
+}
+
+/** Native one-page PDF: crisp text table + high-res chart image (not a page screenshot). */
 async function exportOverviewPdf() {
   const btn = document.getElementById('overview-pdf-btn');
-  const root = document.getElementById('overview-pdf-root');
-  const title = document.getElementById('overview-pdf-title');
-  if (!root) {
-    alert('PDF export is not available in this browser session.');
-    return;
-  }
+  if (btn) { btn.disabled = true; btn.textContent = 'Preparing PDF…'; }
 
-  let h2c, JsPDF;
+  let JsPDF;
   try {
-    ({ h2c, JsPDF } = await ensurePdfLibs());
+    ({ JsPDF } = await ensurePdfLibs());
   } catch (e) {
     console.error(e);
     alert('PDF libraries failed to load. Check your network/CDN access, then refresh and try again.');
+    if (btn) { btn.disabled = false; btn.textContent = 'Export PDF'; }
     return;
   }
 
-  if (btn) { btn.disabled = true; btn.textContent = 'Preparing PDF…'; }
-  if (title) title.style.display = 'block';
-  document.body.classList.add('print-overview');
-  root.classList.add('pdf-compact');
-  Object.values(CHARTS).forEach(ch => { try { ch.resize(); } catch (_) {} });
-
-  // Snapshot chart canvases as images so PDF keeps rendered dark chart pixels
-  const canvasSwaps = [];
-  await new Promise(r => setTimeout(r, 80));
-  root.querySelectorAll('canvas').forEach(canvas => {
-    try {
-      const img = document.createElement('img');
-      img.src = canvas.toDataURL('image/png');
-      const rect = canvas.getBoundingClientRect();
-      img.style.width = Math.max(rect.width, 1) + 'px';
-      img.style.height = Math.max(rect.height, 1) + 'px';
-      img.style.maxWidth = '100%';
-      img.style.display = 'block';
-      img.className = 'pdf-chart-snap';
-      canvas.parentNode.insertBefore(img, canvas);
-      canvas.style.display = 'none';
-      canvasSwaps.push({ canvas, img });
-    } catch (e) {
-      console.warn('canvas snapshot failed', e);
-    }
-  });
-
   try {
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-    await new Promise(r => setTimeout(r, 120));
+    const chart = CHARTS['ov-ai-impact-by-loc'];
+    if (!chart) {
+      alert('Chart is not ready yet. Wait a moment and try again.');
+      return;
+    }
 
-    const canvas = await h2c(root, {
-      scale: 2,
-      backgroundColor: '#0d0f18',
-      useCORS: true,
-      logging: false,
-      windowWidth: Math.max(root.scrollWidth, 1200),
-      onclone: (clonedDoc) => {
-        const style = clonedDoc.createElement('style');
-        style.textContent = `
-          html, body { background:#0d0f18!important; color:#eef0fb!important; }
-          #overview-pdf-root {
-            background:#0d0f18!important; color:#eef0fb!important; padding:6px!important;
-            -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important;
-          }
-          #overview-pdf-root, #overview-pdf-root * {
-            -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important;
-          }
-          #overview-pdf-root .chart-card,
-          #overview-pdf-root .table-card,
-          #overview-pdf-root .exec-kpi-card {
-            background:#141720!important; border:1px solid #252d4a!important; color:#eef0fb!important;
-          }
-          #overview-pdf-root .exec-kpi-card {
-            background:linear-gradient(180deg,rgba(61,142,248,.08),#141720)!important;
-            border-color:rgba(61,142,248,.35)!important;
-          }
-          #overview-pdf-root h3, #overview-pdf-root .section-head { color:#eef0fb!important; }
-          #overview-pdf-root p, #overview-pdf-root .loc-summary-note,
-          #overview-pdf-root .stat-note, #overview-pdf-root .report-blurb { color:#8890b8!important; }
-          #overview-pdf-root .report-blurb { color:#c8cde0!important; }
-          #overview-pdf-root table { color:#eef0fb!important; width:100%!important; border-collapse:collapse!important; }
-          #overview-pdf-root thead th { color:#8890b8!important; border-bottom:1px solid #252d4a!important; background:transparent!important; }
-          #overview-pdf-root .group-lw { color:#3d8ef8!important; border-bottom:2px solid rgba(61,142,248,.55)!important; }
-          #overview-pdf-root .group-mtd { color:#22d98e!important; border-bottom:2px solid rgba(34,217,142,.55)!important; }
-          #overview-pdf-root .group-ytd { color:#b06ef5!important; border-bottom:2px solid rgba(176,110,245,.55)!important; }
-          #overview-pdf-root tbody td { color:#eef0fb!important; border-bottom:1px solid rgba(42,48,80,.5)!important; }
-          #overview-pdf-root tbody tr.total-row { background:rgba(61,142,248,.08)!important; }
-          #overview-pdf-root .up { color:#22d98e!important; }
-          #overview-pdf-root .dn { color:#ff5c6a!important; }
-          #overview-pdf-title { display:block!important; color:#eef0fb!important; margin-bottom:8px!important; }
-          #overview-pdf-root canvas { display:none!important; }
-          #overview-pdf-root .pdf-chart-snap { display:block!important; max-width:100%!important; }
-        `;
-        clonedDoc.head.appendChild(style);
-      },
-    });
+    // Export chart at device resolution for sharp bars/labels
+    const chartPng = chart.toBase64Image('image/png', 1.0);
 
-    const imgData = canvas.toDataURL('image/jpeg', 0.98);
-    const pdf = new JsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const pdf = new JsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
     const pageW = pdf.internal.pageSize.getWidth();
     const pageH = pdf.internal.pageSize.getHeight();
-    const margin = 5;
-    const availW = pageW - margin * 2;
-    const availH = pageH - margin * 2;
-    const aspect = canvas.width / canvas.height;
-    let drawW = availW;
-    let drawH = drawW / aspect;
-    if (drawH > availH) {
-      drawH = availH;
-      drawW = drawH * aspect;
-    }
-    const x = (pageW - drawW) / 2;
-    const y = (pageH - drawH) / 2;
+    const m = 8;
+    const contentW = pageW - m * 2;
+
+    // Page background (solid dark — no blue wash)
     pdf.setFillColor(13, 15, 24);
     pdf.rect(0, 0, pageW, pageH, 'F');
-    pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH, undefined, 'FAST');
+
+    let y = m;
+    pdf.setTextColor(238, 240, 251);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(14);
+    pdf.text(`RDG AI Impact · Overview · through W${D.cutoff}`, m, y + 4);
+    y += 8;
+
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(11);
+    pdf.setTextColor(238, 240, 251);
+    pdf.text('Before vs After AI — phone bookings by location', m, y);
+    y += 5;
+
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(8);
+    pdf.setTextColor(200, 205, 224);
+    y = pdfWrapText(
+      pdf,
+      'Phone reservations before vs after each site’s AI Live week. Amber = 2025 Phone/In-House; 2026 = stacked In-House (green) + AI (purple). Labels show volume and YoY vs the same weeks last year.',
+      m, y, contentW, 3.4
+    );
+    y += 2;
+
+    // Chart panel
+    const chartBoxH = 78;
+    pdf.setFillColor(20, 23, 32);
+    pdf.setDrawColor(37, 45, 74);
+    pdf.roundedRect(m, y, contentW, chartBoxH, 2, 2, 'FD');
+    const chartPad = 2;
+    const imgMaxW = contentW - chartPad * 2;
+    const imgMaxH = chartBoxH - chartPad * 2;
+    // Keep chart aspect; Chart.js PNG is wide
+    const imgProps = pdf.getImageProperties(chartPng);
+    const imgAspect = imgProps.width / imgProps.height;
+    let imgW = imgMaxW;
+    let imgH = imgW / imgAspect;
+    if (imgH > imgMaxH) {
+      imgH = imgMaxH;
+      imgW = imgH * imgAspect;
+    }
+    const imgX = m + (contentW - imgW) / 2;
+    const imgY = y + (chartBoxH - imgH) / 2;
+    pdf.addImage(chartPng, 'PNG', imgX, imgY, imgW, imgH);
+    y += chartBoxH + 5;
+
+    // Scorecard
+    const { rows, mtdFrom } = collectOverviewScorecardRows();
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(11);
+    pdf.setTextColor(238, 240, 251);
+    pdf.text('Locations · Last week · MTD · YTD', m, y);
+    y += 4.5;
+
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(8);
+    pdf.setTextColor(200, 205, 224);
+    y = pdfWrapText(
+      pdf,
+      'Scorecard vs the same weeks last year: call volume, phone bookings (In-House + AI), and phone conversion across last week, MTD (4 weeks), and YTD.',
+      m, y, contentW, 3.4
+    );
+    y += 1.5;
+
+    // Table card background — solid surface (fixes blue/blurry look)
+    const tableTop = y;
+    const rowH = 6.2;
+    const headerH = 11;
+    const tableH = headerH + rows.length * rowH + 3;
+    pdf.setFillColor(20, 23, 32);
+    pdf.setDrawColor(37, 45, 74);
+    pdf.roundedRect(m, tableTop, contentW, tableH, 2, 2, 'FD');
+
+    const locW = 28;
+    const periodW = (contentW - locW) / 3;
+    const subW = periodW / 3;
+    const periodMeta = [
+      { label: `Last week · W${D.cutoff}`, color: [61, 142, 248] },
+      { label: `MTD · W${mtdFrom}–W${D.cutoff}`, color: [34, 217, 142] },
+      { label: `YTD · W${ANALYSIS_START_WEEK}–W${D.cutoff}`, color: [176, 110, 245] },
+    ];
+    const subLabels = ['Calls vs PY', 'Phone booked', 'Conv %'];
+
+    // Group headers
+    let hx = m + locW;
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(8);
+    periodMeta.forEach((p, i) => {
+      pdf.setTextColor(...p.color);
+      pdf.text(p.label, hx + periodW / 2, tableTop + 4, { align: 'center' });
+      pdf.setDrawColor(...p.color);
+      pdf.setLineWidth(0.4);
+      pdf.line(hx + 1, tableTop + 5.2, hx + periodW - 1, tableTop + 5.2);
+      hx += periodW;
+    });
+
+    // Sub headers
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(6.5);
+    pdf.setTextColor(136, 144, 184);
+    pdf.text('Location', m + 2, tableTop + 9.2);
+    hx = m + locW;
+    periodMeta.forEach(() => {
+      subLabels.forEach((lab, si) => {
+        pdf.text(lab, hx + subW * (si + 0.5), tableTop + 9.2, { align: 'center' });
+      });
+      hx += periodW;
+    });
+    pdf.setDrawColor(37, 45, 74);
+    pdf.setLineWidth(0.2);
+    pdf.line(m + 1, tableTop + headerH - 0.5, m + contentW - 1, tableTop + headerH - 0.5);
+
+    // Rows
+    rows.forEach((row, ri) => {
+      const ry = tableTop + headerH + ri * rowH;
+      if (row.isTotal) {
+        pdf.setFillColor(24, 30, 48);
+        pdf.rect(m + 0.5, ry - 3.5, contentW - 1, rowH, 'F');
+      }
+      const [cr, cg, cb] = hexToRgb(row.color);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(8);
+      pdf.setTextColor(cr, cg, cb);
+      pdf.text(row.label, m + 2, ry);
+
+      let cx = m + locW;
+      row.metrics.forEach((metric) => {
+        const cells = [
+          { main: fmt(metric.calls), sub: pdfPlainSigned(metric.callsYoY), yoy: metric.callsYoY },
+          { main: fmt(metric.phoneBooked), sub: pdfPlainSigned(metric.phoneBookedYoY), yoy: metric.phoneBookedYoY },
+          { main: pdfPlainConv(metric.conv), sub: `vs ${pdfPlainConv(metric.conv25)}`, yoy: null, mutedSub: true },
+        ];
+        cells.forEach((cell, si) => {
+          const center = cx + subW * (si + 0.5);
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(8);
+          pdf.setTextColor(238, 240, 251);
+          pdf.text(String(cell.main), center - 6, ry, { align: 'right' });
+          pdf.setFont('helvetica', 'normal');
+          pdf.setFontSize(6.5);
+          if (cell.mutedSub) {
+            pdf.setTextColor(136, 144, 184);
+          } else if (cell.yoy == null || isNaN(cell.yoy)) {
+            pdf.setTextColor(136, 144, 184);
+          } else if (cell.yoy >= 0) {
+            pdf.setTextColor(34, 217, 142);
+          } else {
+            pdf.setTextColor(255, 92, 106);
+          }
+          pdf.text(String(cell.sub), center + 1, ry, { align: 'left' });
+        });
+        cx += periodW;
+      });
+    });
+
+    y = tableTop + tableH + 3;
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(6.5);
+    pdf.setTextColor(136, 144, 184);
+    pdf.text('Calls vs PY = TalkDesk total · Phone booked = In-House + AI · Conv % = phone booked ÷ (human + AI calls)', m, y);
+
     pdf.save(`RDG-Overview-through-W${D.cutoff}.pdf`);
   } catch (e) {
     console.error(e);
     alert('PDF export failed: ' + (e.message || e));
   } finally {
-    canvasSwaps.forEach(({ canvas, img }) => {
-      img.remove();
-      canvas.style.display = '';
-    });
-    root.classList.remove('pdf-compact');
-    if (title) title.style.display = 'none';
-    document.body.classList.remove('print-overview');
-    Object.values(CHARTS).forEach(ch => { try { ch.resize(); } catch (_) {} });
     if (btn) { btn.disabled = false; btn.textContent = 'Export PDF'; }
   }
 }
