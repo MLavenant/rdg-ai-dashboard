@@ -1529,17 +1529,6 @@ function buildOverviewPeriodStrip() {
   return `<div class="kpi-row" style="grid-template-columns:repeat(3,1fr)">${cards}</div>`;
 }
 
-function overviewAiImpactDeltaCell(after, before) {
-  const d = signedPct(after, before);
-  const abs = after - before;
-  const cls = (d == null ? abs : d) >= 0 ? 'up' : 'dn';
-  const absTxt = abs > 0 ? `+${fmt(abs)}` : fmt(abs);
-  if (d == null) {
-    return `<td class="change-cell"><span class="${cls}"><b>${absTxt}</b></span></td>`;
-  }
-  return `<td class="change-cell"><b class="${cls}">${fmtSigned(d)}</b> <span class="yoy-hint" style="color:var(--muted)">${absTxt}</span></td>`;
-}
-
 function overviewAiImpactValCell(val, yoy, extraClass) {
   const yoyHtml = yoy == null
     ? ''
@@ -1551,10 +1540,8 @@ function overviewAiImpactRowCells(before, after) {
   return `
     ${overviewAiImpactValCell(before.calls, before.callsYoY)}
     ${overviewAiImpactValCell(after.calls, after.callsYoY)}
-    ${overviewAiImpactDeltaCell(after.calls, before.calls)}
     ${overviewAiImpactValCell(before.phone26, before.phoneYoY, 'sep-col')}
-    ${overviewAiImpactValCell(after.phone26, after.phoneYoY)}
-    ${overviewAiImpactDeltaCell(after.phone26, before.phone26)}`;
+    ${overviewAiImpactValCell(after.phone26, after.phoneYoY)}`;
 }
 
 function buildOverviewAiImpactTableHtml() {
@@ -1604,12 +1591,12 @@ function buildOverviewAiImpactTableHtml() {
       <thead>
         <tr class="group-row">
           <th rowspan="2" style="vertical-align:bottom;text-align:left">Location</th>
-          <th colspan="3" class="group-calls">Total Calls · Before vs After</th>
-          <th colspan="3" class="group-phone">Total Phone Bookings · Before vs After</th>
+          <th colspan="2" class="group-calls">Total Calls · Before vs After</th>
+          <th colspan="2" class="group-phone">Total Phone Bookings · Before vs After</th>
         </tr>
         <tr class="sub-row">
-          <th>Before</th><th>After</th><th>Change</th>
-          <th class="sep-col">Before</th><th>After</th><th>Change</th>
+          <th>Before</th><th>After</th>
+          <th class="sep-col">Before</th><th>After</th>
         </tr>
       </thead>
       <tbody>${body}
@@ -1624,7 +1611,7 @@ function buildOverviewAiImpactTableHtml() {
         </tr>
       </tbody>
     </table>
-    <p class="loc-summary-note" style="margin:10px 0 0">Change = After vs Before at each site’s AI Live week · small % next to volumes = YoY vs same weeks in 2025 · Phone booked = In-House + AI</p>
+    <p class="loc-summary-note" style="margin:10px 0 0">Before / After split at each site’s AI Live week · small % next to volumes = YoY vs same weeks in 2025 · Phone booked = In-House + AI</p>
   </div>`;
 }
 
