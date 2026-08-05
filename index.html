@@ -1423,21 +1423,21 @@ function buildOverviewUnifiedTableHtml() {
   }).join('');
 
   return `<div class="table-card overview-scorecard">
-    <h3>Locations · Last week · MTD · YTD</h3>
-    <p class="report-blurb">This scorecard compares each restaurant to the same weeks last year across three windows — last week, month-to-date (4 weeks), and year-to-date. Use it to see whether call volume, phone bookings (In-House + AI), and phone conversion are up or down vs prior year.</p>
-    <p class="loc-summary-note">Calls vs PY · Phone booked = In-House + AI · Conv % = phone booked ÷ (human + AI calls) · Last week W${D.cutoff} · MTD W${mtdFrom}–W${D.cutoff} · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
+    <h3>Locations · Last week · MTD · YTD · vs PY</h3>
+    <p class="report-blurb">This scorecard compares each restaurant to the same weeks last year (vs PY) across three windows — last week, month-to-date (4 weeks), and year-to-date. Use it to see whether call volume, phone bookings (In-House + AI), and phone conversion are up or down vs prior year.</p>
+    <p class="loc-summary-note">All deltas vs PY · Calls · Phone booked = In-House + AI · Conv % = phone booked ÷ (human + AI calls) · Last week W${D.cutoff} · MTD W${mtdFrom}–W${D.cutoff} · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
     <table class="exec-kpi-table">
       <thead>
         <tr class="group-row">
           <th rowspan="2" style="vertical-align:bottom;text-align:left">Location</th>
-          <th colspan="3" class="group-lw">Last week · W${D.cutoff}</th>
-          <th colspan="3" class="group-mtd">MTD · W${mtdFrom}–W${D.cutoff}</th>
-          <th colspan="3" class="group-ytd">YTD · W${ANALYSIS_START_WEEK}–W${D.cutoff}</th>
+          <th colspan="3" class="group-lw">Last week · W${D.cutoff} · vs PY</th>
+          <th colspan="3" class="group-mtd">MTD · W${mtdFrom}–W${D.cutoff} · vs PY</th>
+          <th colspan="3" class="group-ytd">YTD · W${ANALYSIS_START_WEEK}–W${D.cutoff} · vs PY</th>
         </tr>
         <tr class="sub-row">
-          <th>Calls vs PY</th><th>Phone booked</th><th>Conv %</th>
-          <th>Calls vs PY</th><th>Phone booked</th><th>Conv %</th>
-          <th>Calls vs PY</th><th>Phone booked</th><th>Conv %</th>
+          <th>Calls vs PY</th><th>Phone booked vs PY</th><th>Conv % vs PY</th>
+          <th>Calls vs PY</th><th>Phone booked vs PY</th><th>Conv % vs PY</th>
+          <th>Calls vs PY</th><th>Phone booked vs PY</th><th>Conv % vs PY</th>
         </tr>
       </thead>
       <tbody>${body}
@@ -1499,7 +1499,7 @@ function renderOverview() {
     </div>
 
     ${buildOverviewUnifiedTableHtml()}
-    <div class="stat-note">Calls vs PY = TalkDesk total calls YoY · Phone booked = Phone/In-House + Phone/AI · Conv % = phone booked ÷ (human + AI calls).</div>
+    <div class="stat-note">All figures vs PY (same weeks last year) · Calls = TalkDesk total · Phone booked = Phone/In-House + Phone/AI · Conv % = phone booked ÷ (human + AI calls).</div>
   </div>
   `;
   requestAnimationFrame(() => paintOverviewAiImpactChart());
@@ -1773,13 +1773,13 @@ async function exportOverviewPdf() {
     pdf.addImage(chartPng, 'PNG', m + (contentW - imgW) / 2, y + (chartBoxH - imgH) / 2, imgW, imgH);
     y += chartBoxH + 4;
 
-    y = pdfTitleRule(pdf, 'Locations · Last week · MTD · YTD', m, y, contentW, { size: 10, after: 3.5 });
+    y = pdfTitleRule(pdf, 'Locations · Last week · MTD · YTD · vs PY', m, y, contentW, { size: 10, after: 3.5 });
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(7.5);
     pdf.setTextColor(200, 205, 224);
     y = pdfWrapText(
       pdf,
-      'Scorecard vs the same weeks last year: call volume, phone bookings (In-House + AI), and phone conversion across last week, MTD (4 weeks), and YTD.',
+      'Scorecard vs PY (same weeks last year): call volume, phone bookings (In-House + AI), and phone conversion across last week, MTD (4 weeks), and YTD.',
       m, y, contentW, 3.2
     );
     y += 1.5;
@@ -1795,11 +1795,11 @@ async function exportOverviewPdf() {
     const subW = periodW / 3;
     const tableLeft = m + tableInnerPad;
     const periodMeta = [
-      { label: `Last week · W${D.cutoff}`, color: [61, 142, 248] },
-      { label: `MTD · W${mtdFrom}–W${D.cutoff}`, color: [34, 217, 142] },
-      { label: `YTD · W${ANALYSIS_START_WEEK}–W${D.cutoff}`, color: [176, 110, 245] },
+      { label: `Last week · W${D.cutoff} · vs PY`, color: [61, 142, 248] },
+      { label: `MTD · W${mtdFrom}–W${D.cutoff} · vs PY`, color: [34, 217, 142] },
+      { label: `YTD · W${ANALYSIS_START_WEEK}–W${D.cutoff} · vs PY`, color: [176, 110, 245] },
     ];
-    const subLabels = ['Calls vs PY', 'Phone booked', 'Conv %'];
+    const subLabels = ['Calls vs PY', 'Booked vs PY', 'Conv vs PY'];
 
     // Group headers — centered in each period band
     let hx = tableLeft + locW;
