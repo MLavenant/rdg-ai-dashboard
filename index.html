@@ -7,6 +7,8 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
 <style>
 :root{
@@ -1522,6 +1524,53 @@ function overviewAiImpactMetrics(rest) {
   };
 }
 
+function loadScriptOnce(src) {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[data-pdf-lib="${src}"]`) || document.querySelector(`script[src="${src}"]`);
+    if (existing) {
+      if (existing.dataset.loaded === '1') return resolve();
+      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener('error', () => reject(new Error('Failed to load ' + src)), { once: true });
+      return;
+    }
+    const s = document.createElement('script');
+    s.src = src;
+    s.async = true;
+    s.dataset.pdfLib = src;
+    s.onload = () => { s.dataset.loaded = '1'; resolve(); };
+    s.onerror = () => reject(new Error('Failed to load ' + src));
+    document.head.appendChild(s);
+  });
+}
+
+function resolveJsPdfCtor() {
+  return window.jspdf?.jsPDF || window.jsPDF || window.jspdf?.default?.jsPDF || null;
+}
+
+async function ensurePdfLibs() {
+  let h2c = window.html2canvas;
+  let JsPDF = resolveJsPdfCtor();
+  if (typeof h2c === 'function' && typeof JsPDF === 'function') return { h2c, JsPDF };
+
+  const cdns = [
+    ['https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js', 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js'],
+    ['https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js', 'https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js'],
+  ];
+  let lastErr = null;
+  for (const [h2cSrc, pdfSrc] of cdns) {
+    try {
+      if (typeof window.html2canvas !== 'function') await loadScriptOnce(h2cSrc);
+      if (!resolveJsPdfCtor()) await loadScriptOnce(pdfSrc);
+      h2c = window.html2canvas;
+      JsPDF = resolveJsPdfCtor();
+      if (typeof h2c === 'function' && typeof JsPDF === 'function') return { h2c, JsPDF };
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error('PDF libraries unavailable');
+}
+
 async function exportOverviewPdf() {
   const btn = document.getElementById('overview-pdf-btn');
   const root = document.getElementById('overview-pdf-root');
@@ -1530,19 +1579,25 @@ async function exportOverviewPdf() {
     alert('PDF export is not available in this browser session.');
     return;
   }
-  const h2c = window.html2canvas;
-  const JsPDF = window.jspdf?.jsPDF || window.jsPDF;
-  if (typeof h2c !== 'function' || typeof JsPDF !== 'function') {
-    alert('PDF libraries failed to load. Refresh and try again.');
+
+  let h2c, JsPDF;
+  try {
+    ({ h2c, JsPDF } = await ensurePdfLibs());
+  } catch (e) {
+    console.error(e);
+    alert('PDF libraries failed to load. Check your network/CDN access, then refresh and try again.');
     return;
   }
+
   if (btn) { btn.disabled = true; btn.textContent = 'Preparing PDF…'; }
   if (title) title.style.display = 'block';
   document.body.classList.add('print-overview');
   root.classList.add('pdf-compact');
+  Object.values(CHARTS).forEach(ch => { try { ch.resize(); } catch (_) {} });
 
   // Snapshot chart canvases as images so PDF keeps rendered dark chart pixels
   const canvasSwaps = [];
+  await new Promise(r => setTimeout(r, 80));
   root.querySelectorAll('canvas').forEach(canvas => {
     try {
       const img = document.createElement('img');
@@ -1563,7 +1618,6 @@ async function exportOverviewPdf() {
 
   try {
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-    // Let Chart.js / layout settle after compact class
     await new Promise(r => setTimeout(r, 120));
 
     const canvas = await h2c(root, {
@@ -1644,6 +1698,7 @@ async function exportOverviewPdf() {
     root.classList.remove('pdf-compact');
     if (title) title.style.display = 'none';
     document.body.classList.remove('print-overview');
+    Object.values(CHARTS).forEach(ch => { try { ch.resize(); } catch (_) {} });
     if (btn) { btn.disabled = false; btn.textContent = 'Export PDF'; }
   }
 }
