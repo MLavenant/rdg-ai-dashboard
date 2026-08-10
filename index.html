@@ -3197,9 +3197,9 @@ function callCenterSummaryHtml() {
       <p class="loc-summary-note" style="margin:-4px 0 12px">Through <b>W${to}</b> (W${from}–W${to}) · refreshed with latest TalkDesk / Hostie snapshot</p>
       <div class="chart-row cols-1" style="margin-bottom:16px">
         <div class="chart-card">
-          <h3>Human Calls Handled — 2025 vs 2026 (Weekly)</h3>
-          <p>TalkDesk human-answered volume by week (excludes If-No-Answer / AI) · horizontal comparison</p>
-          <div class="chart-wrap" style="height:${Math.max(320, (to - from + 1) * 18 + 80)}px"><canvas id="cc-human-yoy"></canvas></div>
+          <h3>Human Calls Handled — 2025 vs 2026 (Last 10 weeks)</h3>
+          <p>TalkDesk human-answered volume by week (excludes If-No-Answer / AI) · last 10 completed weeks</p>
+          <div class="chart-wrap" style="height:380px"><canvas id="cc-human-yoy"></canvas></div>
         </div>
       </div>
       <div class="chart-row cols-2">
@@ -3233,42 +3233,42 @@ function paintCallCenterSummaryCharts() {
   const { r26, r25, weeks } = callCenterLatestRows();
   if (!document.getElementById('cc-calls-stack')) return;
 
-  // Human-answered volume 2025 vs 2026 — horizontal bars by week
+  // Human-answered volume 2025 vs 2026 — vertical bars, last 10 weeks
   if (document.getElementById('cc-human-yoy')) {
+    const last10 = weeks.slice(-10);
     const hum26 = aggByWeek(r26, 'callsHuman');
     const hum25 = aggByWeek(r25, 'callsHuman');
     mkChart('cc-human-yoy', 'bar', {
-      labels: weeks.map(w => 'W' + w),
+      labels: last10.map(w => 'W' + w),
       datasets: [
         {
           label: '2025 Human',
-          data: weeks.map(w => hum25[w] || 0),
+          data: last10.map(w => hum25[w] || 0),
           backgroundColor: 'rgba(245,158,11,.55)',
           borderColor: 'rgba(245,158,11,.9)',
           borderWidth: 1,
-          borderRadius: 3,
+          borderRadius: 4,
         },
         {
           label: '2026 Human',
-          data: weeks.map(w => hum26[w] || 0),
+          data: last10.map(w => hum26[w] || 0),
           backgroundColor: 'rgba(52,211,153,.55)',
           borderColor: 'rgba(52,211,153,.95)',
           borderWidth: 1,
-          borderRadius: 3,
+          borderRadius: 4,
         },
       ],
     }, {
-      indexAxis: 'y',
       scales: {
         x: {
+          ticks: { color: '#8890b8' },
+          grid: { display: false },
+        },
+        y: {
           beginAtZero: true,
           ticks: { color: '#8890b8' },
           grid: { color: 'rgba(42,48,80,.45)' },
           title: { display: true, text: 'Human-answered calls', color: '#8890b8', font: { size: 11 } },
-        },
-        y: {
-          ticks: { color: '#8890b8' },
-          grid: { display: false },
         },
       },
       plugins: {
@@ -3278,8 +3278,9 @@ function paintCallCenterSummaryCharts() {
             afterBody(items) {
               const i = items[0]?.dataIndex;
               if (i == null) return '';
-              const a = hum25[weeks[i]] || 0;
-              const b = hum26[weeks[i]] || 0;
+              const w = last10[i];
+              const a = hum25[w] || 0;
+              const b = hum26[w] || 0;
               if (!(a > 0)) return 'YoY: —';
               const pct = ((b - a) / a) * 100;
               const sign = pct > 0 ? '+' : '';
