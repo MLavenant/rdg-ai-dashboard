@@ -3189,8 +3189,53 @@ function callCenterLatestRows() {
   return { r26, r25, weeks, from, to };
 }
 
+function buildCcHumanTrendTableHtml(r26, r25, weeks, to) {
+  const sumHuman = (rows, weekList) => {
+    const set = new Set(weekList);
+    return sum(rows.filter(r => set.has(r.week)), 'callsHuman');
+  };
+  const windows = [
+    { key: 'lw', label: 'Last week', sub: `W${to}`, weeks: weeks.filter(w => w === to) },
+    { key: 'w4', label: 'Last 4 weeks', sub: `W${Math.max(weeks[0], to - 3)}–W${to}`, weeks: weeks.filter(w => w >= to - 3 && w <= to) },
+    { key: 'w10', label: 'Last 10 weeks', sub: `W${Math.max(weeks[0], to - 9)}–W${to}`, weeks: weeks.filter(w => w >= to - 9 && w <= to) },
+  ];
+
+  const body = windows.map(win => {
+    const v26 = sumHuman(r26, win.weeks);
+    const v25 = sumHuman(r25, win.weeks);
+    const yoy = signedPct(v26, v25);
+    const abs = v26 - v25;
+    const absTxt = abs > 0 ? `+${abs.toLocaleString()}` : abs.toLocaleString();
+    const yoyCls = yoy == null ? '' : (yoy >= 0 ? 'up' : 'dn');
+    const yoyTxt = yoy == null ? '—' : fmtSigned(yoy);
+    return `<tr>
+      <td style="text-align:left"><b>${win.label}</b>
+        <div style="font-size:10px;color:var(--muted);font-weight:500">${win.sub}</div></td>
+      <td><b style="color:#f59e0b">${v25.toLocaleString()}</b></td>
+      <td><b style="color:#34d399">${v26.toLocaleString()}</b></td>
+      <td><b class="${yoyCls}">${yoyTxt}</b>
+        <span style="font-size:11px;color:var(--muted);margin-left:4px">${yoy == null ? '' : absTxt}</span></td>
+    </tr>`;
+  }).join('');
+
+  return `<div class="ov-ai-impact-table" style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">
+    <table class="exec-kpi-table" style="min-width:0;width:100%">
+      <thead>
+        <tr class="group-row">
+          <th style="text-align:left">Window</th>
+          <th>2025 Human</th>
+          <th>2026 Human</th>
+          <th>YoY Var %</th>
+        </tr>
+      </thead>
+      <tbody>${body}</tbody>
+    </table>
+    <p class="loc-summary-note" style="margin:8px 0 0">Human = TalkDesk human-answered (excl. If-No-Answer / AI) · YoY vs the same ISO weeks in 2025 · abs change shown next to %</p>
+  </div>`;
+}
+
 function callCenterSummaryHtml() {
-  const { from, to } = callCenterLatestRows();
+  const { r26, r25, weeks, from, to } = callCenterLatestRows();
   return `
     <div id="people-panel-cc">
       <div class="section-head">Summary — Call Center</div>
@@ -3200,6 +3245,7 @@ function callCenterSummaryHtml() {
           <h3>Human Calls Handled — 2025 vs 2026 (Last 10 weeks)</h3>
           <p>TalkDesk human-answered volume by week (excludes If-No-Answer / AI) · last 10 completed weeks</p>
           <div class="chart-wrap" style="height:380px"><canvas id="cc-human-yoy"></canvas></div>
+          ${buildCcHumanTrendTableHtml(r26, r25, weeks, to)}
         </div>
       </div>
       <div class="chart-row cols-2">
