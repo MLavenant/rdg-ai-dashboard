@@ -313,6 +313,27 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 .people-table td,.people-table th{font-size:11px;padding:6px 8px;white-space:nowrap}
 .people-table th{position:sticky;top:0;background:var(--surface);z-index:1}
 .people-table .grp-start{border-left:2px solid var(--border)}
+.people-table td.heat-good{background:rgba(34,217,142,.16);color:#22d98e;font-weight:700}
+.people-table td.heat-ok{background:rgba(61,142,248,.10);color:#7eb6ff}
+.people-table td.heat-bad{background:rgba(255,92,106,.16);color:#ff5c6a;font-weight:700}
+.people-table tr.perf-top td:first-child{box-shadow:inset 3px 0 0 #22d98e}
+.people-table tr.perf-bottom td:first-child{box-shadow:inset 3px 0 0 #ff5c6a}
+.people-table tr.perf-top{background:rgba(34,217,142,.06)}
+.people-table tr.perf-bottom{background:rgba(255,92,106,.06)}
+.perf-pill{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;font-size:9px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;vertical-align:middle}
+.perf-pill.top{background:rgba(34,217,142,.2);color:#22d98e}
+.perf-pill.bottom{background:rgba(255,92,106,.2);color:#ff5c6a}
+.ring-legend{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin:0 0 12px;font-size:11px;color:var(--muted)}
+.ring-legend .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.ring-legend .sw.good{background:#22d98e}
+.ring-legend .sw.bad{background:#ff5c6a}
+.ring-legend .sw.ok{background:#3d8ef8}
+.cc-ai-share{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+.cc-ai-share .kpi{padding:10px 12px;border-top:3px solid var(--ai)}
+.cc-ai-share .kpi.human{border-top-color:#34d399}
+.cc-ai-share .kpi.total{border-top-color:#3d8ef8}
+.cc-ai-share .kpi-value{font-size:18px;font-weight:700}
+.cc-ai-share .kpi-sub{font-size:11px;color:var(--muted);margin-top:2px}
 .peak-wrap{overflow:auto;max-height:520px}
 .peak-table td,.peak-table th{font-size:11px;padding:5px 6px;text-align:center}
 .peak-table th.time-col{text-align:left;min-width:56px}
@@ -3326,8 +3347,9 @@ function callCenterSummaryHtml() {
         </div>
         <div class="chart-card">
           <h3>AI vs Human Calls — 2026 Weekly</h3>
-          <p>AI handled vs human answered</p>
-          <div class="chart-wrap" style="height:260px"><canvas id="cc-ai-human"></canvas></div>
+          <p>AI handled vs human answered · labels show AI calls ÷ total handled (AI + Human)</p>
+          <div class="chart-wrap" style="height:280px"><canvas id="cc-ai-human"></canvas></div>
+          <div class="cc-ai-share" id="cc-ai-share-kpis"></div>
         </div>
       </div>
       <div class="chart-row cols-2">
@@ -3422,13 +3444,92 @@ function paintCallCenterSummaryCharts() {
   }, { scales: { x: { stacked: true }, y: { stacked: true } } });
 
   const mai = aggByWeek(r26, 'callsAI'), mhum = aggByWeek(r26, 'callsHuman');
+  const aiSeries = weeks.map(w => mai[w] || 0);
+  const humSeries = weeks.map(w => mhum[w] || 0);
+  const totSeries = weeks.map((_, i) => aiSeries[i] + humSeries[i]);
+  const aiTot = aiSeries.reduce((a, b) => a + b, 0);
+  const humTot = humSeries.reduce((a, b) => a + b, 0);
+  const handledTot = aiTot + humTot;
+  const aiShare = handledTot > 0 ? (aiTot / handledTot) * 100 : null;
+
+  const shareEl = document.getElementById('cc-ai-share-kpis');
+  if (shareEl) {
+    shareEl.innerHTML = `
+      <div class="kpi">
+        <div class="kpi-label">AI calls</div>
+        <div class="kpi-value" style="color:var(--ai)">${aiTot.toLocaleString()}</div>
+        <div class="kpi-sub">${aiShare == null ? '—' : aiShare.toFixed(1) + '%'} of total handled</div>
+      </div>
+      <div class="kpi human">
+        <div class="kpi-label">Human calls</div>
+        <div class="kpi-value" style="color:#34d399">${humTot.toLocaleString()}</div>
+        <div class="kpi-sub">${handledTot > 0 ? ((humTot / handledTot) * 100).toFixed(1) + '%' : '—'} of total handled</div>
+      </div>
+      <div class="kpi total">
+        <div class="kpi-label">Total handled</div>
+        <div class="kpi-value">${handledTot.toLocaleString()}</div>
+        <div class="kpi-sub">AI + Human · W${weeks[0]}–W${weeks[weeks.length - 1]}</div>
+      </div>`;
+  }
+
   mkChart('cc-ai-human', 'bar', {
     labels: weeks.map(w => 'W' + w),
     datasets: [
-      { label: 'AI', data: weeks.map(w => mai[w] || 0), backgroundColor: 'rgba(167,139,250,.6)', stack: 's' },
-      { label: 'Human', data: weeks.map(w => mhum[w] || 0), backgroundColor: 'rgba(52,211,153,.5)', stack: 's' },
+      {
+        label: 'AI',
+        data: aiSeries,
+        backgroundColor: 'rgba(167,139,250,.7)',
+        stack: 's',
+        datalabels: { display: false },
+      },
+      {
+        label: 'Human',
+        data: humSeries,
+        backgroundColor: 'rgba(52,211,153,.55)',
+        stack: 's',
+        datalabels: {
+          display: ctx => (totSeries[ctx.dataIndex] || 0) > 0,
+          anchor: 'end',
+          align: 'top',
+          offset: 2,
+          clamp: true,
+          font: { size: 9, weight: '700' },
+          color: '#c4b5fd',
+          formatter: (_v, ctx) => {
+            const ai = aiSeries[ctx.dataIndex] || 0;
+            const tot = totSeries[ctx.dataIndex] || 0;
+            if (!(tot > 0)) return '';
+            const pct = ((ai / tot) * 100).toFixed(0);
+            return `${fmt(ai)} AI\n${pct}% of ${fmt(tot)}`;
+          },
+        },
+      },
     ],
-  }, { scales: { x: { stacked: true }, y: { stacked: true } } });
+  }, {
+    layout: { padding: { top: 28 } },
+    scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } },
+    plugins: {
+      legend: { position: 'top', labels: { color: '#c8cde0', boxWidth: 12 } },
+      datalabels: { display: true },
+      tooltip: {
+        callbacks: {
+          afterBody(items) {
+            const i = items[0]?.dataIndex;
+            if (i == null) return '';
+            const ai = aiSeries[i] || 0;
+            const hum = humSeries[i] || 0;
+            const tot = ai + hum;
+            if (!(tot > 0)) return 'Total handled: —';
+            return [
+              `Total handled: ${tot.toLocaleString()}`,
+              `AI share: ${((ai / tot) * 100).toFixed(1)}% (${ai.toLocaleString()} of ${tot.toLocaleString()})`,
+              `Human share: ${((hum / tot) * 100).toFixed(1)}%`,
+            ];
+          },
+        },
+      },
+    },
+  });
 
   const labels = RESTS.map(r => r.label);
   const tr = RESTS.map(rest => {
@@ -3690,39 +3791,129 @@ async function renderPeople() {
     const fmtNum = (n) => (n ?? 0).toLocaleString();
     const fmtCph = (v) => v == null ? '—' : v.toFixed(2);
 
+    /** Heat class from ranked values among human agents (exclude AI / empty). */
+    function ringHeatClass(vals, value, higherIsBetter) {
+      const clean = vals.filter(v => v != null && !isNaN(v) && isFinite(v));
+      if (value == null || isNaN(value) || !isFinite(value) || clean.length < 3) return '';
+      const sorted = [...clean].sort((a, b) => a - b);
+      const lo = sorted[Math.floor((sorted.length - 1) * 0.25)];
+      const hi = sorted[Math.ceil((sorted.length - 1) * 0.75)];
+      if (higherIsBetter) {
+        if (value >= hi) return 'heat-good';
+        if (value <= lo) return 'heat-bad';
+        return 'heat-ok';
+      }
+      if (value <= lo) return 'heat-good';
+      if (value >= hi) return 'heat-bad';
+      return 'heat-ok';
+    }
+
+    const humanAgents = (j.ringGroups.agents || []).filter(a => !a.isAi);
+    const heatPools = {
+      week: {
+        cph: humanAgents.map(a => a.week?.callsPerHour).filter(v => v != null),
+        asa: humanAgents.map(a => a.week?.asaSecs).filter(v => v != null && v > 0),
+        missed: humanAgents.map(a => a.week?.missedPct).filter(v => v != null),
+        calls: humanAgents.map(a => a.week?.calls || 0),
+      },
+      mtd: {
+        cph: humanAgents.map(a => a.mtd?.callsPerHour).filter(v => v != null),
+        asa: humanAgents.map(a => a.mtd?.asaSecs).filter(v => v != null && v > 0),
+        missed: humanAgents.map(a => a.mtd?.missedPct).filter(v => v != null),
+        calls: humanAgents.map(a => a.mtd?.calls || 0),
+      },
+    };
+
+    /** Composite rank for week: better Call/Hr, faster ASA, lower Missed%. */
+    function agentPerfScore(a) {
+      const m = a.week || {};
+      if (!(m.calls > 0)) return null;
+      const peers = humanAgents.filter(x => (x.week?.calls || 0) > 0);
+      if (peers.length < 3) return null;
+      const rankDesc = (getter) => {
+        const vals = peers.map(getter).filter(v => v != null && !isNaN(v));
+        const v = getter(a);
+        if (v == null || !vals.length) return peers.length / 2;
+        const better = vals.filter(x => x > v).length;
+        return better + 1; // 1 = best
+      };
+      const rankAsc = (getter) => {
+        const vals = peers.map(getter).filter(v => v != null && !isNaN(v));
+        const v = getter(a);
+        if (v == null || !vals.length) return peers.length / 2;
+        const better = vals.filter(x => x < v).length;
+        return better + 1;
+      };
+      const rCph = rankDesc(x => x.week?.callsPerHour);
+      const rAsa = rankAsc(x => (x.week?.asaSecs > 0 ? x.week.asaSecs : null));
+      const rMiss = rankAsc(x => x.week?.missedPct);
+      return (rCph + rAsa + rMiss) / 3;
+    }
+
+    const scored = humanAgents
+      .map(a => ({ name: a.agentName, score: agentPerfScore(a), calls: a.week?.calls || 0 }))
+      .filter(x => x.score != null && x.calls > 0)
+      .sort((a, b) => a.score - b.score);
+    const topNames = new Set(scored.slice(0, Math.min(2, scored.length)).map(x => x.name));
+    const bottomNames = new Set(
+      scored.length >= 4
+        ? scored.slice(-Math.min(2, scored.length)).map(x => x.name)
+        : []
+    );
+
     const periodHdr = (label, sub) =>
       `<th colspan="9" class="grp-start">${label}<div style="font-weight:400;font-size:10px;color:var(--muted)">${sub}</div></th>`;
 
-    const ringMetricCells = (m, agentName, period, editable) => {
+    const heatTd = (content, cls, extraClass) =>
+      `<td class="${[extraClass || '', cls].filter(Boolean).join(' ')}">${content}</td>`;
+
+    const ringMetricCells = (m, agentName, period, editable, applyHeat) => {
       const wh = m.workedHours;
       const hoursCell = (editable && !_peopleReadOnly)
         ? `<td><input class="hours-input" type="number" min="0" step="0.01" data-agent="${agentName}" data-period="${period}" value="${wh != null ? wh : ''}" placeholder="hrs" title="Edit worked hours — saves on blur"></td>`
         : `<td>${wh != null ? wh : '—'}</td>`;
+      const pool = heatPools[period] || heatPools.week;
+      const cphCls = applyHeat ? ringHeatClass(pool.cph, m.callsPerHour, true) : '';
+      const asaCls = applyHeat ? ringHeatClass(pool.asa, m.asaSecs > 0 ? m.asaSecs : null, false) : '';
+      const missCls = applyHeat ? ringHeatClass(pool.missed, m.missedPct, false) : '';
+      const callsCls = applyHeat ? ringHeatClass(pool.calls, m.calls || 0, true) : '';
       return `
-        <td class="grp-start">${fmtNum(m.calls)}</td>
+        ${heatTd(fmtNum(m.calls), callsCls, 'grp-start')}
         <td>${fmtPct(m.pct)}</td>
         ${hoursCell}
-        <td>${fmtCph(m.callsPerHour)}</td>
+        ${heatTd(fmtCph(m.callsPerHour), cphCls)}
         <td>${fmtSecs(m.avgTalkSecs)}</td>
         <td>${fmtSecs(m.maxTalkSecs)}</td>
-        <td>${fmtSecs(m.asaSecs)}</td>
+        ${heatTd(fmtSecs(m.asaSecs), asaCls)}
         <td>${fmtNum(m.missed)}</td>
-        <td>${fmtPct(m.missedPct)}</td>`;
+        ${heatTd(fmtPct(m.missedPct), missCls)}`;
     };
 
-    const ringRows = (j.ringGroups.agents || []).map(a => `
-      <tr class="${a.isAi ? 'ai-row' : ''}">
-        <td style="text-align:left">${a.isAi ? 'AI Agent' : a.agentName}</td>
-        ${ringMetricCells(a.week, a.agentName, 'week', !a.isAi)}
-        ${ringMetricCells(a.mtd, a.agentName, 'mtd', !a.isAi)}
-      </tr>`).join('');
+    const ringRows = (j.ringGroups.agents || []).map(a => {
+      const isTop = !a.isAi && topNames.has(a.agentName);
+      const isBottom = !a.isAi && bottomNames.has(a.agentName);
+      const rowCls = [
+        a.isAi ? 'ai-row' : '',
+        isTop ? 'perf-top' : '',
+        isBottom ? 'perf-bottom' : '',
+      ].filter(Boolean).join(' ');
+      const pill = isTop
+        ? '<span class="perf-pill top">Top</span>'
+        : (isBottom ? '<span class="perf-pill bottom">Needs focus</span>' : '');
+      const label = a.isAi ? 'AI Agent' : a.agentName;
+      return `<tr class="${rowCls}">
+        <td style="text-align:left">${label}${pill}</td>
+        ${ringMetricCells(a.week, a.agentName, 'week', !a.isAi, !a.isAi)}
+        ${ringMetricCells(a.mtd, a.agentName, 'mtd', !a.isAi, !a.isAi)}
+      </tr>`;
+    }).join('');
 
     const t = j.ringGroups.totals;
     const ringTotalRow = `
       <tr style="font-weight:700">
         <td style="text-align:left">Total</td>
-        ${ringMetricCells(t.week, '', 'week', false)}
-        ${ringMetricCells(t.mtd, '', 'mtd', false)}
+        ${ringMetricCells(t.week, '', 'week', false, false)}
+        ${ringMetricCells(t.mtd, '', 'mtd', false, false)}
       </tr>`;
 
     const typeCols = (j.typeOfCall.types || []);
@@ -3791,6 +3982,13 @@ async function renderPeople() {
         <div class="table-card" style="overflow:auto">
           <h3>Summary — Ring Groups</h3>
           <p class="people-note"># calls = inbound + outbound · ASA = avg Agent Speed to Answer · AI Agent row = If-No-Answer Agent</p>
+          <div class="ring-legend">
+            <span><i class="sw good"></i>Top quartile (good)</span>
+            <span><i class="sw ok"></i>Mid pack</span>
+            <span><i class="sw bad"></i>Bottom quartile (needs focus)</span>
+            <span><span class="perf-pill top">Top</span> best overall this week (Call/Hr + ASA + Missed%)</span>
+            <span><span class="perf-pill bottom">Needs focus</span> weakest overall this week</span>
+          </div>
           <table class="people-table">
             <thead>
               <tr>
