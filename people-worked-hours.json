@@ -1,7 +1,6 @@
 {
   "version": 1,
   "roster": [
-    "Ali Zandi",
     "Ana Paula Durante Espinoza",
     "Angelika Lankina",
     "Brandon Paramore",
@@ -14,13 +13,10 @@
     "Vanessa Salazar Barguil"
   ],
   "hidden": [
+    "Ali Zandi",
     "Smoke Test Agent"
   ],
   "hours": {
-    "Ali Zandi": {
-      "week": {},
-      "mtd": {}
-    },
     "Ana Paula Durante Espinoza": {
       "week": {
         "2026-W34": 27.37,
