@@ -5,6 +5,7 @@
     "Ana Paula Durante Espinoza",
     "Angelika Lankina",
     "Connil Edwin",
+    "Ivan Brun",
     "Koutouba Diop",
     "Lea Guardiola",
     "Marixcelli Dangelo"
@@ -52,6 +53,11 @@
     "Angelika Lankina": {
       "week": {
         "2026-W34": 30.35
+      }
+    },
+    "Ivan Brun": {
+      "week": {
+        "2026-W34": 22.13
       }
     }
   }
