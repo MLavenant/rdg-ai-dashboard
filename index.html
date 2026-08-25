@@ -316,6 +316,7 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 .save-hint{font-size:11px;color:var(--green);margin-left:8px}
 
 </style>
+  <!--RDG_HOURS_API--><script>window.RDG_HOURS_API="https://rdg-hours-api.plum-rat.workers.dev";</script><!--/RDG_HOURS_API-->
 </head>
 <body>
 
@@ -3418,7 +3419,153 @@ function renderCalls() {
 }
 
 let _peopleStatic = null;   // cached ./people.json when no backend
-let _peopleReadOnly = false; // true on GitHub Pages (no POST endpoint)
+let _peopleReadOnly = false; // true only when static host AND no Hours API
+let _hoursStoreCache = null;
+
+function hoursApiBase() {
+  const u = (window.RDG_HOURS_API || "").trim().replace(/\/$/, "");
+  return u || "";
+}
+
+function canEditPeopleHours() {
+  if (hoursApiBase()) return true;
+  const onStaticHost = /github\.io$/i.test(location.hostname) || location.protocol === "file:";
+  return !onStaticHost;
+}
+
+function weekKeyJs(year, week) {
+  return year + "-W" + String(week).padStart(2, "0");
+}
+
+function buildHoursCalendarClient(store, anchorWeek, year, talkdeskNames) {
+  store = store || { roster: [], hidden: [], hours: {} };
+  const weeks = [];
+  for (let i = 4; i >= 0; i--) {
+    const w = Math.max(1, anchorWeek - i);
+    weeks.push({ week: w, key: weekKeyJs(year, w), label: "W" + w });
+  }
+  const roster = new Set((store.roster || []).map(String).filter(Boolean));
+  const hidden = new Set((store.hidden || []).map(String).filter(Boolean));
+  const fromHours = Object.keys(store.hours || {});
+  const td = talkdeskNames || [];
+  const names = [...new Set([...td, ...roster, ...fromHours].filter((n) => n && n !== "If-No-Answer Agent" && !hidden.has(n)))]
+    .sort((a, b) => a.localeCompare(b));
+  const agents = names.map((agentName) => {
+    const hours = {};
+    let total = 0;
+    for (const wk of weeks) {
+      const v = store.hours?.[agentName]?.week?.[wk.key];
+      hours[wk.week] = v != null && !Number.isNaN(v) ? v : null;
+      if (hours[wk.week] != null) total += hours[wk.week];
+    }
+    const last = weeks[weeks.length - 1]?.week;
+    const prev = weeks[weeks.length - 2]?.week;
+    const wow = (prevH, currH) => (prevH > 0 ? +(((currH - prevH) / prevH) * 100).toFixed(1) : null);
+    return {
+      agentName,
+      source: roster.has(agentName) && !td.includes(agentName) ? "manual" : "talkdesk",
+      hours,
+      total: +total.toFixed(2),
+      wow: wow(hours[prev] ?? 0, hours[last] ?? 0),
+    };
+  });
+  const totalsHours = {};
+  let grand = 0;
+  for (const wk of weeks) {
+    const sum = agents.reduce((s, a) => s + (a.hours[wk.week] ?? 0), 0);
+    totalsHours[wk.week] = +sum.toFixed(2);
+    grand += sum;
+  }
+  const last = weeks[weeks.length - 1]?.week;
+  const prev = weeks[weeks.length - 2]?.week;
+  return {
+    year,
+    anchorWeek,
+    weeks,
+    agents,
+    totals: {
+      hours: totalsHours,
+      total: +grand.toFixed(2),
+      wow: prev > 0 ? +((((totalsHours[last] || 0) - (totalsHours[prev] || 0)) / (totalsHours[prev] || 1)) * 100).toFixed(1) : null,
+    },
+  };
+}
+
+function applyHoursStoreToPeopleReport(report, store) {
+  if (!report || !report.ok || !store) return report;
+  const year = report.year || 2026;
+  const week = report.selectedWeek;
+  const wkKey = weekKeyJs(year, week);
+  const from = report.mtdFromWeek || week;
+  const mtdKey = year + "-W" + String(from).padStart(2, "0") + "-W" + String(week).padStart(2, "0");
+  const hidden = new Set((store.hidden || []).map(String));
+  if (report.ringGroups?.agents) {
+    report.ringGroups.agents = report.ringGroups.agents
+      .filter((a) => a.isAi || !hidden.has(a.agentName))
+      .map((a) => {
+        if (a.isAi) return a;
+        const wh = store.hours?.[a.agentName]?.week?.[wkKey];
+        const mh = store.hours?.[a.agentName]?.mtd?.[mtdKey];
+        const weekHours = wh != null ? wh : a.week?.workedHours ?? null;
+        const mtdHours = mh != null ? mh : a.mtd?.workedHours ?? null;
+        const patch = (m, hours) => {
+          if (!m) return m;
+          const calls = m.calls || 0;
+          return {
+            ...m,
+            workedHours: hours,
+            callsPerHour: hours != null && hours > 0 ? +(calls / hours).toFixed(2) : null,
+          };
+        };
+        return { ...a, week: patch(a.week, weekHours), mtd: patch(a.mtd, mtdHours) };
+      });
+  }
+  const tdNames = (report.ringGroups?.agents || []).filter((a) => !a.isAi).map((a) => a.agentName);
+  report.hoursCalendar = buildHoursCalendarClient(store, week, year, tdNames);
+  return report;
+}
+
+async function fetchSharedHoursStore(week) {
+  const api = hoursApiBase();
+  if (api) {
+    try {
+      const r = await fetch(api + "/hours?week=" + (week || ""));
+      const data = await r.json();
+      if (data.ok && data.store) {
+        _hoursStoreCache = data.store;
+        return data;
+      }
+    } catch (_) {}
+  }
+  try {
+    const j = await fetchJsonSafe(staticAssetUrl("people-worked-hours.json") + "?t=" + Date.now());
+    if (j && j.hours) {
+      _hoursStoreCache = j;
+      return { ok: true, store: j, calendar: buildHoursCalendarClient(j, week || 1, 2026, []) };
+    }
+  } catch (_) {}
+  return null;
+}
+
+async function postHoursApi(path, body) {
+  const api = hoursApiBase();
+  if (api) {
+    const resp = await fetch(api + path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return resp.json();
+  }
+  const localPath =
+    path === "/worked-hours" ? "/api/people/worked-hours" : path === "/roster" ? "/api/people/roster" : path;
+  const resp = await fetch(localPath, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return resp.json();
+}
 
 /** Resolve a static asset next to the dashboard (works with/without trailing slash). */
 function staticAssetUrl(name) {
@@ -3440,15 +3587,19 @@ async function fetchJsonSafe(url) {
 
 async function loadPeople(week) {
   const onStaticHost = /github\.io$/i.test(location.hostname) || location.protocol === 'file:';
+  _peopleReadOnly = !canEditPeopleHours();
 
   // Local Express API (skip on GitHub Pages — /api/* is not under the project path)
   if (!onStaticHost) {
     const j = await fetchJsonSafe(`/api/people?week=${week}`);
-    if (j && j.ok) { _peopleReadOnly = false; return j; }
+    if (j && j.ok) {
+      _peopleReadOnly = false;
+      return j;
+    }
   }
 
   if (!_peopleStatic) {
-    const bust = 'v=20260716b';
+    const bust = 'v=' + Date.now();
     _peopleStatic = await fetchJsonSafe(staticAssetUrl('people.json') + '?' + bust);
     if (!_peopleStatic) {
       _peopleStatic = await fetchJsonSafe('./people.json?' + bust);
@@ -3457,10 +3608,14 @@ async function loadPeople(week) {
   if (!_peopleStatic) {
     throw new Error('People snapshot missing. Re-export with: npm run dashboard:export');
   }
-  _peopleReadOnly = true;
   const weeks = _peopleStatic.weeks || {};
   const pick = weeks[String(week)] || weeks[String(_peopleStatic.latestWeek)] || Object.values(weeks)[0];
   if (!pick) throw new Error('No people data available in snapshot');
+  // Overlay live shared hours (Worker / people-worked-hours.json)
+  const shared = await fetchSharedHoursStore(pick.selectedWeek || week);
+  if (shared?.store) {
+    return applyHoursStoreToPeopleReport(structuredClone(pick), shared.store);
+  }
   return pick;
 }
 
@@ -3569,7 +3724,7 @@ async function renderPeople() {
 
     el.innerHTML = `
       <div class="section-head">Call Center</div>
-      ${insightBanner(`Agent ops + location call KPIs. Week <b>W${j.selectedWeek}</b> (latest cutoff) · MTD = <b>W${j.mtdFromWeek}–W${j.mtdToWeek}</b>. ${_peopleReadOnly ? '<b>Worked Hours</b> are view-only on the shared link.' : '<b>Worked Hours</b> are editable locally.'}`)}
+      ${insightBanner(`Agent ops + location call KPIs. Week <b>W${j.selectedWeek}</b> (latest cutoff) · MTD = <b>W${j.mtdFromWeek}–W${j.mtdToWeek}</b>. ${_peopleReadOnly ? '<b>Worked Hours</b> are view-only (Hours API not configured).' : '<b>Worked Hours</b> are editable here — changes sync for everyone.'}`)}
       <div class="people-week-bar">
         <label>Report week</label>
         <input type="number" id="people-week" min="1" max="53" value="${j.selectedWeek}">
@@ -3734,13 +3889,16 @@ async function renderPeople() {
         const hours = input.value === '' ? null : parseFloat(input.value);
         if (hours != null && (isNaN(hours) || hours < 0)) return;
         try {
-          const resp = await fetch('/api/people/worked-hours', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ agentName, period, year: j.year, week: j.selectedWeek, hours }),
+          const data = await postHoursApi('/worked-hours', {
+            agentName, period, year: j.year, week: j.selectedWeek, hours,
           });
-          const data = await resp.json();
           if (data.ok) {
+            if (data.store) {
+              _hoursStoreCache = data.store;
+              window._peopleReport = applyHoursStoreToPeopleReport(window._peopleReport || j, data.store);
+            } else if (data.report) {
+              window._peopleReport = data.report;
+            }
             const hint = document.getElementById('people-save-hint');
             if (hint) { hint.textContent = ' · Hours saved'; hint.className = 'save-hint'; setTimeout(() => { hint.textContent = ''; }, 2500); }
             renderPeople();
@@ -3770,6 +3928,8 @@ function hoursCalFromReport(j) {
 }
 
 async function fetchHoursCalendar(week) {
+  const shared = await fetchSharedHoursStore(week);
+  if (shared?.calendar) return shared.calendar;
   try {
     const r = await fetch('/api/people/hours-calendar?week=' + week);
     const data = await r.json();
@@ -3851,8 +4011,10 @@ async function renderStaffHoursPanel(j) {
   _hoursEditMode = canEdit;
   if (hint) {
     hint.textContent = !canEdit
-      ? 'View-only on shared link — edit on http://localhost:3456 (Call Center → Staff Hours).'
-      : 'Editable — click a cell, type hours, Tab/Enter to save. Changes update Call Center Calls/Hour.';
+      ? 'View-only — set RDG_HOURS_API and republish to enable shared editing.'
+      : (hoursApiBase()
+        ? 'Shared edit — changes save for everyone on this link.'
+        : 'Editable — click a cell, type hours, Tab/Enter to save.');
   }
   if (addRow) addRow.style.display = canEdit ? 'flex' : 'none';
 
@@ -3866,20 +4028,21 @@ async function renderStaffHoursPanel(j) {
   const doAdd = async () => {
     const name = ((nameInput && nameInput.value) || '').trim();
     if (!name) { nameInput?.focus(); return; }
-    const resp = await fetch('/api/people/roster', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'add', agentName: name, week: j.selectedWeek }),
-    });
-    const data = await resp.json();
+    const resp = await postHoursApi('/roster', { action: 'add', agentName: name, week: j.selectedWeek });
+    const data = resp;
     if (data.ok) {
       if (nameInput) nameInput.value = '';
-      if (data.report) window._peopleReport = data.report;
+      if (data.store) {
+        _hoursStoreCache = data.store;
+        window._peopleReport = applyHoursStoreToPeopleReport(window._peopleReport || j, data.store);
+      } else if (data.report) {
+        window._peopleReport = data.report;
+      }
       const hintEl = document.getElementById('hours-save-hint');
       if (hintEl) { hintEl.textContent = ' · ' + name + ' added'; setTimeout(() => { hintEl.textContent = ''; }, 2500); }
-      paintHoursCalendar(data.calendar || hoursCalFromReport(data.report), true);
+      const cal = data.calendar || hoursCalFromReport(window._peopleReport) || await fetchHoursCalendar(j.selectedWeek);
+      paintHoursCalendar(cal, true);
       wireHoursCalEditors(window._peopleReport || j);
-      // Focus first empty hour cell for the new agent
       const first = document.querySelector('tr[data-agent-row="' + CSS.escape(name) + '"] .hours-cal-input');
       first?.focus();
     } else {
@@ -3904,21 +4067,25 @@ function wireHoursCalEditors(j) {
       if (input.dataset.lastSaved === String(hours ?? '')) return;
       input.classList.add('saving');
       try {
-        const resp = await fetch('/api/people/worked-hours', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ agentName, period: 'week', year: j.year, week, hours }),
+        const data = await postHoursApi('/worked-hours', {
+          agentName, period: 'week', year: j.year, week, hours,
         });
-        const data = await resp.json();
         if (data.ok) {
           input.dataset.lastSaved = String(hours ?? '');
-          if (data.report) window._peopleReport = data.report;
-          const cal = hoursCalFromReport(data.report);
+          if (data.store) {
+            _hoursStoreCache = data.store;
+            window._peopleReport = applyHoursStoreToPeopleReport(window._peopleReport || j, data.store);
+          } else if (data.report) {
+            window._peopleReport = data.report;
+          }
+          const cal = data.calendar || hoursCalFromReport(window._peopleReport);
           applyHoursCalendarTotals(cal);
           const hintEl = document.getElementById('hours-save-hint');
           if (hintEl) { hintEl.textContent = ' · Saved'; setTimeout(() => { hintEl.textContent = ''; }, 1800); }
           input.classList.add('saved');
           setTimeout(() => input.classList.remove('saved'), 900);
+        } else {
+          alert(data.error || 'Save failed');
         }
       } catch (e) { console.error(e); }
       finally { input.classList.remove('saving'); }
@@ -3941,15 +4108,15 @@ function wireHoursCalEditors(j) {
     btn.onclick = async () => {
       const agentName = btn.dataset.agent;
       if (!agentName || !confirm('Remove ' + agentName + ' from Staff Hours and Call Center hours?')) return;
-      const resp = await fetch('/api/people/roster', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'remove', agentName, week: j.selectedWeek }),
-      });
-      const data = await resp.json();
+      const data = await postHoursApi('/roster', { action: 'remove', agentName, week: j.selectedWeek });
       if (data.ok) {
-        if (data.report) window._peopleReport = data.report;
-        paintHoursCalendar(data.calendar || hoursCalFromReport(data.report), true);
+        if (data.store) {
+          _hoursStoreCache = data.store;
+          window._peopleReport = applyHoursStoreToPeopleReport(window._peopleReport || j, data.store);
+        } else if (data.report) {
+          window._peopleReport = data.report;
+        }
+        paintHoursCalendar(data.calendar || hoursCalFromReport(window._peopleReport), true);
         wireHoursCalEditors(window._peopleReport || j);
         const hintEl = document.getElementById('hours-save-hint');
         if (hintEl) { hintEl.textContent = ' · Removed ' + agentName; setTimeout(() => { hintEl.textContent = ''; }, 2500); }

@@ -1,7 +1,6 @@
-# RDG AI Impact Dashboard (view-only)
+# RDG AI Impact Dashboard
 
-Live link (after GitHub Pages is enabled):
-https://mlavenant.github.io/rdg-ai-dashboard/
+Live: https://mlavenant.github.io/rdg-ai-dashboard/
 
-Same sharing model as the BOH dashboard — static HTML + JSON snapshot.
-Refresh data locally with caches, then re-run `npm run dashboard:export` and push.
+Staff Hours are editable on the shared link via the Hours API (Cloudflare Worker).
+Static snapshot refreshed by weekly automation / `npm run publish:pages`.
