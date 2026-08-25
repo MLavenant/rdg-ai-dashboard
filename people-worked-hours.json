@@ -3,6 +3,7 @@
   "roster": [
     "Ali Zandi",
     "Ana Paula Durante Espinoza",
+    "Angelika Lankina",
     "Connil Edwin",
     "Koutouba Diop",
     "Lea Guardiola",
@@ -50,6 +51,11 @@
     "Lea Guardiola": {
       "week": {
         "2026-W34": 11.1
+      }
+    },
+    "Angelika Lankina": {
+      "week": {
+        "2026-W34": 30.35
       }
     }
   }
