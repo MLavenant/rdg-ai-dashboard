@@ -1,7 +1,8 @@
 {
   "version": 1,
   "roster": [
-    "Ali Zandi"
+    "Ali Zandi",
+    "Marixcelli Dangelo"
   ],
   "hidden": [
     "Smoke Test Agent"
@@ -17,6 +18,11 @@
     },
     "Ana Paula Durante Espinoza": {
       "week": {}
+    },
+    "Marixcelli Dangelo": {
+      "week": {
+        "2026-W30": 49.68
+      }
     }
   }
 }
