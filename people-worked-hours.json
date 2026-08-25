@@ -1,8 +1,16 @@
 {
   "version": 1,
-  "roster": [],
+  "roster": [
+    "Ali Zandi"
+  ],
   "hidden": [
     "Smoke Test Agent"
   ],
-  "hours": {}
+  "hours": {
+    "Ali Zandi": {
+      "week": {
+        "2026-W30": 30
+      }
+    }
+  }
 }
