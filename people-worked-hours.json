@@ -7,6 +7,7 @@
     "Brandon Paramore",
     "Connil Edwin",
     "Ivan Brun",
+    "Katerina Ristova",
     "Koutouba Diop",
     "Lea Guardiola",
     "Marixcelli Dangelo"
@@ -64,6 +65,11 @@
     "Brandon Paramore": {
       "week": {
         "2026-W34": 34.8
+      }
+    },
+    "Katerina Ristova": {
+      "week": {
+        "2026-W34": 34.22
       }
     }
   }
