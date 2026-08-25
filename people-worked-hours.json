@@ -4,6 +4,7 @@
     "Ali Zandi",
     "Ana Paula Durante Espinoza",
     "Angelika Lankina",
+    "Brandon Paramore",
     "Connil Edwin",
     "Ivan Brun",
     "Koutouba Diop",
@@ -58,6 +59,11 @@
     "Ivan Brun": {
       "week": {
         "2026-W34": 22.13
+      }
+    },
+    "Brandon Paramore": {
+      "week": {
+        "2026-W34": 34.8
       }
     }
   }
