@@ -3,6 +3,7 @@
   "roster": [
     "Ali Zandi",
     "Ana Paula Durante Espinoza",
+    "Connil Edwin",
     "Koutouba Diop",
     "Marixcelli Dangelo"
   ],
@@ -38,6 +39,11 @@
     "Koutouba Diop": {
       "week": {
         "2026-W34": 36.02
+      }
+    },
+    "Connil Edwin": {
+      "week": {
+        "2026-W34": 34.62
       }
     }
   }
