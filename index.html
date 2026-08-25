@@ -96,6 +96,11 @@ select:focus,input:focus{border-color:var(--y26)}
 .ov-ai-impact-table .change-cell{white-space:nowrap}
 .ov-ai-impact-table .yoy-hint{font-size:10px;font-weight:500;margin-left:4px}
 .ov-ai-impact-table .sep-col{border-left:1px solid rgba(42,48,80,.9)!important}
+.ov-ai-impact-table .metric-stack{display:flex;flex-direction:column;align-items:flex-end;gap:2px;line-height:1.25}
+.ov-ai-impact-table .metric-stack .py-line,
+.overview-scorecard .metric-stack .py-line{font-size:10px;color:var(--muted);font-weight:500;white-space:nowrap}
+.overview-scorecard .metric-stack{display:flex;flex-direction:column;align-items:flex-end;gap:2px;line-height:1.2}
+.overview-scorecard .exec-kpi-table td .metric-stack b{font-size:13px}
 
 /* ── TABLES ── */
 .table-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px;overflow-x:auto}
@@ -108,11 +113,11 @@ select:focus,input:focus{border-color:var(--y26)}
 #overview-pdf-root > .chart-card h3{display:flex;align-items:center;gap:10px;width:100%}
 #overview-pdf-root > .chart-card h3::after{content:'';flex:1;height:1px;background:var(--border)}
 #overview-pdf-root > .chart-card .report-blurb{max-width:none}
-.overview-scorecard .exec-kpi-table{table-layout:fixed;width:100%;min-width:1100px}
+.overview-scorecard .exec-kpi-table{table-layout:fixed;width:100%;min-width:1280px}
 .overview-scorecard .exec-kpi-table th:first-child,
 .overview-scorecard .exec-kpi-table td:first-child{width:84px;padding-left:10px;padding-right:8px}
 .overview-scorecard .exec-kpi-table th:not(:first-child),
-.overview-scorecard .exec-kpi-table td:not(:first-child){padding:11px 7px;overflow:hidden;text-overflow:ellipsis;font-size:12px}
+.overview-scorecard .exec-kpi-table td:not(:first-child){padding:11px 7px;overflow:visible;font-size:12px}
 .overview-scorecard .exec-kpi-table td b{font-size:13px}
 .overview-scorecard .exec-kpi-table thead tr.sub-row th{font-size:9px;letter-spacing:.2px;padding-top:8px;padding-bottom:8px}
 .overview-scorecard .exec-kpi-table thead tr.group-row th{padding-bottom:6px}
@@ -1442,18 +1447,36 @@ function overviewPeriodMetrics(restId, period) {
   const r26 = locSummaryScope(D.rows26, period).filter(r => !restId || r.restaurantId === restId);
   const r25 = locSummaryScope(D.rows25, period).filter(r => !restId || r.restaurantId === restId);
   const calls = sum(r26, 'callsTotal');
-  const callsYoY = signedPct(calls, sum(r25, 'callsTotal'));
+  const calls25 = sum(r25, 'callsTotal');
+  const callsYoY = signedPct(calls, calls25);
   const phoneBooked = phoneBooks(r26);
-  const phoneBookedYoY = signedPct(phoneBooked, phoneBooks(r25));
+  const phoneBooked25 = phoneBooks(r25);
+  const phoneBookedYoY = signedPct(phoneBooked, phoneBooked25);
   const transfer = hostieTransferRateAgg(r26);
   const humanConv = humanConvRateAgg(r26);
   const humanConv25 = humanConvRateAgg(r25);
   const aiConv = sum(r26, 'callsAI') > 0 ? aiConvRateAgg(r26) : null;
   const aiConv25 = sum(r25, 'callsAI') > 0 ? aiConvRateAgg(r25) : null;
   return {
-    calls, callsYoY, phoneBooked, phoneBookedYoY,
+    calls, calls25, callsYoY, phoneBooked, phoneBooked25, phoneBookedYoY,
     transfer, humanConv, humanConv25, aiConv, aiConv25,
   };
+}
+
+function overviewPyVolumeLine(pyVal, yoy) {
+  if (pyVal == null || !(pyVal > 0)) {
+    return yoy == null
+      ? `<span class="py-line">vs PY —</span>`
+      : `<span class="py-line">vs PY — <span class="${yoy >= 0 ? 'up' : 'dn'}">${fmtSigned(yoy)}</span></span>`;
+  }
+  const yoyHtml = yoy == null
+    ? ''
+    : ` · <span class="${yoy >= 0 ? 'up' : 'dn'}">${fmtSigned(yoy)}</span>`;
+  return `<span class="py-line">PY ${fmt(pyVal)}${yoyHtml}</span>`;
+}
+
+function overviewPyConvLine(pyConv) {
+  return `<span class="py-line">vs PY ${fmtConvPct(pyConv)}</span>`;
 }
 
 function overviewPeriodCells(m) {
@@ -1461,11 +1484,11 @@ function overviewPeriodCells(m) {
     ? `<b>${fmtHostiePct(m.transfer)}</b>`
     : `<b>—</b>`;
   return `
-    <td><b>${fmt(m.calls)}</b> <span class="${(m.callsYoY ?? 0) >= 0 ? 'up' : 'dn'}" style="font-size:11px">${fmtSigned(m.callsYoY)}</span></td>
-    <td><b>${fmt(m.phoneBooked)}</b> <span class="${(m.phoneBookedYoY ?? 0) >= 0 ? 'up' : 'dn'}" style="font-size:11px">${fmtSigned(m.phoneBookedYoY)}</span></td>
+    <td><div class="metric-stack"><b>${fmt(m.calls)}</b>${overviewPyVolumeLine(m.calls25, m.callsYoY)}</div></td>
+    <td><div class="metric-stack"><b>${fmt(m.phoneBooked)}</b>${overviewPyVolumeLine(m.phoneBooked25, m.phoneBookedYoY)}</div></td>
     <td>${trHtml}</td>
-    <td><b>${fmtConvPct(m.humanConv)}</b> <span style="font-size:11px;color:var(--muted)">vs ${fmtConvPct(m.humanConv25)}</span></td>
-    <td><b style="color:var(--ai)">${m.aiConv != null ? fmtConvPct(m.aiConv) : '—'}</b> <span style="font-size:11px;color:var(--muted)">vs ${m.aiConv25 != null ? fmtConvPct(m.aiConv25) : '—'}</span></td>`;
+    <td><div class="metric-stack"><b>${fmtConvPct(m.humanConv)}</b>${overviewPyConvLine(m.humanConv25)}</div></td>
+    <td><div class="metric-stack"><b style="color:var(--ai)">${m.aiConv != null ? fmtConvPct(m.aiConv) : '—'}</b>${overviewPyConvLine(m.aiConv25)}</div></td>`;
 }
 
 function buildOverviewUnifiedTableHtml() {
@@ -1486,11 +1509,17 @@ function buildOverviewUnifiedTableHtml() {
     const ids = new Set(rests.map(r => r.id));
     const r26 = locSummaryScope(D.rows26, p).filter(r => ids.has(r.restaurantId));
     const r25 = locSummaryScope(D.rows25, p).filter(r => ids.has(r.restaurantId));
+    const calls = sum(r26, 'callsTotal');
+    const calls25 = sum(r25, 'callsTotal');
+    const phoneBooked = phoneBooks(r26);
+    const phoneBooked25 = phoneBooks(r25);
     return overviewPeriodCells({
-      calls: sum(r26, 'callsTotal'),
-      callsYoY: signedPct(sum(r26, 'callsTotal'), sum(r25, 'callsTotal')),
-      phoneBooked: phoneBooks(r26),
-      phoneBookedYoY: signedPct(phoneBooks(r26), phoneBooks(r25)),
+      calls,
+      calls25,
+      callsYoY: signedPct(calls, calls25),
+      phoneBooked,
+      phoneBooked25,
+      phoneBookedYoY: signedPct(phoneBooked, phoneBooked25),
       transfer: hostieTransferRateAgg(r26),
       humanConv: humanConvRateAgg(r26),
       humanConv25: humanConvRateAgg(r25),
@@ -1501,8 +1530,8 @@ function buildOverviewUnifiedTableHtml() {
 
   return `<div class="table-card overview-scorecard">
     <h3>Locations · Last week · MTD · YTD · vs PY</h3>
-    <p class="report-blurb">This scorecard compares each restaurant to the same weeks last year (vs PY) across three windows — last week, month-to-date (4 weeks), and year-to-date. Calls, phone bookings, Hostie transfer rate, human conversion, and AI conversion.</p>
-    <p class="loc-summary-note">Calls &amp; Phone booked vs PY · Transfer % = Hostie transferred ÷ Hostie AI calls · Human Conv = Phone/IH ÷ human calls · AI Conv = Phone/AI ÷ AI calls · Last week W${D.cutoff} · MTD W${mtdFrom}–W${D.cutoff} · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
+    <p class="report-blurb">This scorecard compares each restaurant to the same weeks last year (vs PY) across three windows — last week, month-to-date (4 weeks), and year-to-date. Each Calls / Phone booked / Conv cell shows 2026, the PY numerical value, and the YoY delta.</p>
+    <p class="loc-summary-note">Calls &amp; Phone booked: 2026 + PY volume + YoY · Transfer % = Hostie transferred ÷ Hostie AI calls · Human / AI Conv: 2026 vs PY · Last week W${D.cutoff} · MTD W${mtdFrom}–W${D.cutoff} · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
     <table class="exec-kpi-table">
       <thead>
         <tr class="group-row">
@@ -1512,9 +1541,9 @@ function buildOverviewUnifiedTableHtml() {
           <th colspan="5" class="group-ytd">YTD · W${ANALYSIS_START_WEEK}–W${D.cutoff} · vs PY</th>
         </tr>
         <tr class="sub-row">
-          <th>Calls</th><th>Phone booked</th><th>Transfer %</th><th>Human Conv</th><th>AI Conv</th>
-          <th>Calls</th><th>Phone booked</th><th>Transfer %</th><th>Human Conv</th><th>AI Conv</th>
-          <th>Calls</th><th>Phone booked</th><th>Transfer %</th><th>Human Conv</th><th>AI Conv</th>
+          <th>Calls vs PY</th><th>Phone booked vs PY</th><th>Transfer %</th><th>Human Conv vs PY</th><th>AI Conv vs PY</th>
+          <th>Calls vs PY</th><th>Phone booked vs PY</th><th>Transfer %</th><th>Human Conv vs PY</th><th>AI Conv vs PY</th>
+          <th>Calls vs PY</th><th>Phone booked vs PY</th><th>Transfer %</th><th>Human Conv vs PY</th><th>AI Conv vs PY</th>
         </tr>
       </thead>
       <tbody>${body}
@@ -1553,19 +1582,16 @@ function buildOverviewPeriodStrip() {
   return `<div class="kpi-row" style="grid-template-columns:repeat(3,1fr)">${cards}</div>`;
 }
 
-function overviewAiImpactValCell(val, yoy, extraClass) {
-  const yoyHtml = yoy == null
-    ? ''
-    : ` <span class="yoy-hint ${(yoy >= 0 ? 'up' : 'dn')}">${fmtSigned(yoy)}</span>`;
-  return `<td class="${extraClass || ''}"><b>${fmt(val)}</b>${yoyHtml}</td>`;
+function overviewAiImpactValCell(val, pyVal, yoy, extraClass) {
+  return `<td class="${extraClass || ''}"><div class="metric-stack"><b>${fmt(val)}</b>${overviewPyVolumeLine(pyVal, yoy)}</div></td>`;
 }
 
 function overviewAiImpactRowCells(before, after) {
   return `
-    ${overviewAiImpactValCell(before.calls, before.callsYoY)}
-    ${overviewAiImpactValCell(after.calls, after.callsYoY)}
-    ${overviewAiImpactValCell(before.phone26, before.phoneYoY, 'sep-col')}
-    ${overviewAiImpactValCell(after.phone26, after.phoneYoY)}`;
+    ${overviewAiImpactValCell(before.calls, before.calls25, before.callsYoY)}
+    ${overviewAiImpactValCell(after.calls, after.calls25, after.callsYoY)}
+    ${overviewAiImpactValCell(before.phone26, before.phone25, before.phoneYoY, 'sep-col')}
+    ${overviewAiImpactValCell(after.phone26, after.phone25, after.phoneYoY)}`;
 }
 
 /** Shared Before/After rows for Overview HTML table + PDF export. */
@@ -1603,14 +1629,18 @@ function collectOverviewAiImpactRows() {
     goLive: null,
     before: {
       calls: totBeforeCalls,
+      calls25: totBeforeCalls25,
       callsYoY: signedPct(totBeforeCalls, totBeforeCalls25),
       phone26: totBeforePhone,
+      phone25: totBeforePhone25,
       phoneYoY: signedPct(totBeforePhone, totBeforePhone25),
     },
     after: {
       calls: totAfterCalls,
+      calls25: totAfterCalls25,
       callsYoY: signedPct(totAfterCalls, totAfterCalls25),
       phone26: totAfterPhone,
+      phone25: totAfterPhone25,
       phoneYoY: signedPct(totAfterPhone, totAfterPhone25),
     },
     isTotal: true,
@@ -1624,7 +1654,7 @@ function buildOverviewAiImpactTableHtml() {
       <td>
         <div class="loc-cell">
           <span class="loc-name" style="color:${row.color}">${row.label}</span>
-          <span class="loc-meta">AI Live W${row.goLive} · Before → After</span>
+          <span class="loc-meta">AI Live W${row.goLive} · Before AI → After AI</span>
         </div>
       </td>
       ${overviewAiImpactRowCells(row.before, row.after)}
@@ -1636,12 +1666,12 @@ function buildOverviewAiImpactTableHtml() {
       <thead>
         <tr class="group-row">
           <th rowspan="2" style="vertical-align:bottom;text-align:left">Location</th>
-          <th colspan="2" class="group-calls">Total Calls · Before vs After</th>
-          <th colspan="2" class="group-phone">Total Phone Bookings · Before vs After</th>
+          <th colspan="2" class="group-calls">Total Calls · Before AI vs After AI</th>
+          <th colspan="2" class="group-phone">Total Phone Bookings · Before AI vs After AI</th>
         </tr>
         <tr class="sub-row">
-          <th>Before</th><th>After</th>
-          <th class="sep-col">Before</th><th>After</th>
+          <th>Before AI</th><th>After AI</th>
+          <th class="sep-col">Before AI</th><th>After AI</th>
         </tr>
       </thead>
       <tbody>${body}
@@ -1649,14 +1679,14 @@ function buildOverviewAiImpactTableHtml() {
           <td>
             <div class="loc-cell">
               <span class="loc-name" style="color:var(--text)">All locations</span>
-              <span class="loc-meta">Sum of sites · Before → After</span>
+              <span class="loc-meta">Sum of sites · Before AI → After AI</span>
             </div>
           </td>
           ${overviewAiImpactRowCells(tot.before, tot.after)}
         </tr>
       </tbody>
     </table>
-    <p class="loc-summary-note" style="margin:10px 0 0">Before / After split at each site’s AI Live week · small % next to volumes = YoY vs same weeks in 2025 · Phone booked = In-House + AI</p>
+    <p class="loc-summary-note" style="margin:10px 0 0">Before AI / After AI split at each site’s AI Live week · each cell shows 2026 volume, PY numerical value, and YoY % · Phone booked = In-House + AI</p>
   </div>`;
 }
 
@@ -1675,8 +1705,8 @@ function renderOverview() {
 
     <div class="chart-row cols-1" style="margin-bottom:16px">
       <div class="chart-card">
-        <h3>Before vs After AI — phone bookings by location</h3>
-        <p class="report-blurb">This chart shows whether phone reservations held up after AI went live at each site. Amber bars are 2025 Phone/In-House; 2026 is stacked green (In-House) + purple (AI). Before/After splits at each restaurant’s AI Live week — green/red labels are YoY vs the same weeks last year.</p>
+        <h3>Before AI vs After AI — phone bookings by location</h3>
+        <p class="report-blurb">This chart shows whether phone reservations held up after AI went live at each site. Amber bars are PY (2025 Phone/In-House) with a PY label + volume; 2026 is stacked green (In-House) + purple (AI). Before AI / After AI splits at each restaurant’s AI Live week — green/red labels are YoY vs the same weeks last year.</p>
         <p>YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
         <div class="chart-wrap" style="height:380px"><canvas id="ov-ai-impact-by-loc"></canvas></div>
         ${buildOverviewAiImpactTableHtml()}
@@ -1684,7 +1714,7 @@ function renderOverview() {
     </div>
 
     ${buildOverviewUnifiedTableHtml()}
-    <div class="stat-note">vs PY · Transfer % = Hostie transferred ÷ Hostie AI calls · Human Conv = Phone/In-House ÷ human calls · AI Conv = Phone/AI ÷ AI calls · Phone booked = In-House + AI.</div>
+    <div class="stat-note">vs PY shows prior-year numerical value + YoY · Transfer % = Hostie transferred ÷ Hostie AI calls · Human Conv = Phone/In-House ÷ human calls · AI Conv = Phone/AI ÷ AI calls · Phone booked = In-House + AI.</div>
   </div>
   `;
   requestAnimationFrame(() => paintOverviewAiImpactChart());
@@ -1784,6 +1814,16 @@ function pdfPlainSigned(v) {
   return `${sign}${v.toFixed(1)}%`;
 }
 
+function pdfPyVolumeSub(pyVal, yoy) {
+  const py = (pyVal != null && pyVal > 0) ? `PY ${fmt(pyVal)}` : 'PY —';
+  const delta = pdfPlainSigned(yoy);
+  return `${py} · ${delta}`;
+}
+
+function pdfPyConvSub(pyConv) {
+  return `vs PY ${pdfPlainConv(pyConv)}`;
+}
+
 function pdfWrapText(pdf, text, x, y, maxW, lineH) {
   const lines = pdf.splitTextToSize(String(text || ''), maxW);
   pdf.text(lines, x, y);
@@ -1869,11 +1909,17 @@ function collectOverviewScorecardRows() {
   const allMetrics = periods.map(p => {
     const r26 = locSummaryScope(D.rows26, p).filter(r => ids.has(r.restaurantId));
     const r25 = locSummaryScope(D.rows25, p).filter(r => ids.has(r.restaurantId));
+    const calls = sum(r26, 'callsTotal');
+    const calls25 = sum(r25, 'callsTotal');
+    const phoneBooked = phoneBooks(r26);
+    const phoneBooked25 = phoneBooks(r25);
     return {
-      calls: sum(r26, 'callsTotal'),
-      callsYoY: signedPct(sum(r26, 'callsTotal'), sum(r25, 'callsTotal')),
-      phoneBooked: phoneBooks(r26),
-      phoneBookedYoY: signedPct(phoneBooks(r26), phoneBooks(r25)),
+      calls,
+      calls25,
+      callsYoY: signedPct(calls, calls25),
+      phoneBooked,
+      phoneBooked25,
+      phoneBookedYoY: signedPct(phoneBooked, phoneBooked25),
       transfer: hostieTransferRateAgg(r26),
       humanConv: humanConvRateAgg(r26),
       humanConv25: humanConvRateAgg(r25),
@@ -1926,14 +1972,14 @@ async function exportOverviewPdf() {
     fillPage();
     let y = m + 1;
     y = pdfTitleRule(pdf, `RDG AI Impact · Overview · through W${D.cutoff}`, m, y + 3, contentW, { size: 13, after: 5.5 });
-    y = pdfTitleRule(pdf, 'Before vs After AI — phone bookings by location', m, y, contentW, { size: 10, after: 3.2 });
+    y = pdfTitleRule(pdf, 'Before AI vs After AI — phone bookings by location', m, y, contentW, { size: 10, after: 3.2 });
 
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(7.5);
     pdf.setTextColor(200, 205, 224);
     y = pdfWrapText(
       pdf,
-      'Phone reservations before vs after each site’s AI Live week. Amber = 2025 Phone/In-House; 2026 = stacked In-House (green) + AI (purple).',
+      'Phone reservations Before AI vs After AI at each site’s AI Live week. Amber = PY 2025 Phone/In-House (labeled PY + volume); 2026 = stacked In-House (green) + AI (purple).',
       m, y, contentW, 3.2
     );
     y += 1.5;
@@ -1959,7 +2005,7 @@ async function exportOverviewPdf() {
     pdf.addImage(chartPng, 'PNG', m + (contentW - imgW) / 2, y + (chartBoxH - imgH) / 2, imgW, imgH);
     y += chartBoxH + 4;
 
-    y = pdfTitleRule(pdf, 'Total Calls & Phone Bookings · Before vs After', m, y, contentW, { size: 10, after: 3 });
+    y = pdfTitleRule(pdf, 'Total Calls & Phone Bookings · Before AI vs After AI', m, y, contentW, { size: 10, after: 3 });
 
     const baTop = y;
     const baInner = 2;
@@ -1976,13 +2022,13 @@ async function exportOverviewPdf() {
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(8);
     pdf.setTextColor(61, 142, 248);
-    pdf.text('Total Calls · Before vs After', baLeft + baLocW + baHalf / 2, baTop + 4, { align: 'center' });
+    pdf.text('Total Calls · Before AI vs After AI', baLeft + baLocW + baHalf / 2, baTop + 4, { align: 'center' });
     pdf.setDrawColor(61, 142, 248);
     pdf.setLineWidth(0.4);
     pdf.line(baLeft + baLocW + 2, baTop + 5.2, baLeft + baLocW + baHalf - 2, baTop + 5.2);
 
     pdf.setTextColor(176, 110, 245);
-    pdf.text('Total Phone Bookings · Before vs After', baLeft + baLocW + baHalf + baHalf / 2, baTop + 4, { align: 'center' });
+    pdf.text('Total Phone Bookings · Before AI vs After AI', baLeft + baLocW + baHalf + baHalf / 2, baTop + 4, { align: 'center' });
     pdf.setDrawColor(176, 110, 245);
     pdf.line(baLeft + baLocW + baHalf + 2, baTop + 5.2, baLeft + baLocW + baHalf * 2 - 2, baTop + 5.2);
 
@@ -1990,7 +2036,7 @@ async function exportOverviewPdf() {
     pdf.setFontSize(6.2);
     pdf.setTextColor(136, 144, 184);
     pdf.text('Location', baLeft + 1.5, baTop + 9.2);
-    ['Before', 'After', 'Before', 'After'].forEach((lab, i) => {
+    ['Before AI', 'After AI', 'Before AI', 'After AI'].forEach((lab, i) => {
       const x = baLeft + baLocW + baSubW * (i + 0.5);
       pdf.text(lab, x, baTop + 9.2, { align: 'center' });
     });
@@ -2014,10 +2060,10 @@ async function exportOverviewPdf() {
       pdf.text(locLabel, baLeft + 1.5, ry);
 
       const cells = [
-        { main: fmt(row.before.calls), sub: pdfPlainSigned(row.before.callsYoY), yoy: row.before.callsYoY },
-        { main: fmt(row.after.calls), sub: pdfPlainSigned(row.after.callsYoY), yoy: row.after.callsYoY },
-        { main: fmt(row.before.phone26), sub: pdfPlainSigned(row.before.phoneYoY), yoy: row.before.phoneYoY },
-        { main: fmt(row.after.phone26), sub: pdfPlainSigned(row.after.phoneYoY), yoy: row.after.phoneYoY },
+        { main: fmt(row.before.calls), sub: pdfPyVolumeSub(row.before.calls25, row.before.callsYoY), yoy: row.before.callsYoY },
+        { main: fmt(row.after.calls), sub: pdfPyVolumeSub(row.after.calls25, row.after.callsYoY), yoy: row.after.callsYoY },
+        { main: fmt(row.before.phone26), sub: pdfPyVolumeSub(row.before.phone25, row.before.phoneYoY), yoy: row.before.phoneYoY },
+        { main: fmt(row.after.phone26), sub: pdfPyVolumeSub(row.after.phone25, row.after.phoneYoY), yoy: row.after.phoneYoY },
       ];
       cells.forEach((cell, si) => {
         const subRgb = (cell.yoy == null || isNaN(cell.yoy))
@@ -2031,7 +2077,7 @@ async function exportOverviewPdf() {
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(5.8);
     pdf.setTextColor(136, 144, 184);
-    pdf.text('Small % next to volumes = YoY vs same weeks 2025 · Phone booked = In-House + AI · split at each site’s AI Live week', m, Math.min(y, pageH - 4));
+    pdf.text('Each cell: 2026 volume · PY numerical value · YoY % · Phone booked = In-House + AI · split at each site’s AI Live week', m, Math.min(y, pageH - 4));
 
     // ── Page 2: LW / MTD / YTD scorecard ──
     pdf.addPage();
@@ -2044,7 +2090,7 @@ async function exportOverviewPdf() {
     pdf.setTextColor(200, 205, 224);
     y = pdfWrapText(
       pdf,
-      'Scorecard vs PY: calls, phone booked, Hostie transfer %, human conv, and AI conv across last week, MTD (4 weeks), and YTD.',
+      'Scorecard vs PY: each Calls / Phone booked / Conv cell shows 2026, the PY numerical value, and YoY across last week, MTD (4 weeks), and YTD.',
       m, y, contentW, 3.2
     );
     y += 2;
@@ -2069,7 +2115,7 @@ async function exportOverviewPdf() {
       { label: `MTD · W${mtdFrom}–W${D.cutoff}`, color: [34, 217, 142] },
       { label: `YTD · W${ANALYSIS_START_WEEK}–W${D.cutoff}`, color: [176, 110, 245] },
     ];
-    const subLabels = ['Calls', 'Booked', 'Xfer%', 'H Conv', 'AI Conv'];
+    const subLabels = ['Calls vs PY', 'Booked vs PY', 'Xfer%', 'H Conv vs PY', 'AI Conv vs PY'];
 
     let hx = tableLeft + locW;
     pdf.setFont('helvetica', 'bold');
@@ -2118,11 +2164,11 @@ async function exportOverviewPdf() {
       let cx = tableLeft + locW;
       row.metrics.forEach((metric) => {
         const cells = [
-          { main: fmt(metric.calls), sub: pdfPlainSigned(metric.callsYoY), yoy: metric.callsYoY },
-          { main: fmt(metric.phoneBooked), sub: pdfPlainSigned(metric.phoneBookedYoY), yoy: metric.phoneBookedYoY },
+          { main: fmt(metric.calls), sub: pdfPyVolumeSub(metric.calls25, metric.callsYoY), yoy: metric.callsYoY },
+          { main: fmt(metric.phoneBooked), sub: pdfPyVolumeSub(metric.phoneBooked25, metric.phoneBookedYoY), yoy: metric.phoneBookedYoY },
           { main: metric.transfer != null ? pdfPlainConv(metric.transfer) : '—', sub: '', yoy: null, mutedSub: true },
-          { main: pdfPlainConv(metric.humanConv), sub: `vs ${pdfPlainConv(metric.humanConv25)}`, yoy: null, mutedSub: true },
-          { main: metric.aiConv != null ? pdfPlainConv(metric.aiConv) : '—', sub: `vs ${metric.aiConv25 != null ? pdfPlainConv(metric.aiConv25) : '—'}`, yoy: null, mutedSub: true },
+          { main: pdfPlainConv(metric.humanConv), sub: pdfPyConvSub(metric.humanConv25), yoy: null, mutedSub: true },
+          { main: metric.aiConv != null ? pdfPlainConv(metric.aiConv) : '—', sub: pdfPyConvSub(metric.aiConv25), yoy: null, mutedSub: true },
         ];
         cells.forEach((cell, si) => {
           let subRgb = [136, 144, 184];
@@ -2147,7 +2193,7 @@ async function exportOverviewPdf() {
     pdf.setFontSize(6);
     pdf.setTextColor(136, 144, 184);
     pdf.text(
-      'vs PY · Transfer = Hostie transferred ÷ Hostie AI · Human Conv = Phone/IH ÷ human calls · AI Conv = Phone/AI ÷ AI calls',
+      'vs PY shows prior-year numerical value + YoY · Transfer = Hostie transferred ÷ Hostie AI · Human Conv = Phone/IH ÷ human calls · AI Conv = Phone/AI ÷ AI calls',
       m, Math.min(y, pageH - 4)
     );
 
@@ -2224,9 +2270,9 @@ function paintOverviewAiImpactChart() {
     align: 'top',
     offset: 0,
     clamp: true,
-    font: { size: 9, weight: '500' },
+    font: { size: 9, weight: '600' },
     color: '#8890b8',
-    formatter: v => (v > 0 ? fmt(v) : ''),
+    formatter: v => (v > 0 ? `PY ${fmt(v)}` : ''),
   };
 
   const annotations = {};
@@ -2281,7 +2327,7 @@ function paintOverviewAiImpactChart() {
     labels,
     datasets: [
       {
-        label: '2025 Phone/In-House',
+        label: 'PY 2025 Phone/In-House',
         data: phone25,
         backgroundColor: 'rgba(255,159,46,.55)',
         borderRadius: 3,
@@ -2343,7 +2389,7 @@ function paintOverviewAiImpactChart() {
               }
               return line;
             }
-            return ` ${ds}: ${v.toLocaleString()}`;
+            return ` ${ds}: ${v.toLocaleString()}${ds.startsWith('PY') || ds.startsWith('2025') ? ' (prior year)' : ''}`;
           },
         },
       },
