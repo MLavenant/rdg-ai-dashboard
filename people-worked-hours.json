@@ -2,6 +2,7 @@
   "version": 1,
   "roster": [
     "Ali Zandi",
+    "Koutouba Diop",
     "Marixcelli Dangelo"
   ],
   "hidden": [
@@ -30,6 +31,11 @@
     },
     "Vanessa Salazar Barguil": {
       "week": {}
+    },
+    "Koutouba Diop": {
+      "week": {
+        "2026-W34": 36.02
+      }
     }
   }
 }
