@@ -10,7 +10,8 @@
     "Katerina Ristova",
     "Koutouba Diop",
     "Lea Guardiola",
-    "Marixcelli Dangelo"
+    "Marixcelli Dangelo",
+    "Vanessa Salazar Barguil"
   ],
   "hidden": [
     "Smoke Test Agent"
@@ -35,7 +36,9 @@
       }
     },
     "Vanessa Salazar Barguil": {
-      "week": {}
+      "week": {
+        "2026-W34": 40.85
+      }
     },
     "Koutouba Diop": {
       "week": {
