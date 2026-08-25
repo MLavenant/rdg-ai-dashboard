@@ -2,6 +2,7 @@
   "version": 1,
   "roster": [
     "Ali Zandi",
+    "Ana Paula Durante Espinoza",
     "Koutouba Diop",
     "Marixcelli Dangelo"
   ],
@@ -18,7 +19,9 @@
       "mtd": {}
     },
     "Ana Paula Durante Espinoza": {
-      "week": {}
+      "week": {
+        "2026-W34": 27.37
+      }
     },
     "Marixcelli Dangelo": {
       "week": {
