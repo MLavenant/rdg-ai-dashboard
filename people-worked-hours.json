@@ -1,14 +1,8 @@
 {
   "version": 1,
-  "roster": [
+  "roster": [],
+  "hidden": [
     "Smoke Test Agent"
   ],
-  "hidden": [],
-  "hours": {
-    "Smoke Test Agent": {
-      "week": {
-        "2026-W34": 12.5
-      }
-    }
-  }
+  "hours": {}
 }
