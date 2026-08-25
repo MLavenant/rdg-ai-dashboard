@@ -5,6 +5,7 @@
     "Ana Paula Durante Espinoza",
     "Connil Edwin",
     "Koutouba Diop",
+    "Lea Guardiola",
     "Marixcelli Dangelo"
   ],
   "hidden": [
@@ -44,6 +45,11 @@
     "Connil Edwin": {
       "week": {
         "2026-W34": 34.62
+      }
+    },
+    "Lea Guardiola": {
+      "week": {
+        "2026-W34": 11.1
       }
     }
   }
