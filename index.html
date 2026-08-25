@@ -313,21 +313,25 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 .people-table td,.people-table th{font-size:11px;padding:6px 8px;white-space:nowrap}
 .people-table th{position:sticky;top:0;background:var(--surface);z-index:1}
 .people-table .grp-start{border-left:2px solid var(--border)}
-.people-table td.heat-good{background:rgba(34,217,142,.16);color:#22d98e;font-weight:700}
-.people-table td.heat-ok{background:rgba(61,142,248,.10);color:#7eb6ff}
-.people-table td.heat-bad{background:rgba(255,92,106,.16);color:#ff5c6a;font-weight:700}
+.people-table td.heat-r1{background:rgba(34,217,142,.22);color:#22d98e;font-weight:700}
+.people-table td.heat-r2{background:rgba(132,204,22,.18);color:#a3e635;font-weight:600}
+.people-table td.heat-r3{background:rgba(251,191,36,.16);color:#fbbf24}
+.people-table td.heat-r4{background:rgba(249,115,22,.18);color:#fb923c;font-weight:600}
+.people-table td.heat-r5{background:rgba(234,88,12,.22);color:#f97316;font-weight:700}
 .people-table tr.perf-top td:first-child{box-shadow:inset 3px 0 0 #22d98e}
-.people-table tr.perf-bottom td:first-child{box-shadow:inset 3px 0 0 #ff5c6a}
+.people-table tr.perf-bottom td:first-child{box-shadow:inset 3px 0 0 #f97316}
 .people-table tr.perf-top{background:rgba(34,217,142,.06)}
-.people-table tr.perf-bottom{background:rgba(255,92,106,.06)}
+.people-table tr.perf-bottom{background:rgba(249,115,22,.06)}
 .perf-pill{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;font-size:9px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;vertical-align:middle}
 .perf-pill.top{background:rgba(34,217,142,.2);color:#22d98e}
-.perf-pill.bottom{background:rgba(255,92,106,.2);color:#ff5c6a}
+.perf-pill.bottom{background:rgba(249,115,22,.2);color:#f97316}
 .ring-legend{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin:0 0 12px;font-size:11px;color:var(--muted)}
 .ring-legend .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
-.ring-legend .sw.good{background:#22d98e}
-.ring-legend .sw.bad{background:#ff5c6a}
-.ring-legend .sw.ok{background:#3d8ef8}
+.ring-legend .sw.r1{background:#22d98e}
+.ring-legend .sw.r2{background:#a3e635}
+.ring-legend .sw.r3{background:#fbbf24}
+.ring-legend .sw.r4{background:#fb923c}
+.ring-legend .sw.r5{background:#f97316}
 .cc-ai-share{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
 .cc-ai-share .kpi{padding:10px 12px;border-top:3px solid var(--ai)}
 .cc-ai-share .kpi.human{border-top-color:#34d399}
@@ -3347,7 +3351,7 @@ function callCenterSummaryHtml() {
         </div>
         <div class="chart-card">
           <h3>AI vs Human Calls — 2026 Weekly</h3>
-          <p>AI handled vs human answered · labels show AI calls ÷ total handled (AI + Human)</p>
+          <p>AI handled vs human answered · bar labels = AI % of total handled</p>
           <div class="chart-wrap" style="height:280px"><canvas id="cc-ai-human"></canvas></div>
           <div class="cc-ai-share" id="cc-ai-share-kpis"></div>
         </div>
@@ -3499,8 +3503,7 @@ function paintCallCenterSummaryCharts() {
             const ai = aiSeries[ctx.dataIndex] || 0;
             const tot = totSeries[ctx.dataIndex] || 0;
             if (!(tot > 0)) return '';
-            const pct = ((ai / tot) * 100).toFixed(0);
-            return `${fmt(ai)} AI\n${pct}% of ${fmt(tot)}`;
+            return `${((ai / tot) * 100).toFixed(0)}%`;
           },
         },
       },
@@ -3791,75 +3794,37 @@ async function renderPeople() {
     const fmtNum = (n) => (n ?? 0).toLocaleString();
     const fmtCph = (v) => v == null ? '—' : v.toFixed(2);
 
-    /** Heat class from ranked values among human agents (exclude AI / empty). */
-    function ringHeatClass(vals, value, higherIsBetter) {
-      const clean = vals.filter(v => v != null && !isNaN(v) && isFinite(v));
-      if (value == null || isNaN(value) || !isFinite(value) || clean.length < 3) return '';
-      const sorted = [...clean].sort((a, b) => a - b);
-      const lo = sorted[Math.floor((sorted.length - 1) * 0.25)];
-      const hi = sorted[Math.ceil((sorted.length - 1) * 0.75)];
-      if (higherIsBetter) {
-        if (value >= hi) return 'heat-good';
-        if (value <= lo) return 'heat-bad';
-        return 'heat-ok';
-      }
-      if (value <= lo) return 'heat-good';
-      if (value >= hi) return 'heat-bad';
-      return 'heat-ok';
+    /** Rank within one metric column (human agents, same period). 1=best → heat-r1 green … 5=worst → heat-r5 orange. */
+    function ringHeatClass(pool, value, higherIsBetter) {
+      const peers = (pool || []).filter(v => v != null && !isNaN(v) && isFinite(v));
+      if (value == null || isNaN(value) || !isFinite(value) || peers.length < 2) return '';
+      const sorted = [...peers].sort((a, b) => a - b);
+      const rank = sorted.filter(v => higherIsBetter ? v < value : v > value).length;
+      const pct = rank / Math.max(1, sorted.length - 1);
+      if (pct <= 0.2) return 'heat-r1';
+      if (pct <= 0.4) return 'heat-r2';
+      if (pct <= 0.6) return 'heat-r3';
+      if (pct <= 0.8) return 'heat-r4';
+      return 'heat-r5';
     }
 
     const humanAgents = (j.ringGroups.agents || []).filter(a => !a.isAi);
     const heatPools = {
       week: {
+        calls: humanAgents.map(a => a.week?.calls ?? 0),
         cph: humanAgents.map(a => a.week?.callsPerHour).filter(v => v != null),
         asa: humanAgents.map(a => a.week?.asaSecs).filter(v => v != null && v > 0),
+        missedN: humanAgents.map(a => a.week?.missed ?? 0),
         missed: humanAgents.map(a => a.week?.missedPct).filter(v => v != null),
-        calls: humanAgents.map(a => a.week?.calls || 0),
       },
       mtd: {
+        calls: humanAgents.map(a => a.mtd?.calls ?? 0),
         cph: humanAgents.map(a => a.mtd?.callsPerHour).filter(v => v != null),
         asa: humanAgents.map(a => a.mtd?.asaSecs).filter(v => v != null && v > 0),
+        missedN: humanAgents.map(a => a.mtd?.missed ?? 0),
         missed: humanAgents.map(a => a.mtd?.missedPct).filter(v => v != null),
-        calls: humanAgents.map(a => a.mtd?.calls || 0),
       },
     };
-
-    /** Composite rank for week: better Call/Hr, faster ASA, lower Missed%. */
-    function agentPerfScore(a) {
-      const m = a.week || {};
-      if (!(m.calls > 0)) return null;
-      const peers = humanAgents.filter(x => (x.week?.calls || 0) > 0);
-      if (peers.length < 3) return null;
-      const rankDesc = (getter) => {
-        const vals = peers.map(getter).filter(v => v != null && !isNaN(v));
-        const v = getter(a);
-        if (v == null || !vals.length) return peers.length / 2;
-        const better = vals.filter(x => x > v).length;
-        return better + 1; // 1 = best
-      };
-      const rankAsc = (getter) => {
-        const vals = peers.map(getter).filter(v => v != null && !isNaN(v));
-        const v = getter(a);
-        if (v == null || !vals.length) return peers.length / 2;
-        const better = vals.filter(x => x < v).length;
-        return better + 1;
-      };
-      const rCph = rankDesc(x => x.week?.callsPerHour);
-      const rAsa = rankAsc(x => (x.week?.asaSecs > 0 ? x.week.asaSecs : null));
-      const rMiss = rankAsc(x => x.week?.missedPct);
-      return (rCph + rAsa + rMiss) / 3;
-    }
-
-    const scored = humanAgents
-      .map(a => ({ name: a.agentName, score: agentPerfScore(a), calls: a.week?.calls || 0 }))
-      .filter(x => x.score != null && x.calls > 0)
-      .sort((a, b) => a.score - b.score);
-    const topNames = new Set(scored.slice(0, Math.min(2, scored.length)).map(x => x.name));
-    const bottomNames = new Set(
-      scored.length >= 4
-        ? scored.slice(-Math.min(2, scored.length)).map(x => x.name)
-        : []
-    );
 
     const periodHdr = (label, sub) =>
       `<th colspan="9" class="grp-start">${label}<div style="font-weight:400;font-size:10px;color:var(--muted)">${sub}</div></th>`;
@@ -3873,10 +3838,11 @@ async function renderPeople() {
         ? `<td><input class="hours-input" type="number" min="0" step="0.01" data-agent="${agentName}" data-period="${period}" value="${wh != null ? wh : ''}" placeholder="hrs" title="Edit worked hours — saves on blur"></td>`
         : `<td>${wh != null ? wh : '—'}</td>`;
       const pool = heatPools[period] || heatPools.week;
+      const callsCls = applyHeat ? ringHeatClass(pool.calls, m.calls || 0, true) : '';
       const cphCls = applyHeat ? ringHeatClass(pool.cph, m.callsPerHour, true) : '';
       const asaCls = applyHeat ? ringHeatClass(pool.asa, m.asaSecs > 0 ? m.asaSecs : null, false) : '';
+      const missedNCls = applyHeat ? ringHeatClass(pool.missedN, m.missed ?? 0, false) : '';
       const missCls = applyHeat ? ringHeatClass(pool.missed, m.missedPct, false) : '';
-      const callsCls = applyHeat ? ringHeatClass(pool.calls, m.calls || 0, true) : '';
       return `
         ${heatTd(fmtNum(m.calls), callsCls, 'grp-start')}
         <td>${fmtPct(m.pct)}</td>
@@ -3885,24 +3851,14 @@ async function renderPeople() {
         <td>${fmtSecs(m.avgTalkSecs)}</td>
         <td>${fmtSecs(m.maxTalkSecs)}</td>
         ${heatTd(fmtSecs(m.asaSecs), asaCls)}
-        <td>${fmtNum(m.missed)}</td>
+        ${heatTd(fmtNum(m.missed), missedNCls)}
         ${heatTd(fmtPct(m.missedPct), missCls)}`;
     };
 
     const ringRows = (j.ringGroups.agents || []).map(a => {
-      const isTop = !a.isAi && topNames.has(a.agentName);
-      const isBottom = !a.isAi && bottomNames.has(a.agentName);
-      const rowCls = [
-        a.isAi ? 'ai-row' : '',
-        isTop ? 'perf-top' : '',
-        isBottom ? 'perf-bottom' : '',
-      ].filter(Boolean).join(' ');
-      const pill = isTop
-        ? '<span class="perf-pill top">Top</span>'
-        : (isBottom ? '<span class="perf-pill bottom">Needs focus</span>' : '');
       const label = a.isAi ? 'AI Agent' : a.agentName;
-      return `<tr class="${rowCls}">
-        <td style="text-align:left">${label}${pill}</td>
+      return `<tr class="${a.isAi ? 'ai-row' : ''}">
+        <td style="text-align:left">${label}</td>
         ${ringMetricCells(a.week, a.agentName, 'week', !a.isAi, !a.isAi)}
         ${ringMetricCells(a.mtd, a.agentName, 'mtd', !a.isAi, !a.isAi)}
       </tr>`;
@@ -3983,11 +3939,13 @@ async function renderPeople() {
           <h3>Summary — Ring Groups</h3>
           <p class="people-note"># calls = inbound + outbound · ASA = avg Agent Speed to Answer · AI Agent row = If-No-Answer Agent</p>
           <div class="ring-legend">
-            <span><i class="sw good"></i>Top quartile (good)</span>
-            <span><i class="sw ok"></i>Mid pack</span>
-            <span><i class="sw bad"></i>Bottom quartile (needs focus)</span>
-            <span><span class="perf-pill top">Top</span> best overall this week (Call/Hr + ASA + Missed%)</span>
-            <span><span class="perf-pill bottom">Needs focus</span> weakest overall this week</span>
+            <span>Heat within each column (Week / MTD separately):</span>
+            <span><i class="sw r1"></i>Best</span>
+            <span><i class="sw r2"></i>Strong</span>
+            <span><i class="sw r3"></i>Mid</span>
+            <span><i class="sw r4"></i>Low</span>
+            <span><i class="sw r5"></i>Needs focus</span>
+            <span># · Call/Hr = higher better · ASA · # Missed · % Missed = lower better</span>
           </div>
           <table class="people-table">
             <thead>
