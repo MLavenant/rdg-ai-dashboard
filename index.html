@@ -420,6 +420,43 @@ const RESTS = [
 // Analysis window — W1–W10 excluded (incomplete TalkDesk / booking alignment in early 2025)
 const ANALYSIS_START_WEEK = 11;
 
+/** RDG fiscal 4-4-5: P1=W1–W4 … P9=W35–W39 (FY starts Mon 12/29 = ISO W1). */
+const FISCAL_445_LENGTHS = [4, 4, 5, 4, 4, 5, 4, 4, 5, 4, 4, 5];
+function fiscalPeriodForWeek(week) {
+  const w = Math.max(1, Math.min(52, Math.floor(week) || 1));
+  if (D?.fiscal && D.fiscal.ptdToWeek === w) {
+    return {
+      period: D.fiscal.period,
+      fromWeek: D.fiscal.periodFromWeek,
+      toWeek: D.fiscal.periodToWeek,
+      length: D.fiscal.periodLength,
+    };
+  }
+  let start = 1;
+  for (let i = 0; i < FISCAL_445_LENGTHS.length; i++) {
+    const len = FISCAL_445_LENGTHS[i];
+    const end = start + len - 1;
+    if (w >= start && w <= end) {
+      return { period: i + 1, fromWeek: start, toWeek: end, length: len };
+    }
+    start = end + 1;
+  }
+  return { period: 12, fromWeek: 48, toWeek: 52, length: 5 };
+}
+function fiscalPtdFrom(week) {
+  if (D?.fiscal && week === D.cutoff) return D.fiscal.ptdFromWeek;
+  return fiscalPeriodForWeek(week).fromWeek;
+}
+function fiscalPtdLabel(fromWeek, toWeek) {
+  const p = fiscalPeriodForWeek(toWeek);
+  return `P${p.period} · W${fromWeek}–W${toWeek}`;
+}
+function fiscalMtdHeader(cutoff) {
+  const from = fiscalPtdFrom(cutoff);
+  const p = fiscalPeriodForWeek(cutoff);
+  return `P${p.period} · W${from}–W${cutoff}`;
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════════════════════
@@ -448,7 +485,7 @@ async function init() {
     D = await loadCompare();
     document.getElementById('f-wk-from').value = ANALYSIS_START_WEEK;
     document.getElementById('f-wk-to').value = D.cutoff;
-    document.getElementById('last-update').textContent = `Updated W${D.cutoff} · Analysis from W${ANALYSIS_START_WEEK}`;
+    document.getElementById('last-update').textContent = `Updated W${D.cutoff} · ${fiscalMtdHeader(D.cutoff)} · Analysis from W${ANALYSIS_START_WEEK}`;
     F = { location:'all', wkFrom:ANALYSIS_START_WEEK, wkTo:D.cutoff, year:'both' };
     renderAll();
   } catch(e) {
@@ -1085,12 +1122,15 @@ function buildRestInsight(rest, r26, r25) {
     `Hostie transfer rate is <b>${fmtHostiePct(transfer)}</b>${abnText ? `; ${abnText}` : ''}. Net view: reservations are <b>${bookDir}</b> vs last year in the AI window — pair this with OT Network mix below to see if AI is the driver or a substitute for human phone.`;
 }
 
-// Period slices for summary tables (Last Week, MTD ~4 wks, YTD)
+// Period slices: Last Week, fiscal period-to-date (4-4-5), YTD
 function periodRows(rows, period) {
   const lw = D.lastWeek, cutoff = D.cutoff;
   if (period === 'lw') return rows.filter(r => r.week === lw);
-  if (period === 'mtd') return rows.filter(r => r.week > cutoff - 4 && r.week <= cutoff);
-  return rows; // ytd (already filtered W1–cutoff)
+  if (period === 'mtd') {
+    const from = fiscalPtdFrom(cutoff);
+    return rows.filter(r => r.week >= from && r.week <= cutoff);
+  }
+  return rows; // ytd (already filtered)
 }
 
 function abnRate(rows) {
@@ -1126,7 +1166,7 @@ function heatYoY(cur, prior, higherIsBetter) {
 function buildConvSummaryTable(r26, r25) {
   const periods = [
     { key:'lw', label:`Last Week (W${D.lastWeek})` },
-    { key:'mtd', label:'MTD (last 4 wks)' },
+    { key:'mtd', label: fiscalMtdHeader(D.cutoff) },
     { key:'ytd', label:`YTD (W${ANALYSIS_START_WEEK}–W${D.cutoff})` },
   ];
   const rows = periods.map(p => {
@@ -1159,7 +1199,7 @@ function buildConvSummaryTable(r26, r25) {
 function buildCallsSummaryTable(r26, r25) {
   const periods = [
     { key:'lw', label:`Last Week (W${D.lastWeek})` },
-    { key:'mtd', label:'MTD (last 4 wks)' },
+    { key:'mtd', label: fiscalMtdHeader(D.cutoff) },
     { key:'ytd', label:`YTD (W${ANALYSIS_START_WEEK}–W${D.cutoff})` },
   ];
   const rows = periods.map(p => {
@@ -1190,7 +1230,7 @@ function buildCallsSummaryTable(r26, r25) {
 function buildAbnSummaryTable(r26, r25) {
   const periods = [
     { key:'lw', label:`Last Week (W${D.lastWeek})` },
-    { key:'mtd', label:'MTD (last 4 wks)' },
+    { key:'mtd', label: fiscalMtdHeader(D.cutoff) },
     { key:'ytd', label:`YTD (W${ANALYSIS_START_WEEK}–W${D.cutoff})` },
   ];
   const rows = periods.map(p => {
@@ -1216,7 +1256,7 @@ function buildAbnSummaryTable(r26, r25) {
 function buildPhoneSummaryTable(r26, r25) {
   const periods = [
     { key:'lw', label:`Last Week (W${D.lastWeek})` },
-    { key:'mtd', label:'MTD (last 4 wks)' },
+    { key:'mtd', label: fiscalMtdHeader(D.cutoff) },
     { key:'ytd', label:`YTD (W${ANALYSIS_START_WEEK}–W${D.cutoff})` },
   ];
   const rows = periods.map(p => {
@@ -1361,7 +1401,7 @@ function overviewPeriodKpis(period) {
 }
 
 function buildOverviewRecapBanner() {
-  const mtdFrom = Math.max(ANALYSIS_START_WEEK, D.cutoff - 3);
+  const mtdFrom = fiscalPtdFrom(D.cutoff);
   const m = overviewPeriodKpis('mtd');
   const y = overviewPeriodKpis('ytd');
   const line = (label, k) => {
@@ -1373,7 +1413,7 @@ function buildOverviewRecapBanner() {
   };
   return `<div class="insight-banner verdict"><div class="insight-mark">◆</div><div>
     <div class="insight-label">Overview recap — vs same weeks prior year</div>
-    <div class="insight-text">${line(`MTD W${mtdFrom}–W${D.cutoff}`, m)}</div>
+    <div class="insight-text">${line(fiscalMtdHeader(D.cutoff), m)}</div>
     <div class="insight-text">${line(`YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}`, y)}</div>
   </div></div>`;
 }
@@ -1512,7 +1552,7 @@ function overviewPeriodCells(m) {
 }
 
 function buildOverviewUnifiedTableHtml() {
-  const mtdFrom = Math.max(ANALYSIS_START_WEEK, D.cutoff - 3);
+  const mtdFrom = fiscalPtdFrom(D.cutoff);
   const rests = (F.location && F.location !== 'all')
     ? RESTS.filter(r => r.id === F.location)
     : RESTS;
@@ -1549,15 +1589,15 @@ function buildOverviewUnifiedTableHtml() {
   }).join('');
 
   return `<div class="table-card overview-scorecard">
-    <h3>Locations · Last week · MTD · YTD · vs PY</h3>
-    <p class="report-blurb">This scorecard compares each restaurant to the same weeks last year (vs PY) across three windows — last week, month-to-date (4 weeks), and year-to-date. Each Calls / Phone booked / Conv cell shows 2026, the PY numerical value, and the YoY delta.</p>
-    <p class="loc-summary-note">Calls &amp; Phone booked: 2026 + PY volume + YoY · Transfer % = Hostie transferred ÷ Hostie AI calls · Human / AI Conv: 2026 vs PY · Last week W${D.cutoff} · MTD W${mtdFrom}–W${D.cutoff} · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
+    <h3>Locations · Last week · Period (4-4-5) · YTD · vs PY</h3>
+    <p class="report-blurb">This scorecard compares each restaurant to the same weeks last year (vs PY) across three windows — last week, current fiscal period-to-date (4-4-5), and year-to-date. Each Calls / Phone booked / Conv cell shows 2026, the PY numerical value, and the YoY delta.</p>
+    <p class="loc-summary-note">Calls &amp; Phone booked: 2026 + PY volume + YoY · Transfer % = Hostie transferred ÷ Hostie AI calls · Human / AI Conv: 2026 vs PY · Last week W${D.cutoff} · ${fiscalMtdHeader(D.cutoff)} (4-4-5) · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
     <table class="exec-kpi-table">
       <thead>
         <tr class="group-row">
           <th rowspan="2" style="vertical-align:bottom;text-align:left">Location</th>
           <th colspan="5" class="group-lw">Last week · W${D.cutoff} · vs PY</th>
-          <th colspan="5" class="group-mtd">MTD · W${mtdFrom}–W${D.cutoff} · vs PY</th>
+          <th colspan="5" class="group-mtd">${fiscalMtdHeader(D.cutoff)} · vs PY</th>
           <th colspan="5" class="group-ytd">YTD · W${ANALYSIS_START_WEEK}–W${D.cutoff} · vs PY</th>
         </tr>
         <tr class="sub-row">
@@ -1577,10 +1617,10 @@ function buildOverviewUnifiedTableHtml() {
 }
 
 function buildOverviewPeriodStrip() {
-  const mtdFrom = Math.max(ANALYSIS_START_WEEK, D.cutoff - 3);
+  const mtdFrom = fiscalPtdFrom(D.cutoff);
   const periods = [
     { key: 'lw', label: `Last week W${D.cutoff}` },
-    { key: 'mtd', label: `MTD W${mtdFrom}–W${D.cutoff}` },
+    { key: 'mtd', label: fiscalMtdHeader(D.cutoff) },
     { key: 'ytd', label: `YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}` },
   ];
   const cards = periods.map(p => {
@@ -1915,7 +1955,7 @@ function pdfMetricPair(pdf, cellX, cellW, y, main, sub, subRgb) {
 }
 
 function collectOverviewScorecardRows() {
-  const mtdFrom = Math.max(ANALYSIS_START_WEEK, D.cutoff - 3);
+  const mtdFrom = fiscalPtdFrom(D.cutoff);
   const rests = (F.location && F.location !== 'all')
     ? RESTS.filter(r => r.id === F.location)
     : RESTS;
@@ -2104,13 +2144,13 @@ async function exportOverviewPdf() {
     fillPage();
     y = m + 1;
     y = pdfTitleRule(pdf, `RDG AI Impact · Overview · through W${D.cutoff}`, m, y + 3, contentW, { size: 13, after: 5.5 });
-    y = pdfTitleRule(pdf, 'Locations · Last week · MTD · YTD · vs PY', m, y, contentW, { size: 10, after: 3.2 });
+    y = pdfTitleRule(pdf, 'Locations · Last week · Period (4-4-5) · YTD · vs PY', m, y, contentW, { size: 10, after: 3.2 });
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(7.5);
     pdf.setTextColor(200, 205, 224);
     y = pdfWrapText(
       pdf,
-      'Scorecard vs PY: each Calls / Phone booked / Conv cell shows 2026, the PY numerical value, and YoY across last week, MTD (4 weeks), and YTD.',
+      'Scorecard vs PY: each Calls / Phone booked / Conv cell shows 2026, the PY numerical value, and YoY across last week, fiscal period-to-date (4-4-5), and YTD.',
       m, y, contentW, 3.2
     );
     y += 2;
@@ -2132,7 +2172,7 @@ async function exportOverviewPdf() {
     const tableLeft = m + tableInnerPad;
     const periodMeta = [
       { label: `Last week · W${D.cutoff}`, color: [61, 142, 248] },
-      { label: `MTD · W${mtdFrom}–W${D.cutoff}`, color: [34, 217, 142] },
+      { label: fiscalMtdHeader(D.cutoff), color: [34, 217, 142] },
       { label: `YTD · W${ANALYSIS_START_WEEK}–W${D.cutoff}`, color: [176, 110, 245] },
     ];
     const subLabels = ['Calls vs PY', 'Booked vs PY', 'Xfer%', 'H Conv vs PY', 'AI Conv vs PY'];
@@ -2650,7 +2690,7 @@ function locSummaryScope(rowsAll, period) {
     return rows.filter(r => r.week === cutoff);
   }
   if (period === 'mtd') {
-    const from = Math.max(ANALYSIS_START_WEEK, cutoff - 3);
+    const from = fiscalPtdFrom(cutoff);
     return rows.filter(r => r.week >= from && r.week <= cutoff);
   }
   return rows.filter(r => r.week >= ANALYSIS_START_WEEK && r.week <= cutoff);
@@ -3920,7 +3960,7 @@ async function renderPeople() {
 
     el.innerHTML = `
       <div class="section-head">Call Center</div>
-      ${insightBanner(`Agent ops + location call KPIs. Week <b>W${j.selectedWeek}</b> (latest cutoff) · MTD = <b>W${j.mtdFromWeek}–W${j.mtdToWeek}</b>. ${_peopleReadOnly ? '<b>Worked Hours</b> are view-only (Hours API not configured).' : '<b>Worked Hours</b> are editable here — changes sync for everyone.'}`)}
+      ${insightBanner(`Agent ops + location call KPIs. Week <b>W${j.selectedWeek}</b> · Fiscal <b>P${j.fiscalPeriod || fiscalPeriodForWeek(j.selectedWeek).period}</b> PTD = <b>W${j.mtdFromWeek}–W${j.mtdToWeek}</b> (${j.fiscalPeriodLength || fiscalPeriodForWeek(j.selectedWeek).length}-wk period through W${j.fiscalPeriodToWeek || fiscalPeriodForWeek(j.selectedWeek).toWeek}). ${_peopleReadOnly ? '<b>Worked Hours</b> are view-only (Hours API not configured).' : '<b>Worked Hours</b> are editable here — changes sync for everyone.'}`)}
       <div class="people-week-bar">
         <label>Report week</label>
         <input type="number" id="people-week" min="1" max="53" value="${j.selectedWeek}">
@@ -3953,7 +3993,7 @@ async function renderPeople() {
               <tr>
                 <th rowspan="2">Agent</th>
                 ${periodHdr(`Week ${j.selectedWeek}`, 'Current week')}
-                ${periodHdr(`MTD W${j.mtdFromWeek}–${j.mtdToWeek}`, '4-week period')}
+                ${periodHdr(`P${j.fiscalPeriod || '?'} · W${j.mtdFromWeek}–W${j.mtdToWeek}`, `4-4-5 period (${j.fiscalPeriodLength || '?'} wks)`)}
               </tr>
               <tr>
                 <th class="grp-start">#</th><th>%</th><th>Worked Hrs</th><th>Call/Hr</th><th>Avg Talk</th><th>Max Talk</th><th>ASA</th><th># Missed</th><th>% Missed</th>
@@ -3998,7 +4038,7 @@ async function renderPeople() {
               ${typeAgentRows}
             </tbody>
           </table>
-          <h3 style="margin-top:20px">MTD W${j.mtdFromWeek}–${j.mtdToWeek}</h3>
+          <h3 style="margin-top:20px">P${j.fiscalPeriod || ''} · W${j.mtdFromWeek}–W${j.mtdToWeek} (period-to-date)</h3>
           <table class="people-table">
             <thead><tr><th>Agent</th>${typeHdr}</tr></thead>
             <tbody>
