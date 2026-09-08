@@ -350,7 +350,7 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
   <div class="nav-brand"><span>◆</span>RDG AI Impact Dashboard</div>
   <div class="tabs">
     <button class="tab-btn active" data-tab="overview" onclick="showTab('overview')">Overview</button>
-    <button class="tab-btn" data-tab="byrest" onclick="showTab('byrest')">By Restaurant</button>
+    <button class="tab-btn" data-tab="byrest" onclick="showTab('byrest')">Details</button>
     <button class="tab-btn" data-tab="people" onclick="showTab('people')">Call Center</button>
     <button class="tab-btn" data-tab="reservations" onclick="showTab('reservations')">Reservations</button>
     <button class="tab-btn" data-tab="conversation" onclick="showTab('conversation')">Conversation</button>
@@ -3376,6 +3376,14 @@ function callCenterSummaryHtml() {
       <p class="loc-summary-note" style="margin:-4px 0 12px">Through <b>W${to}</b> (W${from}–W${to}) · refreshed with latest TalkDesk / Hostie snapshot</p>
       <div class="chart-row cols-1" style="margin-bottom:16px">
         <div class="chart-card">
+          <h3>Agent productivity — calls &amp; phone bookings per agent vs PY</h3>
+          <p>Human-answered calls and Phone/In-House bookings ÷ active human agents (TalkDesk agents with ≥1 inbound/outbound call that week) · last 10 completed weeks · vs same weeks 2025</p>
+          <div class="chart-wrap" style="height:340px"><canvas id="cc-agent-prod"></canvas></div>
+          <div class="stat-note" id="cc-agent-prod-note" style="margin-top:8px"></div>
+        </div>
+      </div>
+      <div class="chart-row cols-1" style="margin-bottom:16px">
+        <div class="chart-card">
           <h3>Human Calls Handled — 2025 vs 2026 (Last 10 weeks)</h3>
           <p>TalkDesk human-answered volume by week (excludes If-No-Answer / AI) · last 10 completed weeks</p>
           <div class="chart-wrap" style="height:380px"><canvas id="cc-human-yoy"></canvas></div>
@@ -3410,9 +3418,134 @@ function callCenterSummaryHtml() {
     </div>`;
 }
 
+function paintCcAgentProductivityChart() {
+  const canvas = document.getElementById('cc-agent-prod');
+  if (!canvas || !D) return;
+
+  const prod = D.agentProductivity;
+  const note = document.getElementById('cc-agent-prod-note');
+  if (!prod?.ok || !Array.isArray(prod.series) || !prod.series.length) {
+    if (note) {
+      note.textContent = 'Agent productivity needs TalkDesk CSV agent counts — run dashboard export (or refresh /api/compare) to populate.';
+    }
+    return;
+  }
+
+  const last10 = prod.series.slice(-10);
+  const labels = last10.map(p => 'W' + p.week);
+  const calls25 = last10.map(p => p.callsPerAgent25);
+  const calls26 = last10.map(p => p.callsPerAgent26);
+  const books25 = last10.map(p => p.bookingsPerAgent25);
+  const books26 = last10.map(p => p.bookingsPerAgent26);
+
+  const latest = last10[last10.length - 1];
+  if (note && latest) {
+    const cYoy = (latest.callsPerAgent25 > 0 && latest.callsPerAgent26 != null)
+      ? signedPct(latest.callsPerAgent26, latest.callsPerAgent25) : null;
+    const bYoy = (latest.bookingsPerAgent25 > 0 && latest.bookingsPerAgent26 != null)
+      ? signedPct(latest.bookingsPerAgent26, latest.bookingsPerAgent25) : null;
+    note.innerHTML = `Latest <b>W${latest.week}</b>: ${latest.agents26 || '—'} active agents (PY ${latest.agents25 || '—'}) · `
+      + `Calls/agent <b class="${(cYoy ?? 0) >= 0 ? 'up' : 'dn'}">${latest.callsPerAgent26 != null ? latest.callsPerAgent26.toFixed(0) : '—'}</b> `
+      + `(${cYoy == null ? '—' : fmtSigned(cYoy)} vs PY) · `
+      + `Phone bookings/agent <b class="${(bYoy ?? 0) >= 0 ? 'up' : 'dn'}">${latest.bookingsPerAgent26 != null ? latest.bookingsPerAgent26.toFixed(1) : '—'}</b> `
+      + `(${bYoy == null ? '—' : fmtSigned(bYoy)} vs PY)`;
+  }
+
+  mkChart('cc-agent-prod', 'bar', {
+    labels,
+    datasets: [
+      {
+        label: '2025 Calls / agent',
+        data: calls25,
+        backgroundColor: 'rgba(245,158,11,.45)',
+        borderColor: 'rgba(245,158,11,.9)',
+        borderWidth: 1,
+        borderRadius: 3,
+        yAxisID: 'y',
+        order: 2,
+      },
+      {
+        label: '2026 Calls / agent',
+        data: calls26,
+        backgroundColor: 'rgba(52,211,153,.55)',
+        borderColor: 'rgba(52,211,153,.95)',
+        borderWidth: 1,
+        borderRadius: 3,
+        yAxisID: 'y',
+        order: 2,
+      },
+      {
+        label: '2025 Bookings / agent',
+        data: books25,
+        type: 'line',
+        borderColor: 'rgba(255,159,46,.95)',
+        backgroundColor: 'rgba(255,159,46,.15)',
+        borderWidth: 2,
+        pointRadius: 3,
+        tension: 0.25,
+        yAxisID: 'y1',
+        order: 1,
+      },
+      {
+        label: '2026 Bookings / agent',
+        data: books26,
+        type: 'line',
+        borderColor: 'rgba(61,142,248,.95)',
+        backgroundColor: 'rgba(61,142,248,.12)',
+        borderWidth: 2.5,
+        pointRadius: 3.5,
+        tension: 0.25,
+        yAxisID: 'y1',
+        order: 1,
+      },
+    ],
+  }, {
+    scales: {
+      x: {
+        ticks: { color: '#8890b8' },
+        grid: { display: false },
+      },
+      y: {
+        beginAtZero: true,
+        position: 'left',
+        ticks: { color: '#8890b8' },
+        grid: { color: 'rgba(42,48,80,.45)' },
+        title: { display: true, text: 'Calls per agent', color: '#8890b8', font: { size: 11 } },
+      },
+      y1: {
+        beginAtZero: true,
+        position: 'right',
+        ticks: { color: '#8890b8' },
+        grid: { drawOnChartArea: false },
+        title: { display: true, text: 'Phone bookings per agent', color: '#8890b8', font: { size: 11 } },
+      },
+    },
+    plugins: {
+      legend: { display: true, position: 'top', labels: { color: '#c8cde0', boxWidth: 12, font: { size: 11 } } },
+      tooltip: {
+        callbacks: {
+          afterBody(items) {
+            const i = items[0]?.dataIndex;
+            if (i == null) return '';
+            const p = last10[i];
+            if (!p) return '';
+            return [
+              `Active agents: ${p.agents26 || 0} (PY ${p.agents25 || 0})`,
+              `Human calls: ${(p.calls26 || 0).toLocaleString()} (PY ${(p.calls25 || 0).toLocaleString()})`,
+              `Phone/IH books: ${(p.bookings26 || 0).toLocaleString()} (PY ${(p.bookings25 || 0).toLocaleString()})`,
+            ];
+          },
+        },
+      },
+    },
+  });
+}
+
 function paintCallCenterSummaryCharts() {
   const { r26, r25, weeks } = callCenterLatestRows();
   if (!document.getElementById('cc-calls-stack')) return;
+
+  paintCcAgentProductivityChart();
 
   // Human-answered volume 2025 vs 2026 — vertical bars, last 10 weeks
   if (document.getElementById('cc-human-yoy')) {
