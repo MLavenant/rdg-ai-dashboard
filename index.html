@@ -98,8 +98,8 @@ select:focus,input:focus{border-color:var(--y26)}
 .ov-ai-impact-table .sep-col{border-left:1px solid rgba(42,48,80,.9)!important}
 .ov-ai-impact-table .metric-stack{display:flex;flex-direction:column;align-items:flex-end;gap:2px;line-height:1.25}
 .ov-ai-impact-table .metric-stack .py-line,
-.overview-scorecard .metric-stack .py-line{font-size:10px;color:var(--muted);font-weight:500;white-space:nowrap}
-.overview-scorecard .metric-stack{display:flex;flex-direction:column;align-items:flex-end;gap:2px;line-height:1.2}
+.overview-scorecard .metric-stack .py-line{font-size:10px;color:var(--muted);font-weight:500;white-space:nowrap;overflow:visible;text-overflow:clip}
+.overview-scorecard .metric-stack{display:flex;flex-direction:column;align-items:flex-end;gap:2px;line-height:1.25;min-width:max-content}
 .overview-scorecard .exec-kpi-table td .metric-stack b{font-size:13px}
 
 /* ── TABLES ── */
@@ -113,13 +113,13 @@ select:focus,input:focus{border-color:var(--y26)}
 #overview-pdf-root > .chart-card h3{display:flex;align-items:center;gap:10px;width:100%}
 #overview-pdf-root > .chart-card h3::after{content:'';flex:1;height:1px;background:var(--border)}
 #overview-pdf-root > .chart-card .report-blurb{max-width:none}
-.overview-scorecard .exec-kpi-table{table-layout:fixed;width:100%;min-width:1280px}
+.overview-scorecard .exec-kpi-table{table-layout:auto;width:max-content;min-width:100%}
 .overview-scorecard .exec-kpi-table th:first-child,
-.overview-scorecard .exec-kpi-table td:first-child{width:84px;padding-left:10px;padding-right:8px}
+.overview-scorecard .exec-kpi-table td:first-child{width:auto;min-width:88px;padding-left:10px;padding-right:10px}
 .overview-scorecard .exec-kpi-table th:not(:first-child),
-.overview-scorecard .exec-kpi-table td:not(:first-child){padding:11px 7px;overflow:visible;font-size:12px}
+.overview-scorecard .exec-kpi-table td:not(:first-child){padding:10px 12px;overflow:visible;text-overflow:clip;font-size:12px;white-space:nowrap;min-width:108px}
 .overview-scorecard .exec-kpi-table td b{font-size:13px}
-.overview-scorecard .exec-kpi-table thead tr.sub-row th{font-size:9px;letter-spacing:.2px;padding-top:8px;padding-bottom:8px}
+.overview-scorecard .exec-kpi-table thead tr.sub-row th{font-size:9px;letter-spacing:.2px;padding-top:8px;padding-bottom:8px;white-space:nowrap}
 .overview-scorecard .exec-kpi-table thead tr.group-row th{padding-bottom:6px}
 .overview-scorecard .group-lw{color:#3d8ef8;border-bottom:2px solid rgba(61,142,248,.55)}
 .overview-scorecard .group-mtd{color:#22d98e;border-bottom:2px solid rgba(34,217,142,.55)}
@@ -1527,12 +1527,12 @@ function overviewPyVolumeLine(pyVal, yoy) {
   if (pyVal == null || !(pyVal > 0)) {
     return yoy == null
       ? `<span class="py-line">vs PY —</span>`
-      : `<span class="py-line">vs PY — <span class="${yoy >= 0 ? 'up' : 'dn'}">${fmtSigned(yoy)}</span></span>`;
+      : `<span class="py-line">vs PY —</span><span class="py-line ${yoy >= 0 ? 'up' : 'dn'}">${fmtSigned(yoy)}</span>`;
   }
   const yoyHtml = yoy == null
     ? ''
-    : ` · <span class="${yoy >= 0 ? 'up' : 'dn'}">${fmtSigned(yoy)}</span>`;
-  return `<span class="py-line">PY ${fmt(pyVal)}${yoyHtml}</span>`;
+    : `<span class="py-line ${yoy >= 0 ? 'up' : 'dn'}">${fmtSigned(yoy)}</span>`;
+  return `<span class="py-line">PY ${fmt(pyVal)}</span>${yoyHtml}`;
 }
 
 function overviewPyConvLine(pyConv) {
