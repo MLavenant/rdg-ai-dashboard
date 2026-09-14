@@ -341,7 +341,7 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 .save-hint{font-size:11px;color:var(--green);margin-left:8px}
 
 </style>
-  <!--RDG_HOURS_API--><script>window.RDG_HOURS_API="https://rdg-hours-api.plum-rat.workers.dev";</script><!--/RDG_HOURS_API-->
+  <!--RDG_HOURS_API--><script>window.RDG_HOURS_API=window.RDG_HOURS_API||"";</script><!--/RDG_HOURS_API-->
 </head>
 <body>
 
@@ -3898,13 +3898,17 @@ function staticAssetUrl(name) {
 }
 
 async function fetchJsonSafe(url) {
-  const r = await fetch(url);
-  const text = await r.text();
-  const trimmed = (text || '').trim();
-  if (!r.ok || !trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+  try {
+    const r = await fetch(url);
+    const text = await r.text();
+    const trimmed = (text || '').trim();
+    if (!r.ok || (!trimmed.startsWith('{') && !trimmed.startsWith('['))) {
+      return null;
+    }
+    try { return JSON.parse(trimmed); } catch { return null; }
+  } catch (_) {
     return null;
   }
-  try { return JSON.parse(trimmed); } catch { return null; }
 }
 
 async function loadPeople(week) {
