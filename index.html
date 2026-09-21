@@ -124,6 +124,21 @@ select:focus,input:focus{border-color:var(--y26)}
 .overview-scorecard .group-lw{color:#3d8ef8;border-bottom:2px solid rgba(61,142,248,.55)}
 .overview-scorecard .group-mtd{color:#22d98e;border-bottom:2px solid rgba(34,217,142,.55)}
 .overview-scorecard .group-ytd{color:#b06ef5;border-bottom:2px solid rgba(176,110,245,.55)}
+.ov-cc-summary{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+.ov-cc-summary .ov-cc-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+.ov-cc-summary .ov-cc-card h3{margin:0 0 4px;font-size:13px;font-weight:700}
+.ov-cc-summary .ov-cc-sub{font-size:11px;color:var(--muted);margin-bottom:10px}
+.ov-cc-summary .ov-cc-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.ov-cc-summary .ov-cc-metric{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ov-cc-summary .ov-cc-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.ov-cc-summary .ov-cc-val{font-size:18px;font-weight:700;color:var(--text);line-height:1.2}
+.ov-cc-summary .ov-cc-py{font-size:11px;color:var(--muted)}
+.ov-cc-summary .ov-cc-delta{font-size:12px;font-weight:700}
+.ov-cc-summary .ov-cc-agents{font-size:11px;color:var(--muted);margin-top:10px}
+@media (max-width:900px){
+  .ov-cc-summary{grid-template-columns:1fr}
+  .ov-cc-summary .ov-cc-metrics{grid-template-columns:1fr}
+}
 .exec-kpi-table th,.exec-kpi-table td{padding:12px 14px;font-size:13px;white-space:nowrap}
 .exec-kpi-table th{font-size:11px;letter-spacing:.4px}
 .exec-kpi-table td b{font-size:15px;font-weight:700}
@@ -341,7 +356,7 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 .save-hint{font-size:11px;color:var(--green);margin-left:8px}
 
 </style>
-  <!--RDG_HOURS_API--><script>window.RDG_HOURS_API="https://rdg-hours-api.plum-rat.workers.dev";</script><!--/RDG_HOURS_API-->
+  <!--RDG_HOURS_API--><script>window.RDG_HOURS_API=window.RDG_HOURS_API||"";</script><!--/RDG_HOURS_API-->
 </head>
 <body>
 
@@ -1763,6 +1778,8 @@ function renderOverview() {
   <div id="overview-pdf-root">
     <div class="section-head" style="margin-top:0;display:none" id="overview-pdf-title">RDG AI Impact · Overview · through W${D.cutoff}</div>
 
+    ${buildOverviewCallCenterSummaryHtml()}
+
     <div class="chart-row cols-1" style="margin-bottom:16px">
       <div class="chart-card">
         <h3>Before AI vs After AI — phone bookings by location</h3>
@@ -1778,6 +1795,99 @@ function renderOverview() {
   </div>
   `;
   requestAnimationFrame(() => paintOverviewAiImpactChart());
+}
+
+/** Aggregate agent-productivity series for a week window (Call Center summary). */
+function aggregateAgentProdWindow(fromWeek, toWeek) {
+  const series = D?.agentProductivity?.series || [];
+  const pts = series.filter(p => p.week >= fromWeek && p.week <= toWeek);
+  if (!pts.length) return null;
+  const sumF = (key) => pts.reduce((s, p) => s + (Number(p[key]) || 0), 0);
+  const avgAgents = (key) => {
+    const vals = pts.map(p => Number(p[key]) || 0).filter(n => n > 0);
+    if (!vals.length) return 0;
+    return vals.reduce((s, n) => s + n, 0) / vals.length;
+  };
+  const calls26 = sumF('calls26');
+  const calls25 = sumF('calls25');
+  const bookings26 = sumF('bookings26');
+  const bookings25 = sumF('bookings25');
+  const agents26 = avgAgents('agents26');
+  const agents25 = avgAgents('agents25');
+  const per = (vol, agents) => (agents > 0 ? vol / agents : null);
+  return {
+    fromWeek,
+    toWeek,
+    agents26,
+    agents25,
+    calls26,
+    calls25,
+    bookings26,
+    bookings25,
+    callsPerAgent26: per(calls26, agents26),
+    callsPerAgent25: per(calls25, agents25),
+    bookingsPerAgent26: per(bookings26, agents26),
+    bookingsPerAgent25: per(bookings25, agents25),
+    callsYoY: signedPct(calls26, calls25),
+    callsPerYoY: signedPct(per(calls26, agents26), per(calls25, agents25)),
+    bookingsPerYoY: signedPct(per(bookings26, agents26), per(bookings25, agents25)),
+  };
+}
+
+function ovCcDeltaHtml(yoy) {
+  if (yoy == null || isNaN(yoy)) return `<span class="ov-cc-delta" style="color:var(--muted)">—</span>`;
+  const cls = yoy >= 0 ? 'up' : 'dn';
+  return `<span class="ov-cc-delta ${cls}">${fmtSigned(yoy)} vs PY</span>`;
+}
+
+function ovCcMetricHtml(label, val26, val25, yoy, opts = {}) {
+  const decimals = opts.decimals ?? 0;
+  const fmtN = (v) => {
+    if (v == null || isNaN(v)) return '—';
+    if (opts.int) return Math.round(v).toLocaleString();
+    return decimals > 0 ? Number(v).toFixed(decimals) : Math.round(v).toLocaleString();
+  };
+  return `<div class="ov-cc-metric">
+    <div class="ov-cc-label">${label}</div>
+    <div class="ov-cc-val">${fmtN(val26)}</div>
+    <div class="ov-cc-py">PY ${fmtN(val25)}</div>
+    ${ovCcDeltaHtml(yoy)}
+  </div>`;
+}
+
+function buildOverviewCallCenterSummaryHtml() {
+  const lw = D.cutoff;
+  const mtdFrom = fiscalPtdFrom(lw);
+  const last = aggregateAgentProdWindow(lw, lw);
+  const mtd = aggregateAgentProdWindow(mtdFrom, lw);
+  if (!last && !mtd) {
+    return `<div class="table-card ov-cc-summary" style="display:block">
+      <p class="loc-summary-note" style="margin:0">Call Center productivity summary needs agent counts — re-export the dashboard to populate.</p>
+    </div>`;
+  }
+
+  const card = (title, sub, pack) => {
+    if (!pack) {
+      return `<div class="ov-cc-card"><h3>${title}</h3><p class="ov-cc-sub">${sub}</p><p class="loc-summary-note">No agent productivity data for this window.</p></div>`;
+    }
+    return `<div class="ov-cc-card">
+      <h3>${title}</h3>
+      <p class="ov-cc-sub">${sub}</p>
+      <div class="ov-cc-metrics">
+        ${ovCcMetricHtml('Phone calls handled', pack.calls26, pack.calls25, pack.callsYoY, { int: true })}
+        ${ovCcMetricHtml('Calls / agent', pack.callsPerAgent26, pack.callsPerAgent25, pack.callsPerYoY, { decimals: 0 })}
+        ${ovCcMetricHtml('Bookings / agent', pack.bookingsPerAgent26, pack.bookingsPerAgent25, pack.bookingsPerYoY, { decimals: 1 })}
+      </div>
+      <div class="ov-cc-agents">Active agents: <b>${pack.agents26 ? pack.agents26.toFixed(pack.fromWeek === pack.toWeek ? 0 : 1) : '—'}</b>
+        <span style="opacity:.7">(PY ${pack.agents25 ? pack.agents25.toFixed(pack.fromWeek === pack.toWeek ? 0 : 1) : '—'})</span>
+        · Phone calls = TalkDesk human-answered · Bookings = Phone/In-House</div>
+    </div>`;
+  };
+
+  return `<div class="ov-cc-summary">
+    ${card(`Last week · W${lw}`, `2026 vs prior year (same week)`, last)}
+    ${card(`MTD · ${fiscalMtdHeader(lw)}`, `2026 vs prior year (same weeks)`, mtd)}
+  </div>`;
 }
 
 function overviewAiImpactMetrics(rest) {
