@@ -124,11 +124,34 @@ select:focus,input:focus{border-color:var(--y26)}
 .overview-scorecard .group-lw{color:#3d8ef8;border-bottom:2px solid rgba(61,142,248,.55)}
 .overview-scorecard .group-mtd{color:#22d98e;border-bottom:2px solid rgba(34,217,142,.55)}
 .overview-scorecard .group-ytd{color:#b06ef5;border-bottom:2px solid rgba(176,110,245,.55)}
+.overview-scorecard .exec-kpi-table thead tr.group-row th.group-lw,
+.overview-scorecard .exec-kpi-table td.bloc-lw,
+.overview-scorecard .exec-kpi-table thead tr.sub-row th.bloc-lw{background:rgba(61,142,248,.07)}
+.overview-scorecard .exec-kpi-table thead tr.group-row th.group-mtd,
+.overview-scorecard .exec-kpi-table td.bloc-mtd,
+.overview-scorecard .exec-kpi-table thead tr.sub-row th.bloc-mtd{background:rgba(34,217,142,.07)}
+.overview-scorecard .exec-kpi-table thead tr.group-row th.group-ytd,
+.overview-scorecard .exec-kpi-table td.bloc-ytd,
+.overview-scorecard .exec-kpi-table thead tr.sub-row th.bloc-ytd{background:rgba(176,110,245,.07)}
+.overview-scorecard .exec-kpi-table td.bloc-start,
+.overview-scorecard .exec-kpi-table thead tr.sub-row th.bloc-start{
+  border-left:2px solid rgba(120,130,170,.55)!important;
+  padding-left:14px!important
+}
+.overview-scorecard .exec-kpi-table thead tr.group-row th.group-mtd,
+.overview-scorecard .exec-kpi-table thead tr.group-row th.group-ytd{
+  border-left:2px solid rgba(120,130,170,.55)
+}
+.overview-scorecard .exec-kpi-table td.bloc-lw b[data-ai-only],
+.overview-scorecard .exec-kpi-table td .ai-only-pct{color:var(--ai)}
 .ov-cc-summary{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
 .ov-cc-summary .ov-cc-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
 .ov-cc-summary .ov-cc-card h3{margin:0 0 4px;font-size:13px;font-weight:700}
 .ov-cc-summary .ov-cc-sub{font-size:11px;color:var(--muted);margin-bottom:10px}
-.ov-cc-summary .ov-cc-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.ov-cc-summary .ov-cc-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:1100px){
+  .ov-cc-summary .ov-cc-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
 .ov-cc-summary .ov-cc-metric{display:flex;flex-direction:column;gap:2px;min-width:0}
 .ov-cc-summary .ov-cc-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
 .ov-cc-summary .ov-cc-val{font-size:18px;font-weight:700;color:var(--text);line-height:1.2}
@@ -356,7 +379,7 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 .save-hint{font-size:11px;color:var(--green);margin-left:8px}
 
 </style>
-  <!--RDG_HOURS_API--><script>window.RDG_HOURS_API=window.RDG_HOURS_API||"";</script><!--/RDG_HOURS_API-->
+  <!--RDG_HOURS_API--><script>window.RDG_HOURS_API="https://rdg-hours-api.plum-rat.workers.dev";</script><!--/RDG_HOURS_API-->
 </head>
 <body>
 
@@ -622,6 +645,12 @@ function hostieResolveRateAgg(rows) {
   const ai = sum(rows, 'hostieAiCalls');
   const res = sum(rows, 'hostieAiResolved');
   return ai > 0 ? res / ai * 100 : null;
+}
+/** Share of total TalkDesk calls handled only by AI (Hostie resolved, not transferred). */
+function aiOnlyShareOfCallsAgg(rows) {
+  const total = sum(rows, 'callsTotal');
+  const resolved = sum(rows, 'hostieAiResolved');
+  return total > 0 ? convPctRaw(resolved / total * 100) : null;
 }
 function fmtHostiePct(v) {
   return v != null && !isNaN(v) ? v.toFixed(1) + '%' : '—';
@@ -1517,7 +1546,7 @@ function buildExecLocationKpiTableHtml(r26, r25) {
   </div>`;
 }
 
-/** One Overview table: Locations × Last week / MTD / YTD (calls, booked, transfer, human/AI conv vs PY). */
+/** One Overview table: Locations × Last week / MTD / YTD (calls, booked, transfer, AI-only %, human/AI conv vs PY). */
 function overviewPeriodMetrics(restId, period) {
   const r26 = locSummaryScope(D.rows26, period).filter(r => !restId || r.restaurantId === restId);
   const r25 = locSummaryScope(D.rows25, period).filter(r => !restId || r.restaurantId === restId);
@@ -1528,13 +1557,14 @@ function overviewPeriodMetrics(restId, period) {
   const phoneBooked25 = phoneBooks(r25);
   const phoneBookedYoY = signedPct(phoneBooked, phoneBooked25);
   const transfer = hostieTransferRateAgg(r26);
+  const aiOnlyPct = aiOnlyShareOfCallsAgg(r26);
   const humanConv = humanConvRateAgg(r26);
   const humanConv25 = humanConvRateAgg(r25);
   const aiConv = sum(r26, 'callsAI') > 0 ? aiConvRateAgg(r26) : null;
   const aiConv25 = sum(r25, 'callsAI') > 0 ? aiConvRateAgg(r25) : null;
   return {
     calls, calls25, callsYoY, phoneBooked, phoneBooked25, phoneBookedYoY,
-    transfer, humanConv, humanConv25, aiConv, aiConv25,
+    transfer, aiOnlyPct, humanConv, humanConv25, aiConv, aiConv25,
   };
 }
 
@@ -1554,16 +1584,23 @@ function overviewPyConvLine(pyConv) {
   return `<span class="py-line">vs PY ${fmtConvPct(pyConv)}</span>`;
 }
 
-function overviewPeriodCells(m) {
+function overviewPeriodCells(m, periodKey = 'lw') {
+  const bloc = periodKey === 'mtd' ? 'bloc-mtd' : periodKey === 'ytd' ? 'bloc-ytd' : 'bloc-lw';
+  const start = periodKey !== 'lw' ? ' bloc-start' : '';
+  const cls = `${bloc}${start}`;
   const trHtml = m.transfer != null && !isNaN(m.transfer)
     ? `<b>${fmtHostiePct(m.transfer)}</b>`
     : `<b>—</b>`;
+  const aiOnlyHtml = m.aiOnlyPct != null && !isNaN(m.aiOnlyPct)
+    ? `<b class="ai-only-pct">${fmtHostiePct(m.aiOnlyPct)}</b>`
+    : `<b>—</b>`;
   return `
-    <td><div class="metric-stack"><b>${fmt(m.calls)}</b>${overviewPyVolumeLine(m.calls25, m.callsYoY)}</div></td>
-    <td><div class="metric-stack"><b>${fmt(m.phoneBooked)}</b>${overviewPyVolumeLine(m.phoneBooked25, m.phoneBookedYoY)}</div></td>
-    <td>${trHtml}</td>
-    <td><div class="metric-stack"><b>${fmtConvPct(m.humanConv)}</b>${overviewPyConvLine(m.humanConv25)}</div></td>
-    <td><div class="metric-stack"><b style="color:var(--ai)">${m.aiConv != null ? fmtConvPct(m.aiConv) : '—'}</b>${overviewPyConvLine(m.aiConv25)}</div></td>`;
+    <td class="${cls}"><div class="metric-stack"><b>${fmt(m.calls)}</b>${overviewPyVolumeLine(m.calls25, m.callsYoY)}</div></td>
+    <td class="${bloc}"><div class="metric-stack"><b>${fmt(m.phoneBooked)}</b>${overviewPyVolumeLine(m.phoneBooked25, m.phoneBookedYoY)}</div></td>
+    <td class="${bloc}">${trHtml}</td>
+    <td class="${bloc}">${aiOnlyHtml}</td>
+    <td class="${bloc}"><div class="metric-stack"><b>${fmtConvPct(m.humanConv)}</b>${overviewPyConvLine(m.humanConv25)}</div></td>
+    <td class="${bloc}"><div class="metric-stack"><b style="color:var(--ai)">${m.aiConv != null ? fmtConvPct(m.aiConv) : '—'}</b>${overviewPyConvLine(m.aiConv25)}</div></td>`;
 }
 
 function buildOverviewUnifiedTableHtml() {
@@ -1573,7 +1610,7 @@ function buildOverviewUnifiedTableHtml() {
     : RESTS;
   const periods = ['lw', 'mtd', 'ytd'];
   const body = rests.map(rest => {
-    const cells = periods.map(p => overviewPeriodCells(overviewPeriodMetrics(rest.id, p))).join('');
+    const cells = periods.map(p => overviewPeriodCells(overviewPeriodMetrics(rest.id, p), p)).join('');
     return `<tr>
       <td><span style="color:${rest.color};font-weight:700">${rest.label}</span></td>
       ${cells}
@@ -1596,29 +1633,35 @@ function buildOverviewUnifiedTableHtml() {
       phoneBooked25,
       phoneBookedYoY: signedPct(phoneBooked, phoneBooked25),
       transfer: hostieTransferRateAgg(r26),
+      aiOnlyPct: aiOnlyShareOfCallsAgg(r26),
       humanConv: humanConvRateAgg(r26),
       humanConv25: humanConvRateAgg(r25),
       aiConv: sum(r26, 'callsAI') > 0 ? aiConvRateAgg(r26) : null,
       aiConv25: sum(r25, 'callsAI') > 0 ? aiConvRateAgg(r25) : null,
-    });
+    }, p);
   }).join('');
+
+  const subHeads = (bloc) => {
+    const start = bloc !== 'bloc-lw' ? ' bloc-start' : '';
+    return `<th class="${bloc}${start}">Calls vs PY</th><th class="${bloc}">Phone booked vs PY</th><th class="${bloc}">Transfer %</th><th class="${bloc}">AI-only % of calls</th><th class="${bloc}">Human Conv vs PY</th><th class="${bloc}">AI Conv vs PY</th>`;
+  };
 
   return `<div class="table-card overview-scorecard">
     <h3>Locations · Last week · Period (4-4-5) · YTD · vs PY</h3>
     <p class="report-blurb">This scorecard compares each restaurant to the same weeks last year (vs PY) across three windows — last week, current fiscal period-to-date (4-4-5), and year-to-date. Each Calls / Phone booked / Conv cell shows 2026, the PY numerical value, and the YoY delta.</p>
-    <p class="loc-summary-note">Calls &amp; Phone booked: 2026 + PY volume + YoY · Transfer % = Hostie transferred ÷ Hostie AI calls · Human / AI Conv: 2026 vs PY · Last week W${D.cutoff} · ${fiscalMtdHeader(D.cutoff)} (4-4-5) · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
+    <p class="loc-summary-note">Calls &amp; Phone booked: 2026 + PY volume + YoY · Transfer % = Hostie transferred ÷ Hostie AI calls · AI-only % of calls = Hostie AI resolved (not transferred) ÷ total calls · Human / AI Conv: 2026 vs PY · Last week W${D.cutoff} · ${fiscalMtdHeader(D.cutoff)} (4-4-5) · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
     <table class="exec-kpi-table">
       <thead>
         <tr class="group-row">
           <th rowspan="2" style="vertical-align:bottom;text-align:left">Location</th>
-          <th colspan="5" class="group-lw">Last week · W${D.cutoff} · vs PY</th>
-          <th colspan="5" class="group-mtd">${fiscalMtdHeader(D.cutoff)} · vs PY</th>
-          <th colspan="5" class="group-ytd">YTD · W${ANALYSIS_START_WEEK}–W${D.cutoff} · vs PY</th>
+          <th colspan="6" class="group-lw">Last week · W${D.cutoff} · vs PY</th>
+          <th colspan="6" class="group-mtd">${fiscalMtdHeader(D.cutoff)} · vs PY</th>
+          <th colspan="6" class="group-ytd">YTD · W${ANALYSIS_START_WEEK}–W${D.cutoff} · vs PY</th>
         </tr>
         <tr class="sub-row">
-          <th>Calls vs PY</th><th>Phone booked vs PY</th><th>Transfer %</th><th>Human Conv vs PY</th><th>AI Conv vs PY</th>
-          <th>Calls vs PY</th><th>Phone booked vs PY</th><th>Transfer %</th><th>Human Conv vs PY</th><th>AI Conv vs PY</th>
-          <th>Calls vs PY</th><th>Phone booked vs PY</th><th>Transfer %</th><th>Human Conv vs PY</th><th>AI Conv vs PY</th>
+          ${subHeads('bloc-lw')}
+          ${subHeads('bloc-mtd')}
+          ${subHeads('bloc-ytd')}
         </tr>
       </thead>
       <tbody>${body}
@@ -1766,7 +1809,9 @@ function buildOverviewAiImpactTableHtml() {
 }
 
 function renderOverview() {
-  document.getElementById('page-overview').innerHTML = `
+  const root = document.getElementById('page-overview');
+  const paint = () => {
+    root.innerHTML = `
   <div class="overview-toolbar no-print">
     <div>
       <div class="section-head" style="margin-top:0">Executive overview · vs prior year</div>
@@ -1791,10 +1836,59 @@ function renderOverview() {
     </div>
 
     ${buildOverviewUnifiedTableHtml()}
-    <div class="stat-note">vs PY shows prior-year numerical value + YoY · Transfer % = Hostie transferred ÷ Hostie AI calls · Human Conv = Phone/In-House ÷ human calls · AI Conv = Phone/AI ÷ AI calls · Phone booked = In-House + AI.</div>
+    <div class="stat-note">vs PY shows prior-year numerical value + YoY · Transfer % = Hostie transferred ÷ Hostie AI calls · AI-only % of calls = Hostie AI resolved (not transferred) ÷ total calls · Human Conv = Phone/In-House ÷ human calls · AI Conv = Phone/AI ÷ AI calls · Phone booked = In-House + AI.</div>
   </div>
   `;
-  requestAnimationFrame(() => paintOverviewAiImpactChart());
+    requestAnimationFrame(() => paintOverviewAiImpactChart());
+  };
+
+  // Hours feed Calls/hour — refresh shared store then paint (or paint immediately if cached).
+  if (_hoursStoreCache?.hours) {
+    paint();
+  } else {
+    root.innerHTML = `<div class="loading">Loading overview…</div>`;
+  }
+  fetchSharedHoursStore(D.cutoff).finally(paint);
+}
+
+/** Sum Staff Hours (week entries) across a week window. */
+function sumWorkedHoursWindow(fromWeek, toWeek, year = 2026) {
+  const store = _hoursStoreCache;
+  if (!store?.hours) return null;
+  const hidden = new Set((store.hidden || []).map(String));
+  let total = 0;
+  let any = false;
+  for (const [name, buckets] of Object.entries(store.hours)) {
+    if (!name || name === 'If-No-Answer Agent' || hidden.has(name)) continue;
+    const weekMap = buckets?.week || {};
+    for (let w = fromWeek; w <= toWeek; w++) {
+      const v = weekMap[weekKeyJs(year, w)];
+      if (v != null && !Number.isNaN(Number(v))) {
+        total += Number(v);
+        any = true;
+      }
+    }
+  }
+  return any ? +total.toFixed(2) : null;
+}
+
+/** Weeks in [from,to] that have any Staff Hours logged. */
+function weeksWithWorkedHours(fromWeek, toWeek, year = 2026) {
+  const store = _hoursStoreCache;
+  if (!store?.hours) return [];
+  const hidden = new Set((store.hidden || []).map(String));
+  const out = [];
+  for (let w = fromWeek; w <= toWeek; w++) {
+    const key = weekKeyJs(year, w);
+    let hrs = 0;
+    for (const [name, buckets] of Object.entries(store.hours)) {
+      if (!name || name === 'If-No-Answer Agent' || hidden.has(name)) continue;
+      const v = buckets?.week?.[key];
+      if (v != null && !Number.isNaN(Number(v))) hrs += Number(v);
+    }
+    if (hrs > 0) out.push(w);
+  }
+  return out;
 }
 
 /** Aggregate agent-productivity series for a week window (Call Center summary). */
@@ -1814,7 +1908,21 @@ function aggregateAgentProdWindow(fromWeek, toWeek) {
   const bookings25 = sumF('bookings25');
   const agents26 = avgAgents('agents26');
   const agents25 = avgAgents('agents25');
+  const hoursWeeks = weeksWithWorkedHours(fromWeek, toWeek, 2026);
+  const byWeek = new Map(pts.map(p => [p.week, p]));
+  let hoursExact = null;
+  let callsForHours = null;
+  if (hoursWeeks.length) {
+    hoursExact = 0;
+    callsForHours = 0;
+    for (const w of hoursWeeks) {
+      hoursExact += sumWorkedHoursWindow(w, w, 2026) || 0;
+      callsForHours += Number(byWeek.get(w)?.calls26) || 0;
+    }
+    hoursExact = +hoursExact.toFixed(2);
+  }
   const per = (vol, agents) => (agents > 0 ? vol / agents : null);
+  const callsPerHour26 = (hoursExact != null && hoursExact > 0) ? callsForHours / hoursExact : null;
   return {
     fromWeek,
     toWeek,
@@ -1824,6 +1932,10 @@ function aggregateAgentProdWindow(fromWeek, toWeek) {
     calls25,
     bookings26,
     bookings25,
+    hours26: hoursExact,
+    hoursWeeks,
+    callsForHours,
+    callsPerHour26,
     callsPerAgent26: per(calls26, agents26),
     callsPerAgent25: per(calls25, agents25),
     bookingsPerAgent26: per(bookings26, agents26),
@@ -1847,11 +1959,13 @@ function ovCcMetricHtml(label, val26, val25, yoy, opts = {}) {
     if (opts.int) return Math.round(v).toLocaleString();
     return decimals > 0 ? Number(v).toFixed(decimals) : Math.round(v).toLocaleString();
   };
+  const pyBlock = opts.hidePy
+    ? (opts.subNote ? `<div class="ov-cc-py">${opts.subNote}</div>` : '')
+    : `<div class="ov-cc-py">PY ${fmtN(val25)}</div>${ovCcDeltaHtml(yoy)}`;
   return `<div class="ov-cc-metric">
     <div class="ov-cc-label">${label}</div>
     <div class="ov-cc-val">${fmtN(val26)}</div>
-    <div class="ov-cc-py">PY ${fmtN(val25)}</div>
-    ${ovCcDeltaHtml(yoy)}
+    ${pyBlock}
   </div>`;
 }
 
@@ -1870,6 +1984,12 @@ function buildOverviewCallCenterSummaryHtml() {
     if (!pack) {
       return `<div class="ov-cc-card"><h3>${title}</h3><p class="ov-cc-sub">${sub}</p><p class="loc-summary-note">No agent productivity data for this window.</p></div>`;
     }
+    const hoursNote = pack.hours26 != null
+      ? `${Number(pack.hours26).toLocaleString(undefined, { maximumFractionDigits: 1 })} hrs`
+        + (pack.hoursWeeks?.length && (pack.hoursWeeks.length < (pack.toWeek - pack.fromWeek + 1))
+          ? ` (W${pack.hoursWeeks.join(', W')})`
+          : '')
+      : 'Add hours in Call Center → Staff Hours';
     return `<div class="ov-cc-card">
       <h3>${title}</h3>
       <p class="ov-cc-sub">${sub}</p>
@@ -1877,10 +1997,11 @@ function buildOverviewCallCenterSummaryHtml() {
         ${ovCcMetricHtml('Phone calls handled', pack.calls26, pack.calls25, pack.callsYoY, { int: true })}
         ${ovCcMetricHtml('Calls / agent', pack.callsPerAgent26, pack.callsPerAgent25, pack.callsPerYoY, { decimals: 0 })}
         ${ovCcMetricHtml('Bookings / agent', pack.bookingsPerAgent26, pack.bookingsPerAgent25, pack.bookingsPerYoY, { decimals: 1 })}
+        ${ovCcMetricHtml('Calls / hour', pack.callsPerHour26, null, null, { decimals: 1, hidePy: true, subNote: hoursNote })}
       </div>
       <div class="ov-cc-agents">Active agents: <b>${pack.agents26 ? pack.agents26.toFixed(pack.fromWeek === pack.toWeek ? 0 : 1) : '—'}</b>
         <span style="opacity:.7">(PY ${pack.agents25 ? pack.agents25.toFixed(pack.fromWeek === pack.toWeek ? 0 : 1) : '—'})</span>
-        · Phone calls = TalkDesk human-answered · Bookings = Phone/In-House</div>
+        · Phone calls = TalkDesk human-answered · Bookings = Phone/In-House · Calls/hour = human calls ÷ total Staff Hours</div>
     </div>`;
   };
 
@@ -2095,6 +2216,7 @@ function collectOverviewScorecardRows() {
       phoneBooked25,
       phoneBookedYoY: signedPct(phoneBooked, phoneBooked25),
       transfer: hostieTransferRateAgg(r26),
+      aiOnlyPct: aiOnlyShareOfCallsAgg(r26),
       humanConv: humanConvRateAgg(r26),
       humanConv25: humanConvRateAgg(r25),
       aiConv: sum(r26, 'callsAI') > 0 ? aiConvRateAgg(r26) : null,
@@ -2279,8 +2401,8 @@ async function exportOverviewPdf() {
     pdf.setDrawColor(37, 45, 74);
     pdf.roundedRect(m, tableTop, contentW, tableH, 2, 2, 'FD');
 
-    const locW = 26;
-    const colsPerPeriod = 5;
+    const locW = 22;
+    const colsPerPeriod = 6;
     const periodW = (contentW - locW - tableInnerPad * 2) / 3;
     const subW = periodW / colsPerPeriod;
     const tableLeft = m + tableInnerPad;
@@ -2289,7 +2411,7 @@ async function exportOverviewPdf() {
       { label: fiscalMtdHeader(D.cutoff), color: [34, 217, 142] },
       { label: `YTD · W${ANALYSIS_START_WEEK}–W${D.cutoff}`, color: [176, 110, 245] },
     ];
-    const subLabels = ['Calls vs PY', 'Booked vs PY', 'Xfer%', 'H Conv vs PY', 'AI Conv vs PY'];
+    const subLabels = ['Calls vs PY', 'Booked vs PY', 'Xfer%', 'AI-only%', 'H Conv vs PY', 'AI Conv vs PY'];
 
     let hx = tableLeft + locW;
     pdf.setFont('helvetica', 'bold');
@@ -2341,6 +2463,7 @@ async function exportOverviewPdf() {
           { main: fmt(metric.calls), sub: pdfPyVolumeSub(metric.calls25, metric.callsYoY), yoy: metric.callsYoY },
           { main: fmt(metric.phoneBooked), sub: pdfPyVolumeSub(metric.phoneBooked25, metric.phoneBookedYoY), yoy: metric.phoneBookedYoY },
           { main: metric.transfer != null ? pdfPlainConv(metric.transfer) : '—', sub: '', yoy: null, mutedSub: true },
+          { main: metric.aiOnlyPct != null ? pdfPlainConv(metric.aiOnlyPct) : '—', sub: '', yoy: null, mutedSub: true },
           { main: pdfPlainConv(metric.humanConv), sub: pdfPyConvSub(metric.humanConv25), yoy: null, mutedSub: true },
           { main: metric.aiConv != null ? pdfPlainConv(metric.aiConv) : '—', sub: pdfPyConvSub(metric.aiConv25), yoy: null, mutedSub: true },
         ];
@@ -2367,7 +2490,7 @@ async function exportOverviewPdf() {
     pdf.setFontSize(6);
     pdf.setTextColor(136, 144, 184);
     pdf.text(
-      'vs PY shows prior-year numerical value + YoY · Transfer = Hostie transferred ÷ Hostie AI · Human Conv = Phone/IH ÷ human calls · AI Conv = Phone/AI ÷ AI calls',
+      'vs PY = prior-year + YoY · Transfer = Hostie xfer ÷ Hostie AI · AI-only % = Hostie resolved (not xfer) ÷ total calls · Human/AI Conv as labeled',
       m, Math.min(y, pageH - 4)
     );
 
@@ -3480,10 +3603,33 @@ function buildCcHumanTrendTableHtml(r26, r25, weeks, to) {
 
 function callCenterSummaryHtml() {
   const { r26, r25, weeks, from, to } = callCenterLatestRows();
+  const mtdFrom = fiscalPtdFrom(to);
+  const last = aggregateAgentProdWindow(to, to);
+  const mtd = aggregateAgentProdWindow(mtdFrom, to);
+  const cphCard = (title, pack) => {
+    if (!pack) return '';
+    const hoursNote = pack.hours26 != null
+      ? `${Number(pack.hours26).toLocaleString(undefined, { maximumFractionDigits: 1 })} hrs`
+        + (pack.hoursWeeks?.length && (pack.hoursWeeks.length < (pack.toWeek - pack.fromWeek + 1))
+          ? ` (W${pack.hoursWeeks.join(', W')})`
+          : '')
+      : 'no Staff Hours yet';
+    const cph = pack.callsPerHour26 != null ? pack.callsPerHour26.toFixed(1) : '—';
+    return `<div class="ov-cc-card" style="margin:0">
+      <h3>${title}</h3>
+      <p class="ov-cc-sub">Human calls ÷ total worked hours</p>
+      <div class="ov-cc-val" style="font-size:22px">${cph}</div>
+      <div class="ov-cc-py">${hoursNote} · ${pack.callsForHours != null ? Math.round(pack.callsForHours).toLocaleString() : '—'} calls w/ hours</div>
+    </div>`;
+  };
   return `
     <div id="people-panel-cc">
       <div class="section-head">Summary — Call Center</div>
       <p class="loc-summary-note" style="margin:-4px 0 12px">Through <b>W${to}</b> (W${from}–W${to}) · refreshed with latest TalkDesk / Hostie snapshot</p>
+      <div class="ov-cc-summary" style="margin-bottom:16px">
+        ${cphCard(`Calls / hour · Last week W${to}`, last)}
+        ${cphCard(`Calls / hour · MTD ${fiscalMtdHeader(to)}`, mtd)}
+      </div>
       <div class="chart-row cols-1" style="margin-bottom:16px">
         <div class="chart-card">
           <h3>Agent productivity — calls &amp; phone bookings per agent vs PY</h3>
