@@ -75,6 +75,18 @@ select:focus,input:focus{border-color:var(--y26)}
 .chart-card h3{font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px}
 .chart-card p{font-size:11px;color:var(--muted);margin-bottom:12px}
 .chart-wrap{position:relative}
+.sankey-def-panel{margin-top:12px;padding:14px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);min-height:72px}
+.sankey-def-panel .sankey-def-hint{color:var(--muted);font-size:12px;margin:0}
+.sankey-def-panel .sankey-def-title{font-size:14px;font-weight:700;margin:0 0 6px;color:var(--text)}
+.sankey-def-panel .sankey-def-body{font-size:12px;color:var(--text);line-height:1.45;margin:0 0 8px}
+.sankey-def-panel .sankey-def-list{margin:0 0 6px;padding-left:18px;font-size:12px;color:var(--muted);line-height:1.4}
+.sankey-def-panel .sankey-def-list b{color:var(--text);font-weight:600}
+.sankey-def-panel .sankey-def-source{font-size:11px;color:var(--muted);margin:8px 0 0}
+.sankey-def-panel.is-active{border-color:rgba(61,142,248,.55);box-shadow:inset 3px 0 0 var(--y26)}
+#sankey-inbound{cursor:pointer}
+.sankey-break-row{cursor:pointer}
+.sankey-break-row:hover td{background:var(--surface2)}
+.sankey-break-row.is-selected td{background:rgba(61,142,248,.12)}
 .ov-ai-impact-table{margin-top:14px;overflow-x:auto;border-top:1px solid var(--border);padding-top:12px}
 .ov-ai-impact-table .exec-kpi-table{min-width:680px;width:100%;border-collapse:separate;border-spacing:0 6px}
 .ov-ai-impact-table .exec-kpi-table thead th{border-bottom:none;padding:6px 12px 8px}
@@ -5473,10 +5485,10 @@ function renderSankey() {
   const t = s.totals || {};
   const fmt = (n) => (n == null ? '—' : Number(n).toLocaleString());
   const fmtPct = (n) => (n == null || isNaN(n) ? '—' : Number(n).toFixed(1) + '%');
-  const rows = (s.breakdown || []).map(r => {
+  const rows = (s.breakdown || []).map((r, i) => {
     const cls = r.kind === 'human' ? 'up' : r.kind === 'no_human' ? 'dn' : '';
     const bold = r.label.includes('HUMAN TOUCHED') || r.label.startsWith('All inbound');
-    return `<tr class="${bold ? 'total-row' : ''}">
+    return `<tr class="sankey-break-row ${bold ? 'total-row' : ''}" data-sankey-def="${escHtml(r.label.trim())}" onclick="showSankeyDefinitionFromLabel(${JSON.stringify(r.label)})">
       <td style="text-align:left">${escHtml(r.label)}</td>
       <td>${fmt(r.count)}</td>
       <td class="${cls}">${fmtPct(r.pct)}</td>
@@ -5486,7 +5498,7 @@ function renderSankey() {
   el.innerHTML = `
     <div class="section-head">Sankey Diagram</div>
     <p class="loc-summary-note" style="margin:-4px 0 14px">
-      <b>${s.restaurantLabel}</b> · Last week <b>W${s.week}</b> · Goal: how many calls a <b>human</b> handled · Total = abandoned + main inbound + Back from Hostie (TalkDesk) · Hostie splits If-No-Answer
+      <b>${s.restaurantLabel}</b> · Last week <b>W${s.week}</b> · Goal: how many calls a <b>human</b> handled · Total = abandoned + main inbound + Back from Hostie (TalkDesk) · <b>Click a node, flow, or breakdown row</b> for definitions
     </p>
     <div class="ov-cc-summary" style="margin-bottom:16px;grid-template-columns:repeat(4,minmax(0,1fr))">
       <div class="ov-cc-card">
@@ -5513,8 +5525,11 @@ function renderSankey() {
     <div class="chart-row cols-1" style="margin-bottom:16px">
       <div class="chart-card">
         <h3>Call flow — ${s.restaurantLabel} W${s.week}</h3>
-        <p>MAIN: human vs AI · Of AI: only vs transferred (<b>% of AI calls</b>) · Back from Hostie: human vs no pickup · Ends in <b>HUMAN TOUCHED</b> vs <b>HUMAN did not</b>. Labels = # and % of total volume.</p>
-        <div class="chart-wrap" style="height:580px"><canvas id="sankey-inbound"></canvas></div>
+        <p>Left→right: All inbound → MAIN vs Abandoned → HUMAN vs AI → AI only vs Transfer/Back from Hostie → <b>HUMAN TOUCHED</b> vs <b>HUMAN did not</b>. Labels = # · % of total. Click any band for the rule that categorizes those calls.</p>
+        <div class="chart-wrap" style="height:480px"><canvas id="sankey-inbound"></canvas></div>
+        <div id="sankey-def-panel" class="sankey-def-panel" aria-live="polite">
+          <p class="sankey-def-hint">Click a Sankey node or flow (or a row in the breakdown) to see what it means and which calls are included.</p>
+        </div>
         <div class="stat-note" style="margin-top:10px">${(s.notes || []).map(n => escHtml(n)).join(' · ')}</div>
       </div>
     </div>
@@ -5530,6 +5545,57 @@ function renderSankey() {
 
 function escHtml(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function findSankeyDefinition(label) {
+  const defs = (D?.callSankey?.definitions?.length
+    ? D.callSankey.definitions
+    : null);
+  if (!defs?.length) return null;
+  const raw = String(label || '').split('\n')[0].replace(/^[·\s]+/, '').trim();
+  if (!raw) return null;
+  const lower = raw.toLowerCase();
+  let best = null;
+  let bestLen = -1;
+  for (const d of defs) {
+    const m = String(d.match || '').toLowerCase();
+    if (!m) continue;
+    if (lower === m || lower.startsWith(m + ' ') || lower.startsWith(m + '·') || lower.startsWith(m) || lower.includes(m)) {
+      if (m.length > bestLen) {
+        best = d;
+        bestLen = m.length;
+      }
+    }
+  }
+  return best;
+}
+
+function showSankeyDefinitionFromLabel(label) {
+  const def = findSankeyDefinition(label);
+  const panel = document.getElementById('sankey-def-panel');
+  if (!panel) return;
+  document.querySelectorAll('.sankey-break-row.is-selected').forEach(r => r.classList.remove('is-selected'));
+  if (!def) {
+    panel.classList.remove('is-active');
+    panel.innerHTML = `<p class="sankey-def-hint">No definition found for “${escHtml(String(label || '').split('\n')[0])}”.</p>`;
+    return;
+  }
+  const includes = (def.includes || []).map(x => `<li>${escHtml(x)}</li>`).join('');
+  const excludes = (def.excludes || []).map(x => `<li>${escHtml(x)}</li>`).join('');
+  panel.classList.add('is-active');
+  panel.innerHTML = `
+    <div class="sankey-def-title">${escHtml(def.title)}</div>
+    <p class="sankey-def-body">${escHtml(def.definition)}</p>
+    ${includes ? `<ul class="sankey-def-list"><b>What counts here</b>${includes}</ul>` : ''}
+    ${excludes ? `<ul class="sankey-def-list"><b>Not included</b>${excludes}</ul>` : ''}
+    ${def.source ? `<p class="sankey-def-source">Source: ${escHtml(def.source)}</p>` : ''}`;
+  // Highlight matching breakdown row(s)
+  document.querySelectorAll('.sankey-break-row').forEach(row => {
+    const key = (row.getAttribute('data-sankey-def') || '').toLowerCase();
+    const m = String(def.match || '').toLowerCase();
+    if (m && (key.includes(m) || key.startsWith(m))) row.classList.add('is-selected');
+  });
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function paintSankeyChart() {
@@ -5552,14 +5618,14 @@ function paintSankeyChart() {
     const n = String(name || '').toLowerCase();
     if (n.includes('human touched')) return '#22c55e';
     if (n.includes('human did not')) return '#ef4444';
-    if (n.includes('all inbound') || n.includes('activity')) return '#3d8ef8';
-    if (n.includes('abandoned') || n.includes('left in') || n.includes('left while') || n.includes('pre-connect')) return '#f87171';
-    if (n.includes('human answered')) return '#34d399';
-    if (n.includes('still if-no-answer') || n.includes('no pickup') || n.includes('if-no-answer') || n.includes('ai /')) return '#b06ef5';
-    if (n.includes('ai only') || n.includes('never human')) return '#a78bfa';
-    if (n.includes('back from') || n.includes('transferred to cc') || n.includes('transfer')) return '#f59e0b';
-    if (n.includes('main line')) return '#61a0ff';
-    if (n.includes('unmatched') || n.includes('empty') || n.includes('other')) return '#8890b8';
+    if (n.startsWith('all inbound')) return '#3d8ef8';
+    if (n.startsWith('abandoned') || n.includes('left in') || n.includes('left waiting') || n.startsWith('disconnected')) return '#f87171';
+    if (n.includes('human (main)') || n.includes('human (transfer)')) return '#34d399';
+    if (n.includes('no pickup') || n.includes('if-no-answer') || n.startsWith('ai /')) return '#b06ef5';
+    if (n.includes('ai only')) return '#a78bfa';
+    if (n.includes('transfer') || n.includes('back from')) return '#f59e0b';
+    if (n.startsWith('main')) return '#61a0ff';
+    if (n.includes('empty')) return '#8890b8';
     return '#7b8cff';
   };
 
@@ -5572,23 +5638,74 @@ function paintSankeyChart() {
           data: s.links.map(l => ({ from: l.from, to: l.to, flow: l.flow })),
           colorFrom: (c) => colorFor(c.dataset.data[c.dataIndex]?.from),
           colorTo: (c) => colorFor(c.dataset.data[c.dataIndex]?.to),
+          priority: s.priority || {},
           borderWidth: 0,
-          font: { size: 10, weight: '600' },
-          color: '#c8cde0',
+          font: { size: 10, weight: '600', family: 'ui-sans-serif, system-ui, sans-serif' },
+          color: '#e8ecf8',
+          size: 'max',
         }],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        onClick(evt, elements, chart) {
+          // Prefer clicked flow's "to" node; fall back to "from"
+          if (elements && elements.length) {
+            const el0 = elements[0];
+            const raw = el0.element?.$context?.raw
+              || el0.element?.parsed
+              || chart.data.datasets[el0.datasetIndex]?.data?.[el0.index];
+            if (raw?.to) {
+              showSankeyDefinitionFromLabel(raw.to);
+              return;
+            }
+            if (raw?.from) {
+              showSankeyDefinitionFromLabel(raw.from);
+              return;
+            }
+          }
+          // Node hit-test: chartjs-chart-sankey stores node boxes on chart.$sankey / _nodes
+          const sankey = chart.$sankey || chart._sankey;
+          const nodes = sankey?.nodes || sankey?._nodes;
+          if (nodes && evt) {
+            const rect = chart.canvas.getBoundingClientRect();
+            const x = (evt.native?.clientX ?? evt.x) - (evt.native ? rect.left : 0);
+            const y = (evt.native?.clientY ?? evt.y) - (evt.native ? rect.top : 0);
+            const scaleX = chart.canvas.width / rect.width;
+            const scaleY = chart.canvas.height / rect.height;
+            const px = (evt.native ? (evt.native.clientX - rect.left) * scaleX : x);
+            const py = (evt.native ? (evt.native.clientY - rect.top) * scaleY : y);
+            let hit = null;
+            const entries = nodes instanceof Map ? [...nodes.entries()] : Object.entries(nodes);
+            for (const [key, node] of entries) {
+              const nx = node.x ?? node._x;
+              const ny = node.y ?? node._y;
+              const nw = node.width ?? node._width ?? 10;
+              const nh = node.height ?? node._height ?? 0;
+              if (nx == null || ny == null) continue;
+              if (px >= nx && px <= nx + nw && py >= ny && py <= ny + nh) {
+                hit = key;
+                break;
+              }
+            }
+            if (hit) {
+              showSankeyDefinitionFromLabel(hit);
+              return;
+            }
+          }
+        },
         plugins: {
           legend: { display: false },
           datalabels: { display: false },
           tooltip: {
             callbacks: {
+              title() { return ''; },
               label(ctx) {
                 const d = ctx.raw || ctx.dataset.data[ctx.dataIndex];
                 if (!d) return '';
-                return ` ${d.from} → ${d.to}: ${Number(d.flow).toLocaleString()}`;
+                const from = String(d.from).split('\n')[0];
+                const to = String(d.to).split('\n')[0];
+                return ` ${from} → ${to}: ${Number(d.flow).toLocaleString()}  (click for definition)`;
               },
             },
           },
