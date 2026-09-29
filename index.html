@@ -5596,13 +5596,13 @@ function renderSankey() {
       <span class="sankey-data-hint">${escHtml(dataHint)}</span>
     </div>
     <p class="loc-summary-note" style="margin:-4px 0 14px">
-      <b>${escHtml(s.restaurantLabel)}</b> · <b>W${s.week}</b> · Goal: how many calls a <b>human</b> handled · Total = abandoned + main + Back from Hostie · <b>Click</b> a node/flow/row for definitions
+      <b>${escHtml(s.restaurantLabel)}</b> · <b>W${s.week}</b> · Unique calls only (same customer phone, ≤2 min between legs = one call; outcome = <b>last</b> leg) · Did they get a <b>human</b> at the end? · <b>Click</b> for definitions
     </p>
     <div class="ov-cc-summary" style="margin-bottom:16px;grid-template-columns:repeat(4,minmax(0,1fr))">
       <div class="ov-cc-card">
-        <div class="ov-cc-label">Total inbound volume</div>
+        <div class="ov-cc-label">Unique inbound calls</div>
         <div class="ov-cc-val">${fmt(s.totalVolume)}</div>
-        <div class="ov-cc-py">Abandoned + main + Back from Hostie</div>
+        <div class="ov-cc-py">Unique sessions (not raw TalkDesk legs)</div>
       </div>
       <div class="ov-cc-card">
         <div class="ov-cc-label">HUMAN TOUCHED this call</div>
