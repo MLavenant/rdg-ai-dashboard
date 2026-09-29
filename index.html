@@ -5495,26 +5495,26 @@ function renderSankey() {
         <div class="ov-cc-py">Abandoned + main + Back from Hostie</div>
       </div>
       <div class="ov-cc-card">
-        <div class="ov-cc-label">HUMAN touched</div>
+        <div class="ov-cc-label">HUMAN TOUCHED this call</div>
         <div class="ov-cc-val" style="color:var(--green)">${fmt(s.humanTouched)}</div>
         <div class="ov-cc-py"><b class="up">${fmtPct(s.humanTouchedPct)}</b> of total · main ${fmt(t.humanMain)} + xfer ${fmt(t.humanBack)}</div>
       </div>
       <div class="ov-cc-card">
-        <div class="ov-cc-label">If-No-Answer (main)</div>
-        <div class="ov-cc-val">${fmt(t.aiMain)}</div>
-        <div class="ov-cc-py">${fmtPct(s.totalVolume > 0 ? (t.aiMain / s.totalVolume) * 100 : null)} · no human on main</div>
+        <div class="ov-cc-label">HUMAN did not</div>
+        <div class="ov-cc-val" style="color:var(--red)">${fmt(s.humanDidNot)}</div>
+        <div class="ov-cc-py"><b class="dn">${fmtPct(s.humanDidNotPct)}</b> of total</div>
       </div>
       <div class="ov-cc-card">
-        <div class="ov-cc-label">Transfer · still no pickup</div>
-        <div class="ov-cc-val">${fmt(t.noPickupBack)}</div>
-        <div class="ov-cc-py">${fmtPct(s.totalVolume > 0 ? (t.noPickupBack / s.totalVolume) * 100 : null)} · Back from Hostie If-No-Answer</div>
+        <div class="ov-cc-label">AI calls transferred</div>
+        <div class="ov-cc-val">${fmtPct(s.aiTransferPctOfAi ?? t.aiTransferPctOfAi)}</div>
+        <div class="ov-cc-py">${fmt(t.hostieTransferred)} / ${fmt(t.aiMain)} If-No-Answer · AI only ${fmtPct(t.aiOnlyPctOfAi)} of AI</div>
       </div>
     </div>
     <div class="chart-row cols-1" style="margin-bottom:16px">
       <div class="chart-card">
         <h3>Call flow — ${s.restaurantLabel} W${s.week}</h3>
-        <p>All inbound → abandoned (IVR / waiting / disconnected) · main (human vs If-No-Answer) · Back from Hostie (human vs still no answer). Labels show <b>#</b> and <b>% of total</b>.</p>
-        <div class="chart-wrap" style="height:560px"><canvas id="sankey-inbound"></canvas></div>
+        <p>MAIN: human vs AI · Of AI: only vs transferred (<b>% of AI calls</b>) · Back from Hostie: human vs no pickup · Ends in <b>HUMAN TOUCHED</b> vs <b>HUMAN did not</b>. Labels = # and % of total volume.</p>
+        <div class="chart-wrap" style="height:580px"><canvas id="sankey-inbound"></canvas></div>
         <div class="stat-note" style="margin-top:10px">${(s.notes || []).map(n => escHtml(n)).join(' · ')}</div>
       </div>
     </div>
@@ -5550,12 +5550,14 @@ function paintSankeyChart() {
 
   const colorFor = (name) => {
     const n = String(name || '').toLowerCase();
+    if (n.includes('human touched')) return '#22c55e';
+    if (n.includes('human did not')) return '#ef4444';
     if (n.includes('all inbound') || n.includes('activity')) return '#3d8ef8';
     if (n.includes('abandoned') || n.includes('left in') || n.includes('left while') || n.includes('pre-connect')) return '#f87171';
-    if (n.includes('human')) return '#34d399';
-    if (n.includes('still if-no-answer') || n.includes('no pickup') || n.includes('if-no-answer')) return '#b06ef5';
+    if (n.includes('human answered')) return '#34d399';
+    if (n.includes('still if-no-answer') || n.includes('no pickup') || n.includes('if-no-answer') || n.includes('ai /')) return '#b06ef5';
     if (n.includes('ai only') || n.includes('never human')) return '#a78bfa';
-    if (n.includes('back from') || n.includes('hostie marked') || n.includes('transfer')) return '#f59e0b';
+    if (n.includes('back from') || n.includes('transferred to cc') || n.includes('transfer')) return '#f59e0b';
     if (n.includes('main line')) return '#61a0ff';
     if (n.includes('unmatched') || n.includes('empty') || n.includes('other')) return '#8890b8';
     return '#7b8cff';
