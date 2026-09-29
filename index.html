@@ -87,6 +87,12 @@ select:focus,input:focus{border-color:var(--y26)}
 .sankey-break-row{cursor:pointer}
 .sankey-break-row:hover td{background:var(--surface2)}
 .sankey-break-row.is-selected td{background:rgba(61,142,248,.12)}
+.sankey-controls{display:flex;flex-wrap:wrap;gap:14px 20px;align-items:center;margin:0 0 16px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}
+.sankey-controls .filter-group{gap:8px}
+.sankey-controls select{min-width:140px}
+.sankey-controls .sankey-data-hint{color:var(--muted);font-size:12px;margin-left:auto}
+.sankey-chart-wrap{position:relative;height:720px;padding:8px 4px 12px}
+@media (max-width:900px){.sankey-chart-wrap{height:560px}}
 .ov-ai-impact-table{margin-top:14px;overflow-x:auto;border-top:1px solid var(--border);padding-top:12px}
 .ov-ai-impact-table .exec-kpi-table{min-width:680px;width:100%;border-collapse:separate;border-spacing:0 6px}
 .ov-ai-impact-table .exec-kpi-table thead th{border-bottom:none;padding:6px 12px 8px}
@@ -5473,19 +5479,101 @@ function showTab(name) {
 // ═══════════════════════════════════════════════════════════════
 //  SANKEY DIAGRAM TAB
 // ═══════════════════════════════════════════════════════════════
+let SANKEY_SEL = { restaurantId: 'mila', week: 39 };
+
+function getSankeyCatalog() {
+  const cat = D?.callSankey;
+  if (!cat || cat.ok === false) return null;
+  // Legacy single-chart payload → wrap
+  if (cat.links && !cat.charts) {
+    const key = `${cat.restaurantId}:${cat.week}`;
+    return {
+      ok: true,
+      year: cat.year || 2026,
+      defaultWeek: cat.week,
+      defaultRestaurantId: cat.restaurantId,
+      restaurants: (D.restaurants || []).map(r => ({ id: r.id, label: r.label })),
+      weeksWithData: [cat.week],
+      weeks: Array.from({ length: 52 }, (_, i) => 52 - i),
+      charts: { [key]: cat },
+    };
+  }
+  return cat;
+}
+
+function getActiveSankey() {
+  const cat = getSankeyCatalog();
+  if (!cat) return null;
+  const key = `${SANKEY_SEL.restaurantId}:${SANKEY_SEL.week}`;
+  return cat.charts?.[key] || null;
+}
+
+function onSankeyFilterChange() {
+  const loc = document.getElementById('sankey-loc');
+  const wk = document.getElementById('sankey-week');
+  if (loc) SANKEY_SEL.restaurantId = loc.value;
+  if (wk) SANKEY_SEL.week = +wk.value;
+  renderSankey();
+}
+
 function renderSankey() {
   const el = document.getElementById('page-sankey');
   if (!el || !D) return;
-  const s = D.callSankey;
-  if (!s || s.ok === false) {
+  const cat = getSankeyCatalog();
+  if (!cat) {
+    const err = D.callSankey?.error || 're-export compare to build call-flow data';
     el.innerHTML = `<div class="section-head">Sankey Diagram</div>
-      <div class="table-card"><p class="loc-summary-note" style="margin:0">Sankey data not available yet — ${s?.error || 're-export compare to build last-week flow'}.</p></div>`;
+      <div class="table-card"><p class="loc-summary-note" style="margin:0">Sankey data not available yet — ${escHtml(err)}.</p></div>`;
     return;
   }
+
+  if (!SANKEY_SEL._init) {
+    SANKEY_SEL.restaurantId = cat.defaultRestaurantId || 'mila';
+    SANKEY_SEL.week = cat.defaultWeek || D.cutoff || 39;
+    SANKEY_SEL._init = true;
+  }
+
+  const weeksWithData = new Set(cat.weeksWithData || []);
+  const restaurants = cat.restaurants?.length
+    ? cat.restaurants
+    : (D.restaurants || []).map(r => ({ id: r.id, label: r.label }));
+  const weeks = cat.weeks?.length ? cat.weeks : Array.from({ length: 52 }, (_, i) => 52 - i);
+
+  const locOpts = restaurants.map(r =>
+    `<option value="${escHtml(r.id)}" ${r.id === SANKEY_SEL.restaurantId ? 'selected' : ''}>${escHtml(r.label)}</option>`
+  ).join('');
+  const weekOpts = weeks.map(w => {
+    const has = weeksWithData.has(w);
+    const mark = has ? '' : ' — no data';
+    return `<option value="${w}" ${w === SANKEY_SEL.week ? 'selected' : ''}${has ? '' : ''}>W${w}${mark}</option>`;
+  }).join('');
+
+  const s = getActiveSankey();
+  const dataHint = weeksWithData.size
+    ? `Data available: ${[...weeksWithData].sort((a,b)=>b-a).map(w => 'W' + w).join(', ')}`
+    : 'No weeks with data yet';
+
+  if (!s || s.ok === false) {
+    el.innerHTML = `
+      <div class="section-head">Sankey Diagram</div>
+      <div class="sankey-controls">
+        <div class="filter-group"><span class="filter-label">Location</span>
+          <select id="sankey-loc" onchange="onSankeyFilterChange()">${locOpts}</select></div>
+        <div class="filter-group"><span class="filter-label">Week</span>
+          <select id="sankey-week" onchange="onSankeyFilterChange()">${weekOpts}</select></div>
+        <span class="sankey-data-hint">${escHtml(dataHint)}</span>
+      </div>
+      <div class="table-card"><p class="loc-summary-note" style="margin:0">
+        No call-flow data for <b>${escHtml(restaurants.find(r=>r.id===SANKEY_SEL.restaurantId)?.label || SANKEY_SEL.restaurantId)}</b> · <b>W${SANKEY_SEL.week}</b>.
+        Pick a week marked with data (${escHtml(dataHint)}).
+      </p></div>`;
+    return;
+  }
+
   const t = s.totals || {};
   const fmt = (n) => (n == null ? '—' : Number(n).toLocaleString());
   const fmtPct = (n) => (n == null || isNaN(n) ? '—' : Number(n).toFixed(1) + '%');
-  const rows = (s.breakdown || []).map((r, i) => {
+  const rows = (s.breakdown || []).map((r) => {
     const cls = r.kind === 'human' ? 'up' : r.kind === 'no_human' ? 'dn' : '';
     const bold = r.label.includes('HUMAN TOUCHED') || r.label.startsWith('All inbound');
     return `<tr class="sankey-break-row ${bold ? 'total-row' : ''}" data-sankey-def="${escHtml(r.label.trim())}" onclick="showSankeyDefinitionFromLabel(${JSON.stringify(r.label)})">
@@ -5497,8 +5585,15 @@ function renderSankey() {
 
   el.innerHTML = `
     <div class="section-head">Sankey Diagram</div>
+    <div class="sankey-controls">
+      <div class="filter-group"><span class="filter-label">Location</span>
+        <select id="sankey-loc" onchange="onSankeyFilterChange()">${locOpts}</select></div>
+      <div class="filter-group"><span class="filter-label">Week</span>
+        <select id="sankey-week" onchange="onSankeyFilterChange()">${weekOpts}</select></div>
+      <span class="sankey-data-hint">${escHtml(dataHint)}</span>
+    </div>
     <p class="loc-summary-note" style="margin:-4px 0 14px">
-      <b>${s.restaurantLabel}</b> · Last week <b>W${s.week}</b> · Goal: how many calls a <b>human</b> handled · Total = abandoned + main inbound + Back from Hostie (TalkDesk) · <b>Click a node, flow, or breakdown row</b> for definitions
+      <b>${escHtml(s.restaurantLabel)}</b> · <b>W${s.week}</b> · Goal: how many calls a <b>human</b> handled · Total = abandoned + main + Back from Hostie · <b>Click</b> a node/flow/row for definitions
     </p>
     <div class="ov-cc-summary" style="margin-bottom:16px;grid-template-columns:repeat(4,minmax(0,1fr))">
       <div class="ov-cc-card">
@@ -5524,9 +5619,9 @@ function renderSankey() {
     </div>
     <div class="chart-row cols-1" style="margin-bottom:16px">
       <div class="chart-card">
-        <h3>Call flow — ${s.restaurantLabel} W${s.week}</h3>
-        <p>Left→right: All inbound → MAIN vs Abandoned → HUMAN vs AI → transfer answered / no pickup / AI only → <b>HUMAN TOUCHED</b> (top) vs <b>HUMAN did not</b> (bottom). Labels = # · % of total. Click any band for the rule that categorizes those calls.</p>
-        <div class="chart-wrap" style="height:480px"><canvas id="sankey-inbound"></canvas></div>
+        <h3>Call flow — ${escHtml(s.restaurantLabel)} W${s.week}</h3>
+        <p>Left→right: All inbound → MAIN vs Abandoned → HUMAN vs AI → transfer answered / no pickup / AI only → <b>HUMAN TOUCHED</b> (top) vs <b>HUMAN did not</b> (bottom). Labels = # · % of total.</p>
+        <div class="chart-wrap sankey-chart-wrap"><canvas id="sankey-inbound"></canvas></div>
         <div id="sankey-def-panel" class="sankey-def-panel" aria-live="polite">
           <p class="sankey-def-hint">Click a Sankey node or flow (or a row in the breakdown) to see what it means and which calls are included.</p>
         </div>
@@ -5548,9 +5643,8 @@ function escHtml(s) {
 }
 
 function findSankeyDefinition(label) {
-  const defs = (D?.callSankey?.definitions?.length
-    ? D.callSankey.definitions
-    : null);
+  const s = getActiveSankey();
+  const defs = s?.definitions?.length ? s.definitions : null;
   if (!defs?.length) return null;
   const raw = String(label || '').split('\n')[0].replace(/^[·\s]+/, '').trim();
   if (!raw) return null;
@@ -5589,7 +5683,6 @@ function showSankeyDefinitionFromLabel(label) {
     ${includes ? `<ul class="sankey-def-list"><b>What counts here</b>${includes}</ul>` : ''}
     ${excludes ? `<ul class="sankey-def-list"><b>Not included</b>${excludes}</ul>` : ''}
     ${def.source ? `<p class="sankey-def-source">Source: ${escHtml(def.source)}</p>` : ''}`;
-  // Highlight matching breakdown row(s)
   document.querySelectorAll('.sankey-break-row').forEach(row => {
     const key = (row.getAttribute('data-sankey-def') || '').toLowerCase();
     const m = String(def.match || '').toLowerCase();
@@ -5600,7 +5693,7 @@ function showSankeyDefinitionFromLabel(label) {
 
 function paintSankeyChart() {
   const canvas = document.getElementById('sankey-inbound');
-  const s = D?.callSankey;
+  const s = getActiveSankey();
   if (!canvas || !s?.ok || !Array.isArray(s.links) || !s.links.length) return;
   if (typeof Chart === 'undefined' || !Chart.registry?.getController?.('sankey')) {
     try {
@@ -5641,58 +5734,25 @@ function paintSankeyChart() {
           priority: s.priority || {},
           column: s.column || {},
           borderWidth: 0,
-          font: { size: 10, weight: '600', family: 'ui-sans-serif, system-ui, sans-serif' },
+          nodeWidth: 14,
+          font: { size: 11, weight: '600', family: 'ui-sans-serif, system-ui, sans-serif' },
           color: '#e8ecf8',
           size: 'max',
+          padding: 16,
         }],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        layout: { padding: { top: 28, bottom: 28, left: 12, right: 160 } },
         onClick(evt, elements, chart) {
-          // Prefer clicked flow's "to" node; fall back to "from"
           if (elements && elements.length) {
             const el0 = elements[0];
             const raw = el0.element?.$context?.raw
               || el0.element?.parsed
               || chart.data.datasets[el0.datasetIndex]?.data?.[el0.index];
-            if (raw?.to) {
-              showSankeyDefinitionFromLabel(raw.to);
-              return;
-            }
-            if (raw?.from) {
-              showSankeyDefinitionFromLabel(raw.from);
-              return;
-            }
-          }
-          // Node hit-test: chartjs-chart-sankey stores node boxes on chart.$sankey / _nodes
-          const sankey = chart.$sankey || chart._sankey;
-          const nodes = sankey?.nodes || sankey?._nodes;
-          if (nodes && evt) {
-            const rect = chart.canvas.getBoundingClientRect();
-            const x = (evt.native?.clientX ?? evt.x) - (evt.native ? rect.left : 0);
-            const y = (evt.native?.clientY ?? evt.y) - (evt.native ? rect.top : 0);
-            const scaleX = chart.canvas.width / rect.width;
-            const scaleY = chart.canvas.height / rect.height;
-            const px = (evt.native ? (evt.native.clientX - rect.left) * scaleX : x);
-            const py = (evt.native ? (evt.native.clientY - rect.top) * scaleY : y);
-            let hit = null;
-            const entries = nodes instanceof Map ? [...nodes.entries()] : Object.entries(nodes);
-            for (const [key, node] of entries) {
-              const nx = node.x ?? node._x;
-              const ny = node.y ?? node._y;
-              const nw = node.width ?? node._width ?? 10;
-              const nh = node.height ?? node._height ?? 0;
-              if (nx == null || ny == null) continue;
-              if (px >= nx && px <= nx + nw && py >= ny && py <= ny + nh) {
-                hit = key;
-                break;
-              }
-            }
-            if (hit) {
-              showSankeyDefinitionFromLabel(hit);
-              return;
-            }
+            if (raw?.to) { showSankeyDefinitionFromLabel(raw.to); return; }
+            if (raw?.from) { showSankeyDefinitionFromLabel(raw.from); return; }
           }
         },
         plugins: {
@@ -5717,7 +5777,7 @@ function paintSankeyChart() {
     console.error('Sankey chart failed', e);
     const wrap = canvas.parentElement;
     if (wrap) {
-      wrap.innerHTML = `<p class="loc-summary-note">Could not render Sankey chart (${e.message}). Links: ${s.links.map(l => `${l.from}→${l.to}:${l.flow}`).join(' · ')}</p>`;
+      wrap.innerHTML = `<p class="loc-summary-note">Could not render Sankey chart (${e.message}).</p>`;
     }
   }
 }
