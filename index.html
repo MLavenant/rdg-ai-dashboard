@@ -5736,6 +5736,11 @@ function paintSankeyChart() {
           colorTo: (c) => colorFor(c.dataset.data[c.dataIndex]?.to),
           priority: s.priority || {},
           column: s.column || {},
+          labels: Object.fromEntries(
+            [...new Set((s.links || []).flatMap(l => [l.from, l.to]))]
+              .filter(k => /abandoned\s*·\s*end/i.test(String(k)))
+              .map(k => [k, String(k).replace(/\s*·\s*end/i, '')])
+          ),
           borderWidth: 0,
           nodeWidth: 14,
           font: { size: 11, weight: '600', family: 'ui-sans-serif, system-ui, sans-serif' },

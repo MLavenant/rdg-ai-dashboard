@@ -261,7 +261,7 @@ function calculateYUsingPriority(nodeArray, maxX) {
     nextYStart = nodes.length ? nodes[0].to.filter(to => to.node.x > x + 1).reduce((acc, cur) => acc + cur.flow, 0) || 0 : 0;
     // Extra vertical gap between sibling nodes so ribbons don't pack tight / overlap labels.
     const sizes = nodes.map(n => Math.max(n.in || 0, n.out || 0));
-    const gap = sizes.length ? Math.max(...sizes, 1) * 0.08 : 0;
+    const gap = sizes.length ? Math.max(...sizes, 1) * 0.12 : 0;
     for (const node of nodes) {
       node.y = y;
       y += Math.max(node.out, node.in) + gap;
