@@ -5525,7 +5525,7 @@ function renderSankey() {
     <div class="chart-row cols-1" style="margin-bottom:16px">
       <div class="chart-card">
         <h3>Call flow — ${s.restaurantLabel} W${s.week}</h3>
-        <p>Left→right: All inbound → MAIN vs Abandoned → HUMAN vs AI → AI only vs Transfer/Back from Hostie → <b>HUMAN TOUCHED</b> vs <b>HUMAN did not</b>. Labels = # · % of total. Click any band for the rule that categorizes those calls.</p>
+        <p>Left→right: All inbound → MAIN vs Abandoned → HUMAN vs AI → transfer answered / no pickup / AI only → <b>HUMAN TOUCHED</b> (top) vs <b>HUMAN did not</b> (bottom). Labels = # · % of total. Click any band for the rule that categorizes those calls.</p>
         <div class="chart-wrap" style="height:480px"><canvas id="sankey-inbound"></canvas></div>
         <div id="sankey-def-panel" class="sankey-def-panel" aria-live="polite">
           <p class="sankey-def-hint">Click a Sankey node or flow (or a row in the breakdown) to see what it means and which calls are included.</p>
@@ -5639,6 +5639,7 @@ function paintSankeyChart() {
           colorFrom: (c) => colorFor(c.dataset.data[c.dataIndex]?.from),
           colorTo: (c) => colorFor(c.dataset.data[c.dataIndex]?.to),
           priority: s.priority || {},
+          column: s.column || {},
           borderWidth: 0,
           font: { size: 10, weight: '600', family: 'ui-sans-serif, system-ui, sans-serif' },
           color: '#e8ecf8',
