@@ -5529,7 +5529,10 @@ function renderSankey() {
 
   if (!SANKEY_SEL._init) {
     SANKEY_SEL.restaurantId = cat.defaultRestaurantId || 'mila';
-    SANKEY_SEL.week = cat.defaultWeek || D.cutoff || 39;
+    const prefer = D.cutoff;
+    SANKEY_SEL.week = (cat.weeksWithData || []).includes(prefer)
+      ? prefer
+      : (cat.defaultWeek || prefer || 39);
     SANKEY_SEL._init = true;
   }
 
