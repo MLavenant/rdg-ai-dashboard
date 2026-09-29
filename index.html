@@ -7,7 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-sankey@0.12.1/dist/chartjs-chart-sankey.min.js"></script>
+<script src="vendor/chartjs-chart-sankey.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
@@ -91,8 +91,8 @@ select:focus,input:focus{border-color:var(--y26)}
 .sankey-controls .filter-group{gap:8px}
 .sankey-controls select{min-width:140px}
 .sankey-controls .sankey-data-hint{color:var(--muted);font-size:12px;margin-left:auto}
-.sankey-chart-wrap{position:relative;height:720px;padding:8px 4px 12px}
-@media (max-width:900px){.sankey-chart-wrap{height:560px}}
+.sankey-chart-wrap{position:relative;height:920px;padding:16px 8px 20px}
+@media (max-width:900px){.sankey-chart-wrap{height:680px}}
 .ov-ai-impact-table{margin-top:14px;overflow-x:auto;border-top:1px solid var(--border);padding-top:12px}
 .ov-ai-impact-table .exec-kpi-table{min-width:680px;width:100%;border-collapse:separate;border-spacing:0 6px}
 .ov-ai-impact-table .exec-kpi-table thead th{border-bottom:none;padding:6px 12px 8px}
@@ -5747,7 +5747,7 @@ function paintSankeyChart() {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        layout: { padding: { top: 28, bottom: 28, left: 12, right: 160 } },
+        layout: { padding: { top: 40, bottom: 40, left: 16, right: 180 } },
         onClick(evt, elements, chart) {
           if (elements && elements.length) {
             const el0 = elements[0];
