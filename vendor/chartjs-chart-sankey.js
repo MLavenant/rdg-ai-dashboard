@@ -261,7 +261,7 @@ function calculateYUsingPriority(nodeArray, maxX) {
     nextYStart = nodes.length ? nodes[0].to.filter(to => to.node.x > x + 1).reduce((acc, cur) => acc + cur.flow, 0) || 0 : 0;
     // Extra vertical gap between sibling nodes so ribbons don't pack tight / overlap labels.
     const sizes = nodes.map(n => Math.max(n.in || 0, n.out || 0));
-    const gap = sizes.length ? Math.max(...sizes, 1) * 0.18 : 0;
+    const gap = sizes.length ? Math.max(...sizes, 1) * 0.08 : 0;
     for (const node of nodes) {
       node.y = y;
       y += Math.max(node.out, node.in) + gap;
@@ -351,7 +351,7 @@ function layout(nodes, data, priority, size) {
   const nodeArray = [...nodes.values()];
   const maxX = calculateX(nodes, data);
   const maxY = priority ? calculateYUsingPriority(nodeArray, maxX) : calculateY(nodeArray, maxX);
-  const padding = maxY * 0.10; // rows — more air between curves/labels
+  const padding = maxY * 0.06; // rows — modest air between curves
   const maxYWithPadding = addPadding(nodeArray, padding);
   sortFlows(nodeArray, size);
   return {maxX, maxY: maxYWithPadding};
