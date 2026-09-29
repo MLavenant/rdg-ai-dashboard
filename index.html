@@ -5467,42 +5467,65 @@ function renderSankey() {
   const s = D.callSankey;
   if (!s || s.ok === false) {
     el.innerHTML = `<div class="section-head">Sankey Diagram</div>
-      <div class="table-card"><p class="loc-summary-note" style="margin:0">Sankey data not available yet — ${s?.error || 're-export compare to build MILA last-week inbound flow'}.</p></div>`;
+      <div class="table-card"><p class="loc-summary-note" style="margin:0">Sankey data not available yet — ${s?.error || 're-export compare to build last-week flow'}.</p></div>`;
     return;
   }
+  const t = s.totals || {};
   const fmt = (n) => (n == null ? '—' : Number(n).toLocaleString());
   el.innerHTML = `
     <div class="section-head">Sankey Diagram</div>
     <p class="loc-summary-note" style="margin:-4px 0 14px">
-      <b>${s.restaurantLabel}</b> · Last week <b>W${s.week}</b> · TalkDesk <b>inbound main lines only</b> + Hostie phone split
+      <b>${s.restaurantLabel}</b> · Last week <b>W${s.week}</b> · Guest dials (main inbound + abandoned) + Back-from-Hostie (AI → Call Center) + Hostie phone split
     </p>
+    <div class="ov-cc-summary" style="margin-bottom:12px;grid-template-columns:repeat(4,minmax(0,1fr))">
+      <div class="ov-cc-card">
+        <div class="ov-cc-label">Guest dials (main)</div>
+        <div class="ov-cc-val">${fmt(t.guestAttempts)}</div>
+        <div class="ov-cc-py">Inbound ${fmt(t.inboundMain)} + abandoned ${fmt(t.abandoned)}</div>
+      </div>
+      <div class="ov-cc-card">
+        <div class="ov-cc-label">Human (main)</div>
+        <div class="ov-cc-val">${fmt(t.humanMain)}</div>
+        <div class="ov-cc-py">Named agent picked up</div>
+      </div>
+      <div class="ov-cc-card">
+        <div class="ov-cc-label">AI path (If-No-Answer)</div>
+        <div class="ov-cc-val">${fmt(t.aiMain)}</div>
+        <div class="ov-cc-py">No human on main · Hostie path</div>
+      </div>
+      <div class="ov-cc-card">
+        <div class="ov-cc-label">Abandoned leave</div>
+        <div class="ov-cc-val">${fmt(t.abandoned)}</div>
+        <div class="ov-cc-py">IVR ${fmt(t.abandonedIvr)} · wait ${fmt(t.abandonedWaiting)} · disc. ${fmt(t.abandonedDisconnected)}</div>
+      </div>
+    </div>
     <div class="ov-cc-summary" style="margin-bottom:16px;grid-template-columns:repeat(4,minmax(0,1fr))">
       <div class="ov-cc-card">
-        <div class="ov-cc-label">Total inbound (main)</div>
-        <div class="ov-cc-val">${fmt(s.totalInboundMain)}</div>
-        <div class="ov-cc-py">TalkDesk · excludes Back from Hostie</div>
+        <div class="ov-cc-label">AI only</div>
+        <div class="ov-cc-val">${fmt(t.aiOnly)}</div>
+        <div class="ov-cc-py">Hostie phone − xfer (${fmt(t.hostiePhoneCalls)} − ${fmt(t.hostieTransferred)})</div>
       </div>
       <div class="ov-cc-card">
-        <div class="ov-cc-label">→ AI</div>
-        <div class="ov-cc-val">${fmt(s.toAi)}</div>
-        <div class="ov-cc-py">If-No-Answer Agent</div>
+        <div class="ov-cc-label">Back from Hostie</div>
+        <div class="ov-cc-val">${fmt(t.inboundBack)}</div>
+        <div class="ov-cc-py">AI calling Call Center</div>
       </div>
       <div class="ov-cc-card">
-        <div class="ov-cc-label">→ Call Center direct</div>
-        <div class="ov-cc-val">${fmt(s.toCallCenterDirect)}</div>
-        <div class="ov-cc-py">Human agent on main line</div>
+        <div class="ov-cc-label">Transfer answered</div>
+        <div class="ov-cc-val">${fmt(t.humanBack)}</div>
+        <div class="ov-cc-py">Human on Back-from-Hostie</div>
       </div>
       <div class="ov-cc-card">
-        <div class="ov-cc-label">AI only (no human)</div>
-        <div class="ov-cc-val">${fmt(s.aiOnly)}</div>
-        <div class="ov-cc-py">Hostie phone − transferred (${fmt(s.hostiePhoneCalls)} − ${fmt(s.hostieTransferred)})</div>
+        <div class="ov-cc-label">Transfer no pickup</div>
+        <div class="ov-cc-val">${fmt(t.noPickupBack)}</div>
+        <div class="ov-cc-py">If-No-Answer on Back-from-Hostie</div>
       </div>
     </div>
     <div class="chart-row cols-1">
       <div class="chart-card">
-        <h3>Inbound call flow — ${s.restaurantLabel} W${s.week}</h3>
-        <p>Left: all main-line inbound · Middle: AI vs Call Center · Right: AI-only vs transferred to Call Center</p>
-        <div class="chart-wrap" style="height:420px"><canvas id="sankey-inbound"></canvas></div>
+        <h3>Detailed call flow — ${s.restaurantLabel} W${s.week}</h3>
+        <p>Guest dials → abandoned (IVR / waiting / disconnected) or connected → human vs AI path → Hostie AI-only / transfer · plus Back-from-Hostie pickup vs no-pickup</p>
+        <div class="chart-wrap" style="height:520px"><canvas id="sankey-inbound"></canvas></div>
         <div class="stat-note" style="margin-top:10px">${(s.notes || []).map(n => escHtml(n)).join(' · ')}</div>
       </div>
     </div>`;
@@ -5518,7 +5541,6 @@ function paintSankeyChart() {
   const s = D?.callSankey;
   if (!canvas || !s?.ok || !Array.isArray(s.links) || !s.links.length) return;
   if (typeof Chart === 'undefined' || !Chart.registry?.getController?.('sankey')) {
-    // Plugin may expose differently — try registering if global present
     try {
       if (window.ChartSankey) {
         Chart.register(window.ChartSankey.SankeyController, window.ChartSankey.Flow);
@@ -5532,13 +5554,15 @@ function paintSankeyChart() {
 
   const colorFor = (name) => {
     const n = String(name || '').toLowerCase();
-    if (n.includes('total')) return '#3d8ef8';
+    if (n.includes('guest') || n.includes('activity')) return '#3d8ef8';
+    if (n.includes('abandoned') || n.includes('left in') || n.includes('left while') || n.includes('pre-connect')) return '#f87171';
     if (n.includes('ai only')) return '#a78bfa';
-    if (n.includes('transfer')) return '#f59e0b';
-    if (n.includes('call center')) return '#34d399';
-    if (n.includes('ai')) return '#b06ef5';
-    if (n.includes('unmatched') || n.includes('other') || n.includes('no agent')) return '#8890b8';
-    return '#61a0ff';
+    if (n.includes('back from') || n.includes('hostie: transferred') || n.includes('transfer')) return '#f59e0b';
+    if (n.includes('human')) return '#34d399';
+    if (n.includes('no pickup') || n.includes('no human') || n.includes('if-no-answer') || n.includes('ai path')) return '#b06ef5';
+    if (n.includes('inbound connected') || n.includes('main')) return '#61a0ff';
+    if (n.includes('unmatched') || n.includes('empty') || n.includes('other')) return '#8890b8';
+    return '#7b8cff';
   };
 
   try {
@@ -5546,12 +5570,12 @@ function paintSankeyChart() {
       type: 'sankey',
       data: {
         datasets: [{
-          label: 'Inbound flow',
+          label: 'Call flow',
           data: s.links.map(l => ({ from: l.from, to: l.to, flow: l.flow })),
           colorFrom: (c) => colorFor(c.dataset.data[c.dataIndex]?.from),
           colorTo: (c) => colorFor(c.dataset.data[c.dataIndex]?.to),
           borderWidth: 0,
-          font: { size: 11, weight: '600' },
+          font: { size: 10, weight: '600' },
           color: '#c8cde0',
         }],
       },
