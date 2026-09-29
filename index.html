@@ -7,6 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-sankey@0.12.1/dist/chartjs-chart-sankey.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
@@ -390,6 +391,7 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
     <button class="tab-btn active" data-tab="overview" onclick="showTab('overview')">Overview</button>
     <button class="tab-btn" data-tab="byrest" onclick="showTab('byrest')">Details</button>
     <button class="tab-btn" data-tab="people" onclick="showTab('people')">Call Center</button>
+    <button class="tab-btn" data-tab="sankey" onclick="showTab('sankey')">Sankey Diagram</button>
     <button class="tab-btn" data-tab="reservations" onclick="showTab('reservations')">Reservations</button>
     <button class="tab-btn" data-tab="conversation" onclick="showTab('conversation')">Conversation</button>
     <button class="tab-btn" data-tab="settings" onclick="showTab('settings')">Settings</button>
@@ -432,6 +434,7 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 <div id="page-overview" class="page active"><div class="loading">Loading data…</div></div>
 <div id="page-byrest"   class="page"><div class="loading">Loading data…</div></div>
 <div id="page-people"   class="page"><div class="loading">Loading call center data…</div></div>
+<div id="page-sankey"   class="page"><div class="loading">Loading Sankey…</div></div>
 <div id="page-reservations" class="page"><div class="loading">Loading data…</div></div>
 <div id="page-conversation" class="page"><div class="loading">Loading data…</div></div>
 <div id="page-settings" class="page"><div class="loading">Loading data…</div></div>
@@ -543,6 +546,7 @@ function renderAll() {
   renderOverview();
   renderByRest();
   renderPeople();
+  renderSankey();
   renderReservations();
   renderConversation();
   renderSettings();
@@ -5447,6 +5451,135 @@ function showTab(name) {
   const btn = document.querySelector(`.nav .tab-btn[data-tab="${name}"]`);
   if (btn) btn.classList.add('active');
   try { history.replaceState(null, '', name === 'overview' ? location.pathname + location.search : '#' + name); } catch (_) {}
+  if (name === 'sankey') requestAnimationFrame(() => paintSankeyChart());
+  if (name === 'people') {
+    const panel = document.querySelector('.people-subtab.active')?.dataset?.peoplePanel;
+    if (panel === 'cc') requestAnimationFrame(() => paintCallCenterSummaryCharts());
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  SANKEY DIAGRAM TAB
+// ═══════════════════════════════════════════════════════════════
+function renderSankey() {
+  const el = document.getElementById('page-sankey');
+  if (!el || !D) return;
+  const s = D.callSankey;
+  if (!s || s.ok === false) {
+    el.innerHTML = `<div class="section-head">Sankey Diagram</div>
+      <div class="table-card"><p class="loc-summary-note" style="margin:0">Sankey data not available yet — ${s?.error || 're-export compare to build MILA last-week inbound flow'}.</p></div>`;
+    return;
+  }
+  const fmt = (n) => (n == null ? '—' : Number(n).toLocaleString());
+  el.innerHTML = `
+    <div class="section-head">Sankey Diagram</div>
+    <p class="loc-summary-note" style="margin:-4px 0 14px">
+      <b>${s.restaurantLabel}</b> · Last week <b>W${s.week}</b> · TalkDesk <b>inbound main lines only</b> + Hostie phone split
+    </p>
+    <div class="ov-cc-summary" style="margin-bottom:16px;grid-template-columns:repeat(4,minmax(0,1fr))">
+      <div class="ov-cc-card">
+        <div class="ov-cc-label">Total inbound (main)</div>
+        <div class="ov-cc-val">${fmt(s.totalInboundMain)}</div>
+        <div class="ov-cc-py">TalkDesk · excludes Back from Hostie</div>
+      </div>
+      <div class="ov-cc-card">
+        <div class="ov-cc-label">→ AI</div>
+        <div class="ov-cc-val">${fmt(s.toAi)}</div>
+        <div class="ov-cc-py">If-No-Answer Agent</div>
+      </div>
+      <div class="ov-cc-card">
+        <div class="ov-cc-label">→ Call Center direct</div>
+        <div class="ov-cc-val">${fmt(s.toCallCenterDirect)}</div>
+        <div class="ov-cc-py">Human agent on main line</div>
+      </div>
+      <div class="ov-cc-card">
+        <div class="ov-cc-label">AI only (no human)</div>
+        <div class="ov-cc-val">${fmt(s.aiOnly)}</div>
+        <div class="ov-cc-py">Hostie phone − transferred (${fmt(s.hostiePhoneCalls)} − ${fmt(s.hostieTransferred)})</div>
+      </div>
+    </div>
+    <div class="chart-row cols-1">
+      <div class="chart-card">
+        <h3>Inbound call flow — ${s.restaurantLabel} W${s.week}</h3>
+        <p>Left: all main-line inbound · Middle: AI vs Call Center · Right: AI-only vs transferred to Call Center</p>
+        <div class="chart-wrap" style="height:420px"><canvas id="sankey-inbound"></canvas></div>
+        <div class="stat-note" style="margin-top:10px">${(s.notes || []).map(n => escHtml(n)).join(' · ')}</div>
+      </div>
+    </div>`;
+  requestAnimationFrame(() => paintSankeyChart());
+}
+
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function paintSankeyChart() {
+  const canvas = document.getElementById('sankey-inbound');
+  const s = D?.callSankey;
+  if (!canvas || !s?.ok || !Array.isArray(s.links) || !s.links.length) return;
+  if (typeof Chart === 'undefined' || !Chart.registry?.getController?.('sankey')) {
+    // Plugin may expose differently — try registering if global present
+    try {
+      if (window.ChartSankey) {
+        Chart.register(window.ChartSankey.SankeyController, window.ChartSankey.Flow);
+      }
+    } catch (_) {}
+  }
+  if (CHARTS['sankey-inbound']) {
+    CHARTS['sankey-inbound'].destroy();
+    delete CHARTS['sankey-inbound'];
+  }
+
+  const colorFor = (name) => {
+    const n = String(name || '').toLowerCase();
+    if (n.includes('total')) return '#3d8ef8';
+    if (n.includes('ai only')) return '#a78bfa';
+    if (n.includes('transfer')) return '#f59e0b';
+    if (n.includes('call center')) return '#34d399';
+    if (n.includes('ai')) return '#b06ef5';
+    if (n.includes('unmatched') || n.includes('other') || n.includes('no agent')) return '#8890b8';
+    return '#61a0ff';
+  };
+
+  try {
+    CHARTS['sankey-inbound'] = new Chart(canvas, {
+      type: 'sankey',
+      data: {
+        datasets: [{
+          label: 'Inbound flow',
+          data: s.links.map(l => ({ from: l.from, to: l.to, flow: l.flow })),
+          colorFrom: (c) => colorFor(c.dataset.data[c.dataIndex]?.from),
+          colorTo: (c) => colorFor(c.dataset.data[c.dataIndex]?.to),
+          borderWidth: 0,
+          font: { size: 11, weight: '600' },
+          color: '#c8cde0',
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          datalabels: { display: false },
+          tooltip: {
+            callbacks: {
+              label(ctx) {
+                const d = ctx.raw || ctx.dataset.data[ctx.dataIndex];
+                if (!d) return '';
+                return ` ${d.from} → ${d.to}: ${Number(d.flow).toLocaleString()}`;
+              },
+            },
+          },
+        },
+      },
+    });
+  } catch (e) {
+    console.error('Sankey chart failed', e);
+    const wrap = canvas.parentElement;
+    if (wrap) {
+      wrap.innerHTML = `<p class="loc-summary-note">Could not render Sankey chart (${e.message}). Links: ${s.links.map(l => `${l.from}→${l.to}:${l.flow}`).join(' · ')}</p>`;
+    }
+  }
 }
 
 // ─── START ───────────────────────────────────────────────────
