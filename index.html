@@ -5516,6 +5516,72 @@ function onSankeyFilterChange() {
   renderSankey();
 }
 
+function buildSankeyBounceCompareTable() {
+  const cat = getSankeyCatalog();
+  if (!cat?.charts) return '';
+  const week = D?.cutoff || SANKEY_SEL.week;
+  const rests = cat.restaurants || [];
+  const rows = rests.map(r => {
+    const chart = cat.charts[`${r.id}:${week}`];
+    const b = chart?.backFromHostieUntilHuman;
+    if (!chart || !b) {
+      return `<tr><td style="text-align:left">${escHtml(r.label)}</td><td colspan="5" style="text-align:left;color:var(--muted)">No data</td></tr>`;
+    }
+    const t = chart.totals || {};
+    return `<tr>
+      <td style="text-align:left"><b>${escHtml(r.label)}</b></td>
+      <td>${Number(chart.humanTouched || 0).toLocaleString()}</td>
+      <td>${Number(b.sessions || 0).toLocaleString()}</td>
+      <td><b>${b.sessions ? Number(b.avgBounces).toFixed(2) : '—'}</b></td>
+      <td>${b.sessions ? Number(b.medianBounces).toFixed(2) : '—'}</td>
+      <td>${b.sessions ? Number(b.avgMainLegs).toFixed(2) : '—'}</td>
+    </tr>`;
+  }).join('');
+  // totals row across locations
+  let sumSessions = 0, sumBack = 0, sumMain = 0, sumHuman = 0;
+  const allBounces = [];
+  for (const r of rests) {
+    const chart = cat.charts[`${r.id}:${week}`];
+    if (!chart?.backFromHostieUntilHuman?.sessions) continue;
+    const b = chart.backFromHostieUntilHuman;
+    sumSessions += b.sessions;
+    sumBack += b.totalBackLegs || (b.avgBounces * b.sessions);
+    sumMain += (b.avgMainLegs || 0) * b.sessions;
+    sumHuman += chart.humanTouched || 0;
+    // approximate for weighted avg only
+  }
+  const avgAll = sumSessions ? (sumBack / sumSessions) : 0;
+  const avgMainAll = sumSessions ? (sumMain / sumSessions) : 0;
+  const totalRow = sumSessions ? `<tr class="total-row">
+      <td style="text-align:left"><b>All locations</b></td>
+      <td>${sumHuman.toLocaleString()}</td>
+      <td>${sumSessions.toLocaleString()}</td>
+      <td><b>${avgAll.toFixed(2)}</b></td>
+      <td>—</td>
+      <td>${avgMainAll.toFixed(2)}</td>
+    </tr>` : '';
+  return `
+    <div class="table-card" style="margin-bottom:16px">
+      <h3>Back-from-Hostie bounces until human — last week W${week}</h3>
+      <p class="loc-summary-note" style="margin:0 0 10px">
+        Unique calls only. Count = how many times the call went through <b>Back from Hostie</b> before a human picked up (last leg = named agent). Direct human-on-main (no Back from Hostie) is excluded.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th style="text-align:left">Location</th>
+            <th>HUMAN TOUCHED</th>
+            <th>Got human via Back from Hostie</th>
+            <th>Avg # Back from Hostie until human</th>
+            <th>Median</th>
+            <th>Avg MAIN legs in that journey</th>
+          </tr>
+        </thead>
+        <tbody>${rows}${totalRow}</tbody>
+      </table>
+    </div>`;
+}
+
 function renderSankey() {
   const el = document.getElementById('page-sankey');
   if (!el || !D) return;
@@ -5574,7 +5640,7 @@ function renderSankey() {
   }
 
   const t = s.totals || {};
-  const bounce = s.aiBounceToHuman || { sessions: 0, avgMs: 0, medianMs: 0, avgLegs: 0 };
+  const bounce = s.backFromHostieUntilHuman || { sessions: 0, avgBounces: 0, medianBounces: 0, avgMainLegs: 0, totalBackLegs: 0 };
   const fmt = (n) => (n == null ? '—' : Number(n).toLocaleString());
   const fmtPct = (n) => (n == null || isNaN(n) ? '—' : Number(n).toFixed(1) + '%');
   const rows = (s.breakdown || []).map((r) => {
@@ -5623,15 +5689,16 @@ function renderSankey() {
     </div>
     <div class="ov-cc-summary" style="margin-bottom:16px;grid-template-columns:1fr">
       <div class="ov-cc-card">
-        <div class="ov-cc-label">Avg AI → CC bounce time (got a human)</div>
-        <div class="ov-cc-val" style="color:var(--y26)">${bounce.sessions ? fmtSankeyDuration(bounce.avgMs) : '—'}</div>
+        <div class="ov-cc-label">Avg Back-from-Hostie bounces until human</div>
+        <div class="ov-cc-val" style="color:var(--y26)">${bounce.sessions ? Number(bounce.avgBounces).toFixed(2) : '—'}</div>
         <div class="ov-cc-py">
-          Unique calls that bounced via <b>Back from Hostie</b> and reached a human on the last leg ·
-          median ${bounce.sessions ? fmtSankeyDuration(bounce.medianMs) : '—'} ·
-          ${fmt(bounce.sessions)} calls · avg ${bounce.avgLegs || '—'} legs/session
+          Unique calls that went through <b>Back from Hostie</b> and got a human on the last leg ·
+          median ${bounce.sessions ? Number(bounce.medianBounces).toFixed(2) : '—'} ·
+          ${fmt(bounce.sessions)} calls · avg ${bounce.avgMainLegs || '—'} MAIN legs before pickup
         </div>
       </div>
     </div>
+    ${buildSankeyBounceCompareTable()}
     <div class="chart-row cols-1" style="margin-bottom:16px">
       <div class="chart-card">
         <h3>Call flow — ${escHtml(s.restaurantLabel)} W${s.week}</h3>
