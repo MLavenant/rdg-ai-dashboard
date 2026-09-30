@@ -5566,7 +5566,8 @@ function buildSankeyBounceCompareTable() {
     <div class="table-card" style="margin-bottom:16px">
       <h3>Back-from-Hostie until human — last week W${week}</h3>
       <p class="loc-summary-note" style="margin:0 0 10px">
-        Unique calls only. <b># Back from Hostie</b> = how many times through Back from Hostie until a human picked up.
+        Business hours only (TalkDesk <b>In Business Hours? = TRUE</b>). Unique calls.
+        <b># Back from Hostie</b> = how many times through Back from Hostie until a human picked up.
         <b>Time</b> = first call start → start of the last leg where a named agent answered. Direct human-on-main (no Back from Hostie) is excluded.
       </p>
       <table>
@@ -5707,7 +5708,7 @@ function renderSankey() {
     <div class="chart-row cols-1" style="margin-bottom:16px">
       <div class="chart-card">
         <h3>Call flow — ${escHtml(s.restaurantLabel)} W${s.week}</h3>
-        <p>Left→right: All inbound → <b>MAIN line</b> (direct) vs <b>Back from Hostie</b> (AI→CC) vs <b>Abandoned (IVR hang up…)</b> → outcomes → <b>HUMAN TOUCHED</b> (top) vs <b>HUMAN did not</b> (bottom). Labels = # · % of total.</p>
+        <p>Business hours only. Left→right: All inbound → <b>MAIN line</b> (direct) vs <b>Back from Hostie</b> (AI→CC) vs <b>Abandoned (IVR hang up…)</b> → outcomes → <b>HUMAN TOUCHED</b> (top) vs <b>HUMAN did not</b> (bottom). Labels = # · % of total.</p>
         <div class="chart-wrap sankey-chart-wrap"><canvas id="sankey-inbound"></canvas></div>
         <div id="sankey-def-panel" class="sankey-def-panel" aria-live="polite">
           <p class="sankey-def-hint">Click a Sankey node or flow (or a row in the breakdown) to see what it means and which calls are included.</p>
