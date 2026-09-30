@@ -5574,6 +5574,7 @@ function renderSankey() {
   }
 
   const t = s.totals || {};
+  const bounce = s.aiBounceToHuman || { sessions: 0, avgMs: 0, medianMs: 0, avgLegs: 0 };
   const fmt = (n) => (n == null ? '—' : Number(n).toLocaleString());
   const fmtPct = (n) => (n == null || isNaN(n) ? '—' : Number(n).toFixed(1) + '%');
   const rows = (s.breakdown || []).map((r) => {
@@ -5598,7 +5599,7 @@ function renderSankey() {
     <p class="loc-summary-note" style="margin:-4px 0 14px">
       <b>${escHtml(s.restaurantLabel)}</b> · <b>W${s.week}</b> · Unique calls only (same customer phone, ≤2 min between legs = one call; outcome = <b>last</b> leg) · Did they get a <b>human</b> at the end? · <b>Click</b> for definitions
     </p>
-    <div class="ov-cc-summary" style="margin-bottom:16px;grid-template-columns:repeat(4,minmax(0,1fr))">
+    <div class="ov-cc-summary" style="margin-bottom:12px;grid-template-columns:repeat(4,minmax(0,1fr))">
       <div class="ov-cc-card">
         <div class="ov-cc-label">Unique inbound calls</div>
         <div class="ov-cc-val">${fmt(s.totalVolume)}</div>
@@ -5618,6 +5619,17 @@ function renderSankey() {
         <div class="ov-cc-label">AI calls transferred</div>
         <div class="ov-cc-val">${fmtPct(s.aiTransferPctOfAi ?? t.aiTransferPctOfAi)}</div>
         <div class="ov-cc-py">${fmt(t.hostieTransferred)} / ${fmt(t.aiMain)} If-No-Answer · AI only ${fmtPct(t.aiOnlyPctOfAi)} of AI</div>
+      </div>
+    </div>
+    <div class="ov-cc-summary" style="margin-bottom:16px;grid-template-columns:1fr">
+      <div class="ov-cc-card">
+        <div class="ov-cc-label">Avg AI → CC bounce time (got a human)</div>
+        <div class="ov-cc-val" style="color:var(--y26)">${bounce.sessions ? fmtSankeyDuration(bounce.avgMs) : '—'}</div>
+        <div class="ov-cc-py">
+          Unique calls that bounced via <b>Back from Hostie</b> and reached a human on the last leg ·
+          median ${bounce.sessions ? fmtSankeyDuration(bounce.medianMs) : '—'} ·
+          ${fmt(bounce.sessions)} calls · avg ${bounce.avgLegs || '—'} legs/session
+        </div>
       </div>
     </div>
     <div class="chart-row cols-1" style="margin-bottom:16px">
@@ -5641,6 +5653,16 @@ function renderSankey() {
   requestAnimationFrame(() => paintSankeyChart());
 }
 
+function fmtSankeyDuration(ms) {
+  if (ms == null || isNaN(ms) || ms < 0) return '—';
+  const s = Math.round(Number(ms) / 1000);
+  if (s < 60) return s + 's';
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  if (m < 60) return m + 'm ' + String(r).padStart(2, '0') + 's';
+  const h = Math.floor(m / 60);
+  return h + 'h ' + (m % 60) + 'm';
+}
 function escHtml(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
