@@ -398,7 +398,7 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 .save-hint{font-size:11px;color:var(--green);margin-left:8px}
 
 </style>
-  <!--RDG_HOURS_API--><script>window.RDG_HOURS_API=window.RDG_HOURS_API||"";</script><!--/RDG_HOURS_API-->
+  <!--RDG_HOURS_API--><script>window.RDG_HOURS_API="https://rdg-hours-api.plum-rat.workers.dev";</script><!--/RDG_HOURS_API-->
 </head>
 <body>
 
@@ -5707,7 +5707,7 @@ function renderSankey() {
     <div class="chart-row cols-1" style="margin-bottom:16px">
       <div class="chart-card">
         <h3>Call flow — ${escHtml(s.restaurantLabel)} W${s.week}</h3>
-        <p>Left→right: All inbound → MAIN vs Abandoned → HUMAN vs AI → transfer answered / no pickup / AI only → <b>HUMAN TOUCHED</b> (top) vs <b>HUMAN did not</b> (bottom). Labels = # · % of total.</p>
+        <p>Left→right: All inbound → <b>MAIN line</b> (direct) vs <b>Back from Hostie</b> (AI→CC) vs <b>Abandoned (IVR hang up…)</b> → outcomes → <b>HUMAN TOUCHED</b> (top) vs <b>HUMAN did not</b> (bottom). Labels = # · % of total.</p>
         <div class="chart-wrap sankey-chart-wrap"><canvas id="sankey-inbound"></canvas></div>
         <div id="sankey-def-panel" class="sankey-def-panel" aria-live="polite">
           <p class="sankey-def-hint">Click a Sankey node or flow (or a row in the breakdown) to see what it means and which calls are included.</p>
@@ -5811,9 +5811,10 @@ function paintSankeyChart() {
     if (n.startsWith('all inbound')) return '#3d8ef8';
     if (n.startsWith('abandoned') || n.includes('left in') || n.includes('left waiting') || n.startsWith('disconnected')) return '#f87171';
     if (n.includes('human (main)') || n.includes('human (transfer)')) return '#34d399';
-    if (n.includes('no pickup') || n.includes('if-no-answer') || n.startsWith('ai /')) return '#b06ef5';
     if (n.includes('ai only')) return '#a78bfa';
-    if (n.includes('transfer') || n.includes('back from')) return '#f59e0b';
+    if (n.includes('no pickup')) return '#b06ef5';
+    if (n.includes('back from')) return '#f59e0b';
+    if (n.includes('transfer')) return '#f59e0b';
     if (n.startsWith('main')) return '#61a0ff';
     if (n.includes('empty')) return '#8890b8';
     return '#7b8cff';
