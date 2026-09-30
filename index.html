@@ -5655,7 +5655,6 @@ function renderSankey() {
     return;
   }
 
-  const t = s.totals || {};
   const bounce = s.backFromHostieUntilHuman || { sessions: 0, avgBounces: 0, medianBounces: 0, avgMainLegs: 0, totalBackLegs: 0, avgMs: 0, medianMs: 0 };
   const fmt = (n) => (n == null ? '—' : Number(n).toLocaleString());
   const fmtPct = (n) => (n == null || isNaN(n) ? '—' : Number(n).toFixed(1) + '%');
@@ -5681,28 +5680,6 @@ function renderSankey() {
     <p class="loc-summary-note" style="margin:-4px 0 14px">
       <b>${escHtml(s.restaurantLabel)}</b> · <b>W${s.week}</b> · Unique calls only (same customer phone, ≤2 min between legs = one call; outcome = <b>last</b> leg) · Did they get a <b>human</b> at the end? · <b>Click</b> for definitions
     </p>
-    <div class="ov-cc-summary" style="margin-bottom:12px;grid-template-columns:repeat(4,minmax(0,1fr))">
-      <div class="ov-cc-card">
-        <div class="ov-cc-label">Unique inbound calls</div>
-        <div class="ov-cc-val">${fmt(s.totalVolume)}</div>
-        <div class="ov-cc-py">Unique sessions (not raw TalkDesk legs)</div>
-      </div>
-      <div class="ov-cc-card">
-        <div class="ov-cc-label">HUMAN TOUCHED this call</div>
-        <div class="ov-cc-val" style="color:var(--green)">${fmt(s.humanTouched)}</div>
-        <div class="ov-cc-py"><b class="up">${fmtPct(s.humanTouchedPct)}</b> of total · main ${fmt(t.humanMain)} + xfer ${fmt(t.humanBack)}</div>
-      </div>
-      <div class="ov-cc-card">
-        <div class="ov-cc-label">HUMAN did not</div>
-        <div class="ov-cc-val" style="color:var(--red)">${fmt(s.humanDidNot)}</div>
-        <div class="ov-cc-py"><b class="dn">${fmtPct(s.humanDidNotPct)}</b> of total</div>
-      </div>
-      <div class="ov-cc-card">
-        <div class="ov-cc-label">AI calls transferred</div>
-        <div class="ov-cc-val">${fmtPct(s.aiTransferPctOfAi ?? t.aiTransferPctOfAi)}</div>
-        <div class="ov-cc-py">${fmt(t.hostieTransferred)} / ${fmt(t.aiMain)} If-No-Answer · AI only ${fmtPct(t.aiOnlyPctOfAi)} of AI</div>
-      </div>
-    </div>
     <div class="ov-cc-summary" style="margin-bottom:16px;grid-template-columns:1fr">
       <div class="ov-cc-card">
         <div class="ov-cc-label">Avg Back-from-Hostie until human</div>
@@ -5733,11 +5710,8 @@ function renderSankey() {
         <tbody>${rows}</tbody>
       </table>
     </div>
-    ${buildSankeyTimeOfDaySection()}`;
-  requestAnimationFrame(() => {
-    paintSankeyChart();
-    paintSankeyTimeOfDayCharts();
-  });
+    ${buildSankeyHourDetailSection()}`;
+  requestAnimationFrame(() => paintSankeyChart());
 }
 
 function fmtSankeyDuration(ms) {
@@ -5751,29 +5725,15 @@ function fmtSankeyDuration(ms) {
   return h + 'h ' + (m % 60) + 'm';
 }
 
-const SANKEY_TOD_COLORS = {
-  directHuman: '#34d399',
-  aiTransferHuman: '#f59e0b',
-  aiHandled: '#a78bfa',
-  missedAbandoned: '#f87171',
-};
-
-function emptyTodBucket() {
-  return { directHuman: 0, aiTransferHuman: 0, aiHandled: 0, missedAbandoned: 0, total: 0 };
-}
-
-function addTodBucket(a, b) {
-  a.directHuman += b.directHuman || 0;
-  a.aiTransferHuman += b.aiTransferHuman || 0;
-  a.aiHandled += b.aiHandled || 0;
-  a.missedAbandoned += b.missedAbandoned || 0;
-  a.total += b.total || 0;
-  return a;
-}
+const SANKEY_WEEKDAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 function todPct(n, total) {
   if (!(total > 0)) return 0;
   return Math.round((n / total) * 1000) / 10;
+}
+
+function emptyTodBucket() {
+  return { directHuman: 0, aiTransferHuman: 0, aiHandled: 0, missedAbandoned: 0, total: 0 };
 }
 
 function getActiveHourProfile() {
@@ -5782,118 +5742,70 @@ function getActiveHourProfile() {
   return cat.hourProfiles[`${SANKEY_SEL.restaurantId}:${SANKEY_SEL.week}`] || null;
 }
 
-function buildSankeyTimeOfDaySection() {
-  const cat = getSankeyCatalog();
-  const profile = getActiveHourProfile();
-  const week = SANKEY_SEL.week;
-  const rests = cat?.restaurants || [];
-  const fmt = (n) => Number(n || 0).toLocaleString();
-  const fmtP = (n, t) => (t > 0 ? todPct(n, t).toFixed(1) + '%' : '—');
+function onSankeyHourDayChange() {
+  const sel = document.getElementById('sankey-hour-day');
+  if (sel) SANKEY_SEL.hourDay = sel.value;
+  const wrap = document.getElementById('sankey-hour-detail-wrap');
+  if (wrap) wrap.innerHTML = buildSankeyHourDetailTableBody();
+}
 
-  const unitRows = rests.map(r => {
-    const p = cat?.hourProfiles?.[`${r.id}:${week}`];
-    if (!p) {
-      return `<tr><td style="text-align:left">${escHtml(r.label)}</td><td colspan="10" style="text-align:left;color:var(--muted)">No data</td></tr>`;
-    }
-    const bh = p.totals.businessHours || emptyTodBucket();
-    const ah = p.totals.afterHours || emptyTodBucket();
-    return `<tr>
-      <td style="text-align:left"><b>${escHtml(r.label)}</b></td>
-      <td>${fmt(bh.total)}</td>
-      <td>${fmt(bh.directHuman)}<div class="pct">${fmtP(bh.directHuman, bh.total)}</div></td>
-      <td>${fmt(bh.aiTransferHuman)}<div class="pct">${fmtP(bh.aiTransferHuman, bh.total)}</div></td>
-      <td>${fmt(bh.aiHandled)}<div class="pct">${fmtP(bh.aiHandled, bh.total)}</div></td>
-      <td>${fmt(bh.missedAbandoned)}<div class="pct">${fmtP(bh.missedAbandoned, bh.total)}</div></td>
-      <td>${fmt(ah.total)}</td>
-      <td>${fmt(ah.directHuman)}<div class="pct">${fmtP(ah.directHuman, ah.total)}</div></td>
-      <td>${fmt(ah.aiTransferHuman)}<div class="pct">${fmtP(ah.aiTransferHuman, ah.total)}</div></td>
-      <td>${fmt(ah.aiHandled)}<div class="pct">${fmtP(ah.aiHandled, ah.total)}</div></td>
-      <td>${fmt(ah.missedAbandoned)}<div class="pct">${fmtP(ah.missedAbandoned, ah.total)}</div></td>
-    </tr>`;
-  }).join('');
-
-  const sumBh = emptyTodBucket();
-  const sumAh = emptyTodBucket();
-  for (const r of rests) {
-    const p = cat?.hourProfiles?.[`${r.id}:${week}`];
-    if (!p) continue;
-    addTodBucket(sumBh, p.totals.businessHours || emptyTodBucket());
-    addTodBucket(sumAh, p.totals.afterHours || emptyTodBucket());
+function resolveHourProfileSlice(profile) {
+  if (!profile) return null;
+  const day = SANKEY_SEL.hourDay;
+  if (day != null && day !== '' && day !== 'all' && profile.byWeekday?.[String(day)]) {
+    const slice = profile.byWeekday[String(day)];
+    return {
+      restaurantLabel: profile.restaurantLabel,
+      week: profile.week,
+      dayLabel: SANKEY_WEEKDAY_LABELS[Number(day)] || String(day),
+      hours: slice.hours,
+      totals: slice.totals,
+    };
   }
-  const totalRow = (sumBh.total || sumAh.total) ? `<tr class="total-row">
-      <td style="text-align:left"><b>All locations</b></td>
-      <td>${fmt(sumBh.total)}</td>
-      <td>${fmt(sumBh.directHuman)}<div class="pct">${fmtP(sumBh.directHuman, sumBh.total)}</div></td>
-      <td>${fmt(sumBh.aiTransferHuman)}<div class="pct">${fmtP(sumBh.aiTransferHuman, sumBh.total)}</div></td>
-      <td>${fmt(sumBh.aiHandled)}<div class="pct">${fmtP(sumBh.aiHandled, sumBh.total)}</div></td>
-      <td>${fmt(sumBh.missedAbandoned)}<div class="pct">${fmtP(sumBh.missedAbandoned, sumBh.total)}</div></td>
-      <td>${fmt(sumAh.total)}</td>
-      <td>${fmt(sumAh.directHuman)}<div class="pct">${fmtP(sumAh.directHuman, sumAh.total)}</div></td>
-      <td>${fmt(sumAh.aiTransferHuman)}<div class="pct">${fmtP(sumAh.aiTransferHuman, sumAh.total)}</div></td>
-      <td>${fmt(sumAh.aiHandled)}<div class="pct">${fmtP(sumAh.aiHandled, sumAh.total)}</div></td>
-      <td>${fmt(sumAh.missedAbandoned)}<div class="pct">${fmtP(sumAh.missedAbandoned, sumAh.total)}</div></td>
-    </tr>` : '';
+  return {
+    restaurantLabel: profile.restaurantLabel,
+    week: profile.week,
+    dayLabel: 'Full week',
+    hours: profile.hours,
+    totals: profile.totals,
+  };
+}
 
-  const legend = `
-    <div class="sankey-tod-legend">
-      <span><i style="background:${SANKEY_TOD_COLORS.directHuman}"></i>Direct human (reservationist on MAIN)</span>
-      <span><i style="background:${SANKEY_TOD_COLORS.aiTransferHuman}"></i>AI → human (Back from Hostie)</span>
-      <span><i style="background:${SANKEY_TOD_COLORS.aiHandled}"></i>Handled by AI only</span>
-      <span><i style="background:${SANKEY_TOD_COLORS.missedAbandoned}"></i>Missed / abandoned</span>
-    </div>`;
-
-  const locLabel = profile?.restaurantLabel || SANKEY_SEL.restaurantId;
-  const hourTable = buildSankeyHourDetailTable(profile);
+function buildSankeyHourDetailSection() {
+  const profile = getActiveHourProfile();
+  if (SANKEY_SEL.hourDay == null) SANKEY_SEL.hourDay = 'all';
+  const dayOpts = [
+    `<option value="all" ${SANKEY_SEL.hourDay === 'all' ? 'selected' : ''}>Full week</option>`,
+    ...SANKEY_WEEKDAY_LABELS.map((label, i) =>
+      `<option value="${i}" ${String(SANKEY_SEL.hourDay) === String(i) ? 'selected' : ''}>${label}</option>`
+    ),
+  ].join('');
 
   return `
     <div class="table-card" style="margin-top:16px">
-      <h3>By unit — business hours vs after hours · W${week}</h3>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;margin-bottom:12px">
+        <h3 style="margin:0">${escHtml(profile?.restaurantLabel || SANKEY_SEL.restaurantId)} · hour detail · W${SANKEY_SEL.week}</h3>
+        <div class="filter-group" style="margin:0">
+          <span class="filter-label">Day</span>
+          <select id="sankey-hour-day" onchange="onSankeyHourDayChange()">${dayOpts}</select>
+        </div>
+      </div>
       <p class="loc-summary-note" style="margin:0 0 10px">
-        Unique calls (≤2 min session). TalkDesk <b>In Business Hours?</b> splits columns.
-        Outcomes from the <b>last</b> leg: direct reservationist answer vs AI transfer back vs AI-only vs missed/abandoned (incl. no-pickup transfer / empty agent).
+        Business hours vs after hours (TalkDesk <b>In Business Hours?</b>). Percentages within that hour.
+        Direct human · AI→human (Back from Hostie) · AI only · Missed/abandoned.
       </p>
-      ${legend}
-      <div style="overflow-x:auto">
-        <table class="sankey-tod-table">
-          <thead>
-            <tr>
-              <th style="text-align:left" rowspan="2">Location</th>
-              <th colspan="5"><span class="sankey-tod-badge bh">Business hours</span></th>
-              <th colspan="5"><span class="sankey-tod-badge ah">After hours</span></th>
-            </tr>
-            <tr>
-              <th>Total</th><th>Direct human</th><th>AI→human</th><th>AI only</th><th>Missed/abn</th>
-              <th>Total</th><th>Direct human</th><th>AI→human</th><th>AI only</th><th>Missed/abn</th>
-            </tr>
-          </thead>
-          <tbody>${unitRows}${totalRow}</tbody>
-        </table>
-      </div>
-    </div>
-    <div class="chart-row cols-2" style="margin-top:16px;margin-bottom:16px">
-      <div class="chart-card">
-        <h3>${escHtml(locLabel)} · time of day <span class="sankey-tod-badge bh">Business hours</span></h3>
-        <p>% of that hour’s unique calls (stacked). Empty hours omitted from bars when total is 0.</p>
-        ${legend}
-        <div class="sankey-tod-wrap"><canvas id="sankey-tod-bh"></canvas></div>
-      </div>
-      <div class="chart-card">
-        <h3>${escHtml(locLabel)} · time of day <span class="sankey-tod-badge ah">After hours</span></h3>
-        <p>% of that hour’s unique calls outside business hours.</p>
-        ${legend}
-        <div class="sankey-tod-wrap"><canvas id="sankey-tod-ah"></canvas></div>
-      </div>
-    </div>
-    ${hourTable}`;
+      <div id="sankey-hour-detail-wrap">${buildSankeyHourDetailTableBody()}</div>
+    </div>`;
 }
 
-function buildSankeyHourDetailTable(profile) {
-  if (!profile?.hours?.length) {
-    return `<div class="table-card"><p class="loc-summary-note" style="margin:0">No hour-level data for this location/week.</p></div>`;
+function buildSankeyHourDetailTableBody() {
+  const slice = resolveHourProfileSlice(getActiveHourProfile());
+  if (!slice?.hours?.length) {
+    return `<p class="loc-summary-note" style="margin:0">No hour-level data for this location/week.</p>`;
   }
   const fmt = (n) => Number(n || 0).toLocaleString();
   const fmtP = (n, t) => (t > 0 ? todPct(n, t).toFixed(1) + '%' : '—');
-  const rows = profile.hours.filter(h => (h.businessHours?.total || 0) + (h.afterHours?.total || 0) > 0).map(h => {
+  const rows = slice.hours.filter(h => (h.businessHours?.total || 0) + (h.afterHours?.total || 0) > 0).map(h => {
     const bh = h.businessHours || emptyTodBucket();
     const ah = h.afterHours || emptyTodBucket();
     return `<tr>
@@ -5910,10 +5822,24 @@ function buildSankeyHourDetailTable(profile) {
       <td>${fmtP(ah.missedAbandoned, ah.total)}</td>
     </tr>`;
   }).join('');
+
+  const bhT = slice.totals?.businessHours || emptyTodBucket();
+  const ahT = slice.totals?.afterHours || emptyTodBucket();
+  const totalRow = (bhT.total || ahT.total) ? `<tr class="total-row">
+      <td style="text-align:left"><b>${escHtml(slice.dayLabel)} total</b></td>
+      <td>${fmt(bhT.total)}</td>
+      <td>${fmtP(bhT.directHuman, bhT.total)}</td>
+      <td>${fmtP(bhT.aiTransferHuman, bhT.total)}</td>
+      <td>${fmtP(bhT.aiHandled, bhT.total)}</td>
+      <td>${fmtP(bhT.missedAbandoned, bhT.total)}</td>
+      <td>${fmt(ahT.total)}</td>
+      <td>${fmtP(ahT.directHuman, ahT.total)}</td>
+      <td>${fmtP(ahT.aiTransferHuman, ahT.total)}</td>
+      <td>${fmtP(ahT.aiHandled, ahT.total)}</td>
+      <td>${fmtP(ahT.missedAbandoned, ahT.total)}</td>
+    </tr>` : '';
+
   return `
-    <div class="table-card">
-      <h3>${escHtml(profile.restaurantLabel)} · hour detail · W${profile.week}</h3>
-      <p class="loc-summary-note" style="margin:0 0 10px">Percentages are within that hour and hours band (business vs after).</p>
       <div style="overflow-x:auto">
         <table class="sankey-tod-table">
           <thead>
@@ -5927,88 +5853,9 @@ function buildSankeyHourDetailTable(profile) {
               <th>#</th><th>Direct %</th><th>AI→human %</th><th>AI only %</th><th>Missed %</th>
             </tr>
           </thead>
-          <tbody>${rows || '<tr><td colspan="11" style="text-align:left;color:var(--muted)">No calls</td></tr>'}</tbody>
+          <tbody>${rows || '<tr><td colspan="11" style="text-align:left;color:var(--muted)">No calls</td></tr>'}${totalRow}</tbody>
         </table>
-      </div>
-    </div>`;
-}
-
-function paintSankeyTimeOfDayCharts() {
-  const profile = getActiveHourProfile();
-  paintSankeyTodStacked('sankey-tod-bh', profile, 'businessHours');
-  paintSankeyTodStacked('sankey-tod-ah', profile, 'afterHours');
-}
-
-function paintSankeyTodStacked(canvasId, profile, side) {
-  const canvas = document.getElementById(canvasId);
-  if (!canvas || typeof Chart === 'undefined') return;
-  if (CHARTS[canvasId]) {
-    CHARTS[canvasId].destroy();
-    delete CHARTS[canvasId];
-  }
-  if (!profile?.hours?.length) return;
-
-  const hours = profile.hours.filter(h => (h[side]?.total || 0) > 0);
-  if (!hours.length) {
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      const w = canvas.width || 400, h = canvas.height || 200;
-      ctx.clearRect(0, 0, w, h);
-    }
-    return;
-  }
-
-  const labels = hours.map(h => h.label);
-  const keys = ['directHuman', 'aiTransferHuman', 'aiHandled', 'missedAbandoned'];
-  const titles = {
-    directHuman: 'Direct human',
-    aiTransferHuman: 'AI → human',
-    aiHandled: 'AI only',
-    missedAbandoned: 'Missed / abandoned',
-  };
-  const datasets = keys.map(k => ({
-    label: titles[k],
-    data: hours.map(h => {
-      const b = h[side] || emptyTodBucket();
-      return b.total > 0 ? todPct(b[k], b.total) : 0;
-    }),
-    backgroundColor: SANKEY_TOD_COLORS[k],
-    stack: 'tod',
-    borderWidth: 0,
-  }));
-
-  CHARTS[canvasId] = new Chart(canvas, {
-    type: 'bar',
-    data: { labels, datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            footer: (items) => {
-              const i = items?.[0]?.dataIndex;
-              if (i == null) return '';
-              const b = hours[i][side];
-              return b ? `n = ${b.total}` : '';
-            },
-            label: (ctx) => `${ctx.dataset.label}: ${Number(ctx.raw).toFixed(1)}%`,
-          },
-        },
-      },
-      scales: {
-        x: { stacked: true, ticks: { color: '#8890b8', maxRotation: 0, autoSkip: true }, grid: { display: false } },
-        y: {
-          stacked: true,
-          min: 0,
-          max: 100,
-          ticks: { color: '#8890b8', callback: (v) => v + '%' },
-          grid: { color: 'rgba(136,144,184,.15)' },
-        },
-      },
-    },
-  });
+      </div>`;
 }
 
 function escHtml(s) {
