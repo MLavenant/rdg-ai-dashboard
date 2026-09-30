@@ -5525,21 +5525,20 @@ function buildSankeyBounceCompareTable() {
     const chart = cat.charts[`${r.id}:${week}`];
     const b = chart?.backFromHostieUntilHuman;
     if (!chart || !b) {
-      return `<tr><td style="text-align:left">${escHtml(r.label)}</td><td colspan="5" style="text-align:left;color:var(--muted)">No data</td></tr>`;
+      return `<tr><td style="text-align:left">${escHtml(r.label)}</td><td colspan="7" style="text-align:left;color:var(--muted)">No data</td></tr>`;
     }
-    const t = chart.totals || {};
     return `<tr>
       <td style="text-align:left"><b>${escHtml(r.label)}</b></td>
       <td>${Number(chart.humanTouched || 0).toLocaleString()}</td>
       <td>${Number(b.sessions || 0).toLocaleString()}</td>
       <td><b>${b.sessions ? Number(b.avgBounces).toFixed(2) : '—'}</b></td>
       <td>${b.sessions ? Number(b.medianBounces).toFixed(2) : '—'}</td>
+      <td><b>${b.sessions ? fmtSankeyDuration(b.avgMs) : '—'}</b></td>
+      <td>${b.sessions ? fmtSankeyDuration(b.medianMs) : '—'}</td>
       <td>${b.sessions ? Number(b.avgMainLegs).toFixed(2) : '—'}</td>
     </tr>`;
   }).join('');
-  // totals row across locations
-  let sumSessions = 0, sumBack = 0, sumMain = 0, sumHuman = 0;
-  const allBounces = [];
+  let sumSessions = 0, sumBack = 0, sumMain = 0, sumHuman = 0, sumMs = 0;
   for (const r of rests) {
     const chart = cat.charts[`${r.id}:${week}`];
     if (!chart?.backFromHostieUntilHuman?.sessions) continue;
@@ -5548,23 +5547,27 @@ function buildSankeyBounceCompareTable() {
     sumBack += b.totalBackLegs || (b.avgBounces * b.sessions);
     sumMain += (b.avgMainLegs || 0) * b.sessions;
     sumHuman += chart.humanTouched || 0;
-    // approximate for weighted avg only
+    sumMs += (b.avgMs || 0) * b.sessions;
   }
   const avgAll = sumSessions ? (sumBack / sumSessions) : 0;
   const avgMainAll = sumSessions ? (sumMain / sumSessions) : 0;
+  const avgMsAll = sumSessions ? Math.round(sumMs / sumSessions) : 0;
   const totalRow = sumSessions ? `<tr class="total-row">
       <td style="text-align:left"><b>All locations</b></td>
       <td>${sumHuman.toLocaleString()}</td>
       <td>${sumSessions.toLocaleString()}</td>
       <td><b>${avgAll.toFixed(2)}</b></td>
       <td>—</td>
+      <td><b>${fmtSankeyDuration(avgMsAll)}</b></td>
+      <td>—</td>
       <td>${avgMainAll.toFixed(2)}</td>
     </tr>` : '';
   return `
     <div class="table-card" style="margin-bottom:16px">
-      <h3>Back-from-Hostie bounces until human — last week W${week}</h3>
+      <h3>Back-from-Hostie until human — last week W${week}</h3>
       <p class="loc-summary-note" style="margin:0 0 10px">
-        Unique calls only. Count = how many times the call went through <b>Back from Hostie</b> before a human picked up (last leg = named agent). Direct human-on-main (no Back from Hostie) is excluded.
+        Unique calls only. <b># Back from Hostie</b> = how many times through Back from Hostie until a human picked up.
+        <b>Time</b> = first call start → start of the last leg where a named agent answered. Direct human-on-main (no Back from Hostie) is excluded.
       </p>
       <table>
         <thead>
@@ -5572,9 +5575,11 @@ function buildSankeyBounceCompareTable() {
             <th style="text-align:left">Location</th>
             <th>HUMAN TOUCHED</th>
             <th>Got human via Back from Hostie</th>
-            <th>Avg # Back from Hostie until human</th>
-            <th>Median</th>
-            <th>Avg MAIN legs in that journey</th>
+            <th>Avg # Back from Hostie</th>
+            <th>Median #</th>
+            <th>Avg time to human</th>
+            <th>Median time</th>
+            <th>Avg MAIN legs</th>
           </tr>
         </thead>
         <tbody>${rows}${totalRow}</tbody>
@@ -5640,7 +5645,7 @@ function renderSankey() {
   }
 
   const t = s.totals || {};
-  const bounce = s.backFromHostieUntilHuman || { sessions: 0, avgBounces: 0, medianBounces: 0, avgMainLegs: 0, totalBackLegs: 0 };
+  const bounce = s.backFromHostieUntilHuman || { sessions: 0, avgBounces: 0, medianBounces: 0, avgMainLegs: 0, totalBackLegs: 0, avgMs: 0, medianMs: 0 };
   const fmt = (n) => (n == null ? '—' : Number(n).toLocaleString());
   const fmtPct = (n) => (n == null || isNaN(n) ? '—' : Number(n).toFixed(1) + '%');
   const rows = (s.breakdown || []).map((r) => {
@@ -5689,12 +5694,12 @@ function renderSankey() {
     </div>
     <div class="ov-cc-summary" style="margin-bottom:16px;grid-template-columns:1fr">
       <div class="ov-cc-card">
-        <div class="ov-cc-label">Avg Back-from-Hostie bounces until human</div>
-        <div class="ov-cc-val" style="color:var(--y26)">${bounce.sessions ? Number(bounce.avgBounces).toFixed(2) : '—'}</div>
+        <div class="ov-cc-label">Avg Back-from-Hostie until human</div>
+        <div class="ov-cc-val" style="color:var(--y26)">${bounce.sessions ? Number(bounce.avgBounces).toFixed(2) + ' · ' + fmtSankeyDuration(bounce.avgMs) : '—'}</div>
         <div class="ov-cc-py">
-          Unique calls that went through <b>Back from Hostie</b> and got a human on the last leg ·
-          median ${bounce.sessions ? Number(bounce.medianBounces).toFixed(2) : '—'} ·
-          ${fmt(bounce.sessions)} calls · avg ${bounce.avgMainLegs || '—'} MAIN legs before pickup
+          Unique calls via <b>Back from Hostie</b> that got a human on the last leg ·
+          median ${bounce.sessions ? Number(bounce.medianBounces).toFixed(2) + ' · ' + fmtSankeyDuration(bounce.medianMs) : '—'} ·
+          ${fmt(bounce.sessions)} calls · avg ${bounce.avgMainLegs || '—'} MAIN legs · time = first call start → human leg start
         </div>
       </div>
     </div>
