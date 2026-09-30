@@ -91,8 +91,8 @@ select:focus,input:focus{border-color:var(--y26)}
 .sankey-controls .filter-group{gap:8px}
 .sankey-controls select{min-width:140px}
 .sankey-controls .sankey-data-hint{color:var(--muted);font-size:12px;margin-left:auto}
-.sankey-chart-wrap{position:relative;height:780px;padding:12px 8px 16px}
-@media (max-width:900px){.sankey-chart-wrap{height:600px}}
+.sankey-chart-wrap{position:relative;height:900px;padding:20px 12px 24px}
+@media (max-width:900px){.sankey-chart-wrap{height:700px}}
 .ov-ai-impact-table{margin-top:14px;overflow-x:auto;border-top:1px solid var(--border);padding-top:12px}
 .ov-ai-impact-table .exec-kpi-table{min-width:680px;width:100%;border-collapse:separate;border-spacing:0 6px}
 .ov-ai-impact-table .exec-kpi-table thead th{border-bottom:none;padding:6px 12px 8px}
@@ -5708,7 +5708,7 @@ function renderSankey() {
     <div class="chart-row cols-1" style="margin-bottom:16px">
       <div class="chart-card">
         <h3>Call flow — ${escHtml(s.restaurantLabel)} W${s.week}</h3>
-        <p>Business hours only. Left→right: All inbound → <b>MAIN line</b> (direct) vs <b>Back from Hostie</b> (AI→CC) vs <b>Abandoned (IVR hang up…)</b> → outcomes → <b>HUMAN TOUCHED</b> (top) vs <b>HUMAN did not</b> (bottom). Labels = # · % of total.</p>
+        <p>Business hours only. Left→right: All inbound → <b>MAIN</b> / <b>Back from Hostie</b> / <b>Abandoned</b> → outcomes. Green terminals = human answered (together = HUMAN TOUCHED in the KPIs). Red = <b>HUMAN did not</b>. Labels = # · % of total.</p>
         <div class="chart-wrap sankey-chart-wrap"><canvas id="sankey-inbound"></canvas></div>
         <div id="sankey-def-panel" class="sankey-def-panel" aria-live="polite">
           <p class="sankey-def-hint">Click a Sankey node or flow (or a row in the breakdown) to see what it means and which calls are included.</p>
@@ -5838,17 +5838,17 @@ function paintSankeyChart() {
               .map(k => [k, String(k).replace(/\s*·\s*end/i, '')])
           ),
           borderWidth: 0,
-          nodeWidth: 14,
+          nodeWidth: 18,
           font: { size: 11, weight: '600', family: 'ui-sans-serif, system-ui, sans-serif' },
           color: '#e8ecf8',
           size: 'max',
-          padding: 16,
+          padding: 22,
         }],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        layout: { padding: { top: 40, bottom: 40, left: 16, right: 180 } },
+        layout: { padding: { top: 48, bottom: 48, left: 24, right: 200 } },
         onClick(evt, elements, chart) {
           if (elements && elements.length) {
             const el0 = elements[0];
