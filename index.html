@@ -407,7 +407,7 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 .save-hint{font-size:11px;color:var(--green);margin-left:8px}
 
 </style>
-  <!--RDG_HOURS_API--><script>window.RDG_HOURS_API="https://rdg-hours-api.plum-rat.workers.dev";</script><!--/RDG_HOURS_API-->
+  <!--RDG_HOURS_API--><script>window.RDG_HOURS_API=window.RDG_HOURS_API||"";</script><!--/RDG_HOURS_API-->
 </head>
 <body>
 
@@ -5658,15 +5658,6 @@ function renderSankey() {
   const bounce = s.backFromHostieUntilHuman || { sessions: 0, avgBounces: 0, medianBounces: 0, avgMainLegs: 0, totalBackLegs: 0, avgMs: 0, medianMs: 0 };
   const fmt = (n) => (n == null ? '—' : Number(n).toLocaleString());
   const fmtPct = (n) => (n == null || isNaN(n) ? '—' : Number(n).toFixed(1) + '%');
-  const rows = (s.breakdown || []).map((r) => {
-    const cls = r.kind === 'human' ? 'up' : r.kind === 'no_human' ? 'dn' : '';
-    const bold = r.label.includes('HUMAN TOUCHED') || r.label.startsWith('All inbound');
-    return `<tr class="sankey-break-row ${bold ? 'total-row' : ''}" data-sankey-def="${escHtml(r.label.trim())}" onclick="showSankeyDefinitionFromLabel(${JSON.stringify(r.label)})">
-      <td style="text-align:left">${escHtml(r.label)}</td>
-      <td>${fmt(r.count)}</td>
-      <td class="${cls}">${fmtPct(r.pct)}</td>
-    </tr>`;
-  }).join('');
 
   el.innerHTML = `
     <div class="section-head">Sankey Diagram</div>
@@ -5702,13 +5693,6 @@ function renderSankey() {
         </div>
         <div class="stat-note" style="margin-top:10px">${(s.notes || []).map(n => escHtml(n)).join(' · ')}</div>
       </div>
-    </div>
-    <div class="table-card">
-      <h3>Breakdown vs total volume</h3>
-      <table>
-        <thead><tr><th style="text-align:left">Stage</th><th>#</th><th>% of total</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
     </div>
     ${buildSankeyHourDetailSection()}`;
   requestAnimationFrame(() => paintSankeyChart());
