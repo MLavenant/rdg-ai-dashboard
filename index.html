@@ -93,6 +93,15 @@ select:focus,input:focus{border-color:var(--y26)}
 .sankey-controls .sankey-data-hint{color:var(--muted);font-size:12px;margin-left:auto}
 .sankey-chart-wrap{position:relative;height:900px;padding:20px 12px 24px}
 @media (max-width:900px){.sankey-chart-wrap{height:700px}}
+.sankey-tod-wrap{position:relative;height:320px;margin-top:8px}
+.sankey-tod-legend{display:flex;flex-wrap:wrap;gap:10px 16px;margin:8px 0 4px;font-size:11px;color:var(--muted)}
+.sankey-tod-legend span{display:inline-flex;align-items:center;gap:6px}
+.sankey-tod-legend i{width:10px;height:10px;border-radius:2px;display:inline-block}
+.sankey-tod-badge{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:999px;margin-left:8px}
+.sankey-tod-badge.bh{background:rgba(52,211,153,.15);color:#34d399;border:1px solid rgba(52,211,153,.35)}
+.sankey-tod-badge.ah{background:rgba(251,191,36,.12);color:#fbbf24;border:1px solid rgba(251,191,36,.35)}
+.sankey-tod-table td,.sankey-tod-table th{font-size:11px;padding:6px 8px}
+.sankey-tod-table .pct{color:var(--muted);font-size:10px}
 .ov-ai-impact-table{margin-top:14px;overflow-x:auto;border-top:1px solid var(--border);padding-top:12px}
 .ov-ai-impact-table .exec-kpi-table{min-width:680px;width:100%;border-collapse:separate;border-spacing:0 6px}
 .ov-ai-impact-table .exec-kpi-table thead th{border-bottom:none;padding:6px 12px 8px}
@@ -5496,6 +5505,7 @@ function getSankeyCatalog() {
       weeksWithData: [cat.week],
       weeks: Array.from({ length: 52 }, (_, i) => 52 - i),
       charts: { [key]: cat },
+      hourProfiles: {},
     };
   }
   return cat;
@@ -5722,8 +5732,12 @@ function renderSankey() {
         <thead><tr><th style="text-align:left">Stage</th><th>#</th><th>% of total</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
-    </div>`;
-  requestAnimationFrame(() => paintSankeyChart());
+    </div>
+    ${buildSankeyTimeOfDaySection()}`;
+  requestAnimationFrame(() => {
+    paintSankeyChart();
+    paintSankeyTimeOfDayCharts();
+  });
 }
 
 function fmtSankeyDuration(ms) {
@@ -5736,6 +5750,267 @@ function fmtSankeyDuration(ms) {
   const h = Math.floor(m / 60);
   return h + 'h ' + (m % 60) + 'm';
 }
+
+const SANKEY_TOD_COLORS = {
+  directHuman: '#34d399',
+  aiTransferHuman: '#f59e0b',
+  aiHandled: '#a78bfa',
+  missedAbandoned: '#f87171',
+};
+
+function emptyTodBucket() {
+  return { directHuman: 0, aiTransferHuman: 0, aiHandled: 0, missedAbandoned: 0, total: 0 };
+}
+
+function addTodBucket(a, b) {
+  a.directHuman += b.directHuman || 0;
+  a.aiTransferHuman += b.aiTransferHuman || 0;
+  a.aiHandled += b.aiHandled || 0;
+  a.missedAbandoned += b.missedAbandoned || 0;
+  a.total += b.total || 0;
+  return a;
+}
+
+function todPct(n, total) {
+  if (!(total > 0)) return 0;
+  return Math.round((n / total) * 1000) / 10;
+}
+
+function getActiveHourProfile() {
+  const cat = getSankeyCatalog();
+  if (!cat?.hourProfiles) return null;
+  return cat.hourProfiles[`${SANKEY_SEL.restaurantId}:${SANKEY_SEL.week}`] || null;
+}
+
+function buildSankeyTimeOfDaySection() {
+  const cat = getSankeyCatalog();
+  const profile = getActiveHourProfile();
+  const week = SANKEY_SEL.week;
+  const rests = cat?.restaurants || [];
+  const fmt = (n) => Number(n || 0).toLocaleString();
+  const fmtP = (n, t) => (t > 0 ? todPct(n, t).toFixed(1) + '%' : '—');
+
+  const unitRows = rests.map(r => {
+    const p = cat?.hourProfiles?.[`${r.id}:${week}`];
+    if (!p) {
+      return `<tr><td style="text-align:left">${escHtml(r.label)}</td><td colspan="10" style="text-align:left;color:var(--muted)">No data</td></tr>`;
+    }
+    const bh = p.totals.businessHours || emptyTodBucket();
+    const ah = p.totals.afterHours || emptyTodBucket();
+    return `<tr>
+      <td style="text-align:left"><b>${escHtml(r.label)}</b></td>
+      <td>${fmt(bh.total)}</td>
+      <td>${fmt(bh.directHuman)}<div class="pct">${fmtP(bh.directHuman, bh.total)}</div></td>
+      <td>${fmt(bh.aiTransferHuman)}<div class="pct">${fmtP(bh.aiTransferHuman, bh.total)}</div></td>
+      <td>${fmt(bh.aiHandled)}<div class="pct">${fmtP(bh.aiHandled, bh.total)}</div></td>
+      <td>${fmt(bh.missedAbandoned)}<div class="pct">${fmtP(bh.missedAbandoned, bh.total)}</div></td>
+      <td>${fmt(ah.total)}</td>
+      <td>${fmt(ah.directHuman)}<div class="pct">${fmtP(ah.directHuman, ah.total)}</div></td>
+      <td>${fmt(ah.aiTransferHuman)}<div class="pct">${fmtP(ah.aiTransferHuman, ah.total)}</div></td>
+      <td>${fmt(ah.aiHandled)}<div class="pct">${fmtP(ah.aiHandled, ah.total)}</div></td>
+      <td>${fmt(ah.missedAbandoned)}<div class="pct">${fmtP(ah.missedAbandoned, ah.total)}</div></td>
+    </tr>`;
+  }).join('');
+
+  const sumBh = emptyTodBucket();
+  const sumAh = emptyTodBucket();
+  for (const r of rests) {
+    const p = cat?.hourProfiles?.[`${r.id}:${week}`];
+    if (!p) continue;
+    addTodBucket(sumBh, p.totals.businessHours || emptyTodBucket());
+    addTodBucket(sumAh, p.totals.afterHours || emptyTodBucket());
+  }
+  const totalRow = (sumBh.total || sumAh.total) ? `<tr class="total-row">
+      <td style="text-align:left"><b>All locations</b></td>
+      <td>${fmt(sumBh.total)}</td>
+      <td>${fmt(sumBh.directHuman)}<div class="pct">${fmtP(sumBh.directHuman, sumBh.total)}</div></td>
+      <td>${fmt(sumBh.aiTransferHuman)}<div class="pct">${fmtP(sumBh.aiTransferHuman, sumBh.total)}</div></td>
+      <td>${fmt(sumBh.aiHandled)}<div class="pct">${fmtP(sumBh.aiHandled, sumBh.total)}</div></td>
+      <td>${fmt(sumBh.missedAbandoned)}<div class="pct">${fmtP(sumBh.missedAbandoned, sumBh.total)}</div></td>
+      <td>${fmt(sumAh.total)}</td>
+      <td>${fmt(sumAh.directHuman)}<div class="pct">${fmtP(sumAh.directHuman, sumAh.total)}</div></td>
+      <td>${fmt(sumAh.aiTransferHuman)}<div class="pct">${fmtP(sumAh.aiTransferHuman, sumAh.total)}</div></td>
+      <td>${fmt(sumAh.aiHandled)}<div class="pct">${fmtP(sumAh.aiHandled, sumAh.total)}</div></td>
+      <td>${fmt(sumAh.missedAbandoned)}<div class="pct">${fmtP(sumAh.missedAbandoned, sumAh.total)}</div></td>
+    </tr>` : '';
+
+  const legend = `
+    <div class="sankey-tod-legend">
+      <span><i style="background:${SANKEY_TOD_COLORS.directHuman}"></i>Direct human (reservationist on MAIN)</span>
+      <span><i style="background:${SANKEY_TOD_COLORS.aiTransferHuman}"></i>AI → human (Back from Hostie)</span>
+      <span><i style="background:${SANKEY_TOD_COLORS.aiHandled}"></i>Handled by AI only</span>
+      <span><i style="background:${SANKEY_TOD_COLORS.missedAbandoned}"></i>Missed / abandoned</span>
+    </div>`;
+
+  const locLabel = profile?.restaurantLabel || SANKEY_SEL.restaurantId;
+  const hourTable = buildSankeyHourDetailTable(profile);
+
+  return `
+    <div class="table-card" style="margin-top:16px">
+      <h3>By unit — business hours vs after hours · W${week}</h3>
+      <p class="loc-summary-note" style="margin:0 0 10px">
+        Unique calls (≤2 min session). TalkDesk <b>In Business Hours?</b> splits columns.
+        Outcomes from the <b>last</b> leg: direct reservationist answer vs AI transfer back vs AI-only vs missed/abandoned (incl. no-pickup transfer / empty agent).
+      </p>
+      ${legend}
+      <div style="overflow-x:auto">
+        <table class="sankey-tod-table">
+          <thead>
+            <tr>
+              <th style="text-align:left" rowspan="2">Location</th>
+              <th colspan="5"><span class="sankey-tod-badge bh">Business hours</span></th>
+              <th colspan="5"><span class="sankey-tod-badge ah">After hours</span></th>
+            </tr>
+            <tr>
+              <th>Total</th><th>Direct human</th><th>AI→human</th><th>AI only</th><th>Missed/abn</th>
+              <th>Total</th><th>Direct human</th><th>AI→human</th><th>AI only</th><th>Missed/abn</th>
+            </tr>
+          </thead>
+          <tbody>${unitRows}${totalRow}</tbody>
+        </table>
+      </div>
+    </div>
+    <div class="chart-row cols-2" style="margin-top:16px;margin-bottom:16px">
+      <div class="chart-card">
+        <h3>${escHtml(locLabel)} · time of day <span class="sankey-tod-badge bh">Business hours</span></h3>
+        <p>% of that hour’s unique calls (stacked). Empty hours omitted from bars when total is 0.</p>
+        ${legend}
+        <div class="sankey-tod-wrap"><canvas id="sankey-tod-bh"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>${escHtml(locLabel)} · time of day <span class="sankey-tod-badge ah">After hours</span></h3>
+        <p>% of that hour’s unique calls outside business hours.</p>
+        ${legend}
+        <div class="sankey-tod-wrap"><canvas id="sankey-tod-ah"></canvas></div>
+      </div>
+    </div>
+    ${hourTable}`;
+}
+
+function buildSankeyHourDetailTable(profile) {
+  if (!profile?.hours?.length) {
+    return `<div class="table-card"><p class="loc-summary-note" style="margin:0">No hour-level data for this location/week.</p></div>`;
+  }
+  const fmt = (n) => Number(n || 0).toLocaleString();
+  const fmtP = (n, t) => (t > 0 ? todPct(n, t).toFixed(1) + '%' : '—');
+  const rows = profile.hours.filter(h => (h.businessHours?.total || 0) + (h.afterHours?.total || 0) > 0).map(h => {
+    const bh = h.businessHours || emptyTodBucket();
+    const ah = h.afterHours || emptyTodBucket();
+    return `<tr>
+      <td style="text-align:left"><b>${escHtml(h.label)}</b></td>
+      <td>${fmt(bh.total)}</td>
+      <td>${fmtP(bh.directHuman, bh.total)}</td>
+      <td>${fmtP(bh.aiTransferHuman, bh.total)}</td>
+      <td>${fmtP(bh.aiHandled, bh.total)}</td>
+      <td>${fmtP(bh.missedAbandoned, bh.total)}</td>
+      <td>${fmt(ah.total)}</td>
+      <td>${fmtP(ah.directHuman, ah.total)}</td>
+      <td>${fmtP(ah.aiTransferHuman, ah.total)}</td>
+      <td>${fmtP(ah.aiHandled, ah.total)}</td>
+      <td>${fmtP(ah.missedAbandoned, ah.total)}</td>
+    </tr>`;
+  }).join('');
+  return `
+    <div class="table-card">
+      <h3>${escHtml(profile.restaurantLabel)} · hour detail · W${profile.week}</h3>
+      <p class="loc-summary-note" style="margin:0 0 10px">Percentages are within that hour and hours band (business vs after).</p>
+      <div style="overflow-x:auto">
+        <table class="sankey-tod-table">
+          <thead>
+            <tr>
+              <th style="text-align:left" rowspan="2">Hour</th>
+              <th colspan="5"><span class="sankey-tod-badge bh">Business hours</span></th>
+              <th colspan="5"><span class="sankey-tod-badge ah">After hours</span></th>
+            </tr>
+            <tr>
+              <th>#</th><th>Direct %</th><th>AI→human %</th><th>AI only %</th><th>Missed %</th>
+              <th>#</th><th>Direct %</th><th>AI→human %</th><th>AI only %</th><th>Missed %</th>
+            </tr>
+          </thead>
+          <tbody>${rows || '<tr><td colspan="11" style="text-align:left;color:var(--muted)">No calls</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function paintSankeyTimeOfDayCharts() {
+  const profile = getActiveHourProfile();
+  paintSankeyTodStacked('sankey-tod-bh', profile, 'businessHours');
+  paintSankeyTodStacked('sankey-tod-ah', profile, 'afterHours');
+}
+
+function paintSankeyTodStacked(canvasId, profile, side) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || typeof Chart === 'undefined') return;
+  if (CHARTS[canvasId]) {
+    CHARTS[canvasId].destroy();
+    delete CHARTS[canvasId];
+  }
+  if (!profile?.hours?.length) return;
+
+  const hours = profile.hours.filter(h => (h[side]?.total || 0) > 0);
+  if (!hours.length) {
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      const w = canvas.width || 400, h = canvas.height || 200;
+      ctx.clearRect(0, 0, w, h);
+    }
+    return;
+  }
+
+  const labels = hours.map(h => h.label);
+  const keys = ['directHuman', 'aiTransferHuman', 'aiHandled', 'missedAbandoned'];
+  const titles = {
+    directHuman: 'Direct human',
+    aiTransferHuman: 'AI → human',
+    aiHandled: 'AI only',
+    missedAbandoned: 'Missed / abandoned',
+  };
+  const datasets = keys.map(k => ({
+    label: titles[k],
+    data: hours.map(h => {
+      const b = h[side] || emptyTodBucket();
+      return b.total > 0 ? todPct(b[k], b.total) : 0;
+    }),
+    backgroundColor: SANKEY_TOD_COLORS[k],
+    stack: 'tod',
+    borderWidth: 0,
+  }));
+
+  CHARTS[canvasId] = new Chart(canvas, {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            footer: (items) => {
+              const i = items?.[0]?.dataIndex;
+              if (i == null) return '';
+              const b = hours[i][side];
+              return b ? `n = ${b.total}` : '';
+            },
+            label: (ctx) => `${ctx.dataset.label}: ${Number(ctx.raw).toFixed(1)}%`,
+          },
+        },
+      },
+      scales: {
+        x: { stacked: true, ticks: { color: '#8890b8', maxRotation: 0, autoSkip: true }, grid: { display: false } },
+        y: {
+          stacked: true,
+          min: 0,
+          max: 100,
+          ticks: { color: '#8890b8', callback: (v) => v + '%' },
+          grid: { color: 'rgba(136,144,184,.15)' },
+        },
+      },
+    },
+  });
+}
+
 function escHtml(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
