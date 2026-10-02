@@ -407,7 +407,7 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 .save-hint{font-size:11px;color:var(--green);margin-left:8px}
 
 </style>
-  <!--RDG_HOURS_API--><script>window.RDG_HOURS_API=window.RDG_HOURS_API||"";</script><!--/RDG_HOURS_API-->
+  <!--RDG_HOURS_API--><script>window.RDG_HOURS_API="https://rdg-hours-api.plum-rat.workers.dev";</script><!--/RDG_HOURS_API-->
 </head>
 <body>
 
@@ -5775,8 +5775,9 @@ function buildSankeyHourDetailSection() {
         </div>
       </div>
       <p class="loc-summary-note" style="margin:0 0 10px">
-        Business hours vs after hours (TalkDesk <b>In Business Hours?</b>). Percentages within that hour.
-        Direct human · AI→human (Back from Hostie) · AI only · Missed/abandoned.
+        Business hours vs after hours (TalkDesk <b>In Business Hours?</b>).
+        <b>Human %</b> = Direct reservationist + AI→human (Back from Hostie).
+        <b>Not human %</b> = AI only + Missed/abandoned. Split columns show the mix inside each.
       </p>
       <div id="sankey-hour-detail-wrap">${buildSankeyHourDetailTableBody()}</div>
     </div>`;
@@ -5789,21 +5790,28 @@ function buildSankeyHourDetailTableBody() {
   }
   const fmt = (n) => Number(n || 0).toLocaleString();
   const fmtP = (n, t) => (t > 0 ? todPct(n, t).toFixed(1) + '%' : '—');
+  const humanN = (b) => (b.directHuman || 0) + (b.aiTransferHuman || 0);
+  const notHumanN = (b) => (b.aiHandled || 0) + (b.missedAbandoned || 0);
+  const bandCells = (b) => {
+    const t = b.total || 0;
+    const hum = humanN(b);
+    const notH = notHumanN(b);
+    return `
+      <td>${fmt(t)}</td>
+      <td class="up"><b>${fmtP(hum, t)}</b></td>
+      <td class="pct">${fmtP(b.directHuman, t)}</td>
+      <td class="pct">${fmtP(b.aiTransferHuman, t)}</td>
+      <td class="dn"><b>${fmtP(notH, t)}</b></td>
+      <td class="pct">${fmtP(b.aiHandled, t)}</td>
+      <td class="pct">${fmtP(b.missedAbandoned, t)}</td>`;
+  };
   const rows = slice.hours.filter(h => (h.businessHours?.total || 0) + (h.afterHours?.total || 0) > 0).map(h => {
     const bh = h.businessHours || emptyTodBucket();
     const ah = h.afterHours || emptyTodBucket();
     return `<tr>
       <td style="text-align:left"><b>${escHtml(h.label)}</b></td>
-      <td>${fmt(bh.total)}</td>
-      <td>${fmtP(bh.directHuman, bh.total)}</td>
-      <td>${fmtP(bh.aiTransferHuman, bh.total)}</td>
-      <td>${fmtP(bh.aiHandled, bh.total)}</td>
-      <td>${fmtP(bh.missedAbandoned, bh.total)}</td>
-      <td>${fmt(ah.total)}</td>
-      <td>${fmtP(ah.directHuman, ah.total)}</td>
-      <td>${fmtP(ah.aiTransferHuman, ah.total)}</td>
-      <td>${fmtP(ah.aiHandled, ah.total)}</td>
-      <td>${fmtP(ah.missedAbandoned, ah.total)}</td>
+      ${bandCells(bh)}
+      ${bandCells(ah)}
     </tr>`;
   }).join('');
 
@@ -5811,16 +5819,8 @@ function buildSankeyHourDetailTableBody() {
   const ahT = slice.totals?.afterHours || emptyTodBucket();
   const totalRow = (bhT.total || ahT.total) ? `<tr class="total-row">
       <td style="text-align:left"><b>${escHtml(slice.dayLabel)} total</b></td>
-      <td>${fmt(bhT.total)}</td>
-      <td>${fmtP(bhT.directHuman, bhT.total)}</td>
-      <td>${fmtP(bhT.aiTransferHuman, bhT.total)}</td>
-      <td>${fmtP(bhT.aiHandled, bhT.total)}</td>
-      <td>${fmtP(bhT.missedAbandoned, bhT.total)}</td>
-      <td>${fmt(ahT.total)}</td>
-      <td>${fmtP(ahT.directHuman, ahT.total)}</td>
-      <td>${fmtP(ahT.aiTransferHuman, ahT.total)}</td>
-      <td>${fmtP(ahT.aiHandled, ahT.total)}</td>
-      <td>${fmtP(ahT.missedAbandoned, ahT.total)}</td>
+      ${bandCells(bhT)}
+      ${bandCells(ahT)}
     </tr>` : '';
 
   return `
@@ -5829,15 +5829,19 @@ function buildSankeyHourDetailTableBody() {
           <thead>
             <tr>
               <th style="text-align:left" rowspan="2">Hour</th>
-              <th colspan="5"><span class="sankey-tod-badge bh">Business hours</span></th>
-              <th colspan="5"><span class="sankey-tod-badge ah">After hours</span></th>
+              <th colspan="7"><span class="sankey-tod-badge bh">Business hours</span></th>
+              <th colspan="7"><span class="sankey-tod-badge ah">After hours</span></th>
             </tr>
             <tr>
-              <th>#</th><th>Direct %</th><th>AI→human %</th><th>AI only %</th><th>Missed %</th>
-              <th>#</th><th>Direct %</th><th>AI→human %</th><th>AI only %</th><th>Missed %</th>
+              <th>#</th>
+              <th>Human %</th><th>· Direct</th><th>· AI→human</th>
+              <th>Not human %</th><th>· AI only</th><th>· Missed</th>
+              <th>#</th>
+              <th>Human %</th><th>· Direct</th><th>· AI→human</th>
+              <th>Not human %</th><th>· AI only</th><th>· Missed</th>
             </tr>
           </thead>
-          <tbody>${rows || '<tr><td colspan="11" style="text-align:left;color:var(--muted)">No calls</td></tr>'}${totalRow}</tbody>
+          <tbody>${rows || '<tr><td colspan="15" style="text-align:left;color:var(--muted)">No calls</td></tr>'}${totalRow}</tbody>
         </table>
       </div>`;
 }
