@@ -102,6 +102,16 @@ select:focus,input:focus{border-color:var(--y26)}
 .sankey-tod-badge.ah{background:rgba(251,191,36,.12);color:#fbbf24;border:1px solid rgba(251,191,36,.35)}
 .sankey-tod-table td,.sankey-tod-table th{font-size:11px;padding:6px 8px}
 .sankey-tod-table .pct{color:var(--muted);font-size:10px}
+.sankey-tod-table th.human-col,.sankey-tod-table td.human-col{background:rgba(52,211,153,.08)}
+.sankey-tod-table th.nothuman-col,.sankey-tod-table td.nothuman-col{background:rgba(248,113,113,.07)}
+.sankey-tod-table .subhead{font-size:9px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+.sankey-staff-eq{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin:8px 0 0;line-height:1.55;color:var(--text)}
+.sankey-staff-eq b{color:var(--y26)}
+.sankey-tod-formula{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.sankey-tod-pill{font-size:11px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2)}
+.sankey-tod-pill.human{border-color:rgba(52,211,153,.4);background:rgba(52,211,153,.1)}
+.sankey-tod-pill.nothuman{border-color:rgba(248,113,113,.35);background:rgba(248,113,113,.08)}
+.sankey-tod-pill code{font-size:10px;color:var(--muted)}
 .ov-ai-impact-table{margin-top:14px;overflow-x:auto;border-top:1px solid var(--border);padding-top:12px}
 .ov-ai-impact-table .exec-kpi-table{min-width:680px;width:100%;border-collapse:separate;border-spacing:0 6px}
 .ov-ai-impact-table .exec-kpi-table thead th{border-bottom:none;padding:6px 12px 8px}
@@ -5574,19 +5584,21 @@ function buildSankeyBounceCompareTable() {
     </tr>` : '';
   return `
     <div class="table-card" style="margin-bottom:16px">
-      <h3>Back-from-Hostie until human — last week W${week}</h3>
+      <h3>Bounce until human — last week W${week}</h3>
       <p class="loc-summary-note" style="margin:0 0 10px">
-        Business hours only (TalkDesk <b>In Business Hours? = TRUE</b>). Unique calls.
-        <b># Back from Hostie</b> = how many times through Back from Hostie until a human picked up.
-        <b>Time</b> = first call start → start of the last leg where a named agent answered. Direct human-on-main (no Back from Hostie) is excluded.
+        Business hours only. Unique sessions (≤2 min gap).
+        <b>Bounce</b> = # of failed TalkDesk legs <i>before</i> the final human answer
+        (e.g. MAIN If-No-Answer = 1st bounce, then Back from Hostie If-No-Answer = 2nd, then human pickup).
+        Direct human-on-main with no AI/Back attempt is excluded.
+        <b>Time</b> = first leg start → human last-leg start.
       </p>
       <table>
         <thead>
           <tr>
             <th style="text-align:left">Location</th>
             <th>HUMAN TOUCHED</th>
-            <th>Got human via Back from Hostie</th>
-            <th>Avg # Back from Hostie</th>
+            <th>Got human after bounce(s)</th>
+            <th>Avg # bounces</th>
             <th>Median #</th>
             <th>Avg time to human</th>
             <th>Median time</th>
@@ -5673,15 +5685,16 @@ function renderSankey() {
     </p>
     <div class="ov-cc-summary" style="margin-bottom:16px;grid-template-columns:1fr">
       <div class="ov-cc-card">
-        <div class="ov-cc-label">Avg Back-from-Hostie until human</div>
+        <div class="ov-cc-label">Avg bounces until human</div>
         <div class="ov-cc-val" style="color:var(--y26)">${bounce.sessions ? Number(bounce.avgBounces).toFixed(2) + ' · ' + fmtSankeyDuration(bounce.avgMs) : '—'}</div>
         <div class="ov-cc-py">
-          Unique calls via <b>Back from Hostie</b> that got a human on the last leg ·
+          Failed legs before human pickup (MAIN If-No-Answer, Back If-No-Answer, …) ·
           median ${bounce.sessions ? Number(bounce.medianBounces).toFixed(2) + ' · ' + fmtSankeyDuration(bounce.medianMs) : '—'} ·
-          ${fmt(bounce.sessions)} calls · avg ${bounce.avgMainLegs || '—'} MAIN legs · time = first call start → human leg start
+          ${fmt(bounce.sessions)} unique calls · avg ${bounce.avgMainLegs || '—'} MAIN legs
         </div>
       </div>
     </div>
+    ${buildSankeyStaffingCard(s)}
     ${buildSankeyBounceCompareTable()}
     <div class="chart-row cols-1" style="margin-bottom:16px">
       <div class="chart-card">
@@ -5755,6 +5768,38 @@ function resolveHourProfileSlice(profile) {
   };
 }
 
+function buildSankeyStaffingCard(s) {
+  const st = s?.staffingToTarget;
+  if (!st) return '';
+  const fmt = (n) => Number(n || 0).toLocaleString();
+  const gap = st.additionalHumanAnswersNeeded || 0;
+  const hit = gap <= 0;
+  return `
+    <div class="ov-cc-summary" style="margin-bottom:16px;grid-template-columns:1fr">
+      <div class="ov-cc-card">
+        <div class="ov-cc-label">Staffing to ${st.targetHumanPct}% human-answered</div>
+        <div class="ov-cc-val" style="color:${hit ? 'var(--green)' : 'var(--y26)'}">
+          ${hit ? 'On target' : '+' + fmt(st.estimatedExtraAgents) + ' agents'}
+        </div>
+        <div class="ov-cc-py">
+          Now <b>${Number(st.currentHumanPct).toFixed(1)}%</b> human
+          (${fmt(st.currentHumanTouched)} / ${fmt(st.totalVolume)}) ·
+          target <b>${fmt(st.targetHumanTouched)}</b> answers ·
+          gap <b>${fmt(gap)}</b> ·
+          ${fmt(st.uniqueHumanAgents)} agents this week ·
+          ~${st.answersPerAgent} unique human answers / agent
+        </div>
+        <div class="sankey-staff-eq">
+          <div>target answers = <b>${st.targetHumanPct}%</b> × ${fmt(st.totalVolume)} = <b>${fmt(st.targetHumanTouched)}</b></div>
+          <div>gap = ${fmt(st.targetHumanTouched)} − ${fmt(st.currentHumanTouched)} = <b>${fmt(gap)}</b> more human answers</div>
+          <div>extra agents ≈ gap ÷ (${fmt(st.currentHumanTouched)} ÷ ${fmt(st.uniqueHumanAgents)}) = <b>${st.estimatedExtraAgents}</b>
+            → ~<b>${st.estimatedTotalAgents}</b> agents total at this week’s pace</div>
+        </div>
+        <div class="stat-note" style="margin-top:8px">${(st.notes || []).map(n => escHtml(n)).join(' · ')}</div>
+      </div>
+    </div>`;
+}
+
 function buildSankeyHourDetailSection() {
   const profile = getActiveHourProfile();
   if (SANKEY_SEL.hourDay == null) SANKEY_SEL.hourDay = 'all';
@@ -5774,10 +5819,18 @@ function buildSankeyHourDetailSection() {
           <select id="sankey-hour-day" onchange="onSankeyHourDayChange()">${dayOpts}</select>
         </div>
       </div>
+      <div class="sankey-tod-formula">
+        <div class="sankey-tod-pill human">
+          <b>Human %</b> = Direct + AI→human
+          <div><code>reservationist on MAIN</code> + <code>Back from Hostie answered</code></div>
+        </div>
+        <div class="sankey-tod-pill nothuman">
+          <b>Not human %</b> = AI only + Missed
+          <div><code>If-No-Answer only</code> + <code>abandoned / no pickup</code></div>
+        </div>
+      </div>
       <p class="loc-summary-note" style="margin:0 0 10px">
-        Business hours vs after hours (TalkDesk <b>In Business Hours?</b>).
-        <b>Human %</b> = Direct reservationist + AI→human (Back from Hostie).
-        <b>Not human %</b> = AI only + Missed/abandoned. Split columns show the mix inside each.
+        Indented columns are <b>parts of</b> Human % or Not human % (they add up to that parent). Business vs after hours from TalkDesk <b>In Business Hours?</b>.
       </p>
       <div id="sankey-hour-detail-wrap">${buildSankeyHourDetailTableBody()}</div>
     </div>`;
@@ -5798,12 +5851,12 @@ function buildSankeyHourDetailTableBody() {
     const notH = notHumanN(b);
     return `
       <td>${fmt(t)}</td>
-      <td class="up"><b>${fmtP(hum, t)}</b></td>
-      <td class="pct">${fmtP(b.directHuman, t)}</td>
-      <td class="pct">${fmtP(b.aiTransferHuman, t)}</td>
-      <td class="dn"><b>${fmtP(notH, t)}</b></td>
-      <td class="pct">${fmtP(b.aiHandled, t)}</td>
-      <td class="pct">${fmtP(b.missedAbandoned, t)}</td>`;
+      <td class="human-col up"><b>${fmtP(hum, t)}</b></td>
+      <td class="human-col pct" title="% of hour that is Direct (subset of Human %)">${fmtP(b.directHuman, t)}</td>
+      <td class="human-col pct" title="% of hour that is AI→human (subset of Human %)">${fmtP(b.aiTransferHuman, t)}</td>
+      <td class="nothuman-col dn"><b>${fmtP(notH, t)}</b></td>
+      <td class="nothuman-col pct" title="% of hour that is AI only (subset of Not human %)">${fmtP(b.aiHandled, t)}</td>
+      <td class="nothuman-col pct" title="% of hour that is Missed/abandoned (subset of Not human %)">${fmtP(b.missedAbandoned, t)}</td>`;
   };
   const rows = slice.hours.filter(h => (h.businessHours?.total || 0) + (h.afterHours?.total || 0) > 0).map(h => {
     const bh = h.businessHours || emptyTodBucket();
@@ -5823,22 +5876,29 @@ function buildSankeyHourDetailTableBody() {
       ${bandCells(ahT)}
     </tr>` : '';
 
+  const sub = (label) => `<div class="subhead">${label}</div>`;
   return `
       <div style="overflow-x:auto">
         <table class="sankey-tod-table">
           <thead>
             <tr>
-              <th style="text-align:left" rowspan="2">Hour</th>
+              <th style="text-align:left" rowspan="3">Hour</th>
               <th colspan="7"><span class="sankey-tod-badge bh">Business hours</span></th>
               <th colspan="7"><span class="sankey-tod-badge ah">After hours</span></th>
             </tr>
             <tr>
-              <th>#</th>
-              <th>Human %</th><th>· Direct</th><th>· AI→human</th>
-              <th>Not human %</th><th>· AI only</th><th>· Missed</th>
-              <th>#</th>
-              <th>Human %</th><th>· Direct</th><th>· AI→human</th>
-              <th>Not human %</th><th>· AI only</th><th>· Missed</th>
+              <th rowspan="2">#</th>
+              <th class="human-col" colspan="3">${sub('Human (sum)')} Direct + AI→human</th>
+              <th class="nothuman-col" colspan="3">${sub('Not human (sum)')} AI only + Missed</th>
+              <th rowspan="2">#</th>
+              <th class="human-col" colspan="3">${sub('Human (sum)')} Direct + AI→human</th>
+              <th class="nothuman-col" colspan="3">${sub('Not human (sum)')} AI only + Missed</th>
+            </tr>
+            <tr>
+              <th class="human-col">Human %</th><th class="human-col">↳ Direct</th><th class="human-col">↳ AI→human</th>
+              <th class="nothuman-col">Not human %</th><th class="nothuman-col">↳ AI only</th><th class="nothuman-col">↳ Missed</th>
+              <th class="human-col">Human %</th><th class="human-col">↳ Direct</th><th class="human-col">↳ AI→human</th>
+              <th class="nothuman-col">Not human %</th><th class="nothuman-col">↳ AI only</th><th class="nothuman-col">↳ Missed</th>
             </tr>
           </thead>
           <tbody>${rows || '<tr><td colspan="15" style="text-align:left;color:var(--muted)">No calls</td></tr>'}${totalRow}</tbody>
