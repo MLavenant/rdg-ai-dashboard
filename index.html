@@ -417,7 +417,7 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 .save-hint{font-size:11px;color:var(--green);margin-left:8px}
 
 </style>
-  <!--RDG_HOURS_API--><script>window.RDG_HOURS_API="https://rdg-hours-api.plum-rat.workers.dev";</script><!--/RDG_HOURS_API-->
+  <!--RDG_HOURS_API--><script>window.RDG_HOURS_API=window.RDG_HOURS_API||"";</script><!--/RDG_HOURS_API-->
 </head>
 <body>
 
@@ -5777,23 +5777,22 @@ function buildSankeyStaffingCard(s) {
   return `
     <div class="ov-cc-summary" style="margin-bottom:16px;grid-template-columns:1fr">
       <div class="ov-cc-card">
-        <div class="ov-cc-label">Staffing to ${st.targetHumanPct}% human-answered</div>
+        <div class="ov-cc-label">Target: ${st.targetHumanPct}% of unique calls answered by a human</div>
         <div class="ov-cc-val" style="color:${hit ? 'var(--green)' : 'var(--y26)'}">
-          ${hit ? 'On target' : '+' + fmt(st.estimatedExtraAgents) + ' agents'}
+          ${hit ? 'On target' : fmt(st.targetHumanTouched) + ' human answers needed'}
         </div>
         <div class="ov-cc-py">
-          Now <b>${Number(st.currentHumanPct).toFixed(1)}%</b> human
-          (${fmt(st.currentHumanTouched)} / ${fmt(st.totalVolume)}) ·
-          target <b>${fmt(st.targetHumanTouched)}</b> answers ·
-          gap <b>${fmt(gap)}</b> ·
-          ${fmt(st.uniqueHumanAgents)} agents this week ·
-          ~${st.answersPerAgent} unique human answers / agent
+          Of <b>${fmt(st.totalVolume)}</b> unique inbound (business hours),
+          <b>${st.targetHumanPct}%</b> = <b>${fmt(st.targetHumanTouched)}</b> should reach a human.
+          Now <b>${fmt(st.currentHumanTouched)}</b> (${Number(st.currentHumanPct).toFixed(1)}%) → gap <b>${fmt(gap)}</b>.
+          Staff at this week’s pace: ${fmt(st.uniqueHumanAgents)} agents · ~${st.answersPerAgent}/agent →
+          ~<b>${st.estimatedTotalAgents}</b> agents total (<b>+${st.estimatedExtraAgents}</b>).
         </div>
         <div class="sankey-staff-eq">
-          <div>target answers = <b>${st.targetHumanPct}%</b> × ${fmt(st.totalVolume)} = <b>${fmt(st.targetHumanTouched)}</b></div>
-          <div>gap = ${fmt(st.targetHumanTouched)} − ${fmt(st.currentHumanTouched)} = <b>${fmt(gap)}</b> more human answers</div>
-          <div>extra agents ≈ gap ÷ (${fmt(st.currentHumanTouched)} ÷ ${fmt(st.uniqueHumanAgents)}) = <b>${st.estimatedExtraAgents}</b>
-            → ~<b>${st.estimatedTotalAgents}</b> agents total at this week’s pace</div>
+          <div>calls that should be human-answered = <b>${st.targetHumanPct}%</b> × ${fmt(st.totalVolume)} = <b>${fmt(st.targetHumanTouched)}</b></div>
+          <div>gap vs today = ${fmt(st.targetHumanTouched)} − ${fmt(st.currentHumanTouched)} = <b>${fmt(gap)}</b> more human answers</div>
+          <div>agents needed ≈ ${fmt(st.targetHumanTouched)} ÷ ${st.answersPerAgent} = <b>${st.estimatedTotalAgents}</b>
+            (extra ≈ <b>${st.estimatedExtraAgents}</b>)</div>
         </div>
         <div class="stat-note" style="margin-top:8px">${(st.notes || []).map(n => escHtml(n)).join(' · ')}</div>
       </div>
