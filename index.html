@@ -403,14 +403,30 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 .coverage-heat .heat-cell{border-radius:4px;font-variant-numeric:tabular-nums;font-weight:600;color:rgba(255,255,255,.92)}
 .coverage-legend{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:8px 0 0;font-size:11px;color:var(--muted)}
 .coverage-legend i{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:middle;margin-right:4px}
-.coverage-miss-bars{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0 16px}
+.coverage-miss-bars{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0 16px}
+.coverage-miss-bars.cols-6{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
 .coverage-miss-card{border:1px solid var(--border);border-radius:10px;padding:12px 14px;background:var(--surface2)}
 .coverage-miss-card .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
 .coverage-miss-card .val{font-size:22px;font-weight:700;margin-top:4px}
 .coverage-miss-card .sub{font-size:12px;color:var(--muted);margin-top:4px}
-.coverage-miss-card.uncovered .val{color:#f87171}
-.coverage-miss-card.allbusy .val{color:#fbbf24}
-.coverage-miss-card.avoidable .val{color:#60a5fa}
+.coverage-miss-card.uncovered .val,.coverage-miss-card.coverage_gap .val{color:#f87171}
+.coverage-miss-card.allbusy .val,.coverage-miss-card.capacity_shortfall .val{color:#fbbf24}
+.coverage-miss-card.avoidable .val,.coverage-miss-card.setup_available_to_ai .val{color:#60a5fa}
+.coverage-miss-card.process_no_pickup .val{color:#c084fc}
+.coverage-miss-card.ai_performance .val{color:#fb923c}
+.coverage-miss-card.other_non_human .val{color:#94a3b8}
+.coverage-cf{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0 16px}
+.coverage-cf-card{border:1px solid var(--border);border-radius:10px;padding:14px;background:var(--surface2)}
+.coverage-cf-card.winner{border-color:rgba(52,211,153,.55);box-shadow:inset 0 0 0 1px rgba(52,211,153,.25)}
+.coverage-cf-card h4{margin:0 0 6px;font-size:13px}
+.coverage-cf-card .big{font-size:28px;font-weight:700}
+.coverage-venue-bar{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+.coverage-venue-bar button{appearance:none;border:1px solid var(--border);background:var(--surface2);color:var(--text);border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer}
+.coverage-venue-bar button.active{border-color:rgba(61,142,248,.55);background:rgba(61,142,248,.15);color:#93c5fd}
+.coverage-top-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+.coverage-top-table th,.coverage-top-table td{padding:6px 8px;border-bottom:1px solid var(--border);text-align:left}
+.coverage-top-table th{color:var(--muted);font-size:10px;text-transform:uppercase}
+.coverage-top-table td.num{text-align:right;font-variant-numeric:tabular-nums}
 .hours-cal-table input.hours-cal-input{width:72px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;text-align:right;font-variant-numeric:tabular-nums}
 .hours-cal-table input.hours-cal-input:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 2px rgba(61,142,248,.25)}
 .hours-cal-table input.hours-cal-input.saving{opacity:.55}
@@ -4620,7 +4636,7 @@ async function renderPeople() {
       <div id="people-panel-coverage" style="display:none">
         <div class="table-card">
           <h3>Staffing vs AI — coverage experiment</h3>
-          <p class="people-note">Why calls go to AI: join ADP punches (who was on the clock) with TalkDesk (inbound → human vs If-No-Answer). Each MAIN miss is <b>Uncovered</b> (nobody punched in), <b>All busy</b> (on clock but everyone on a call), or <b>Avoidable</b> (≥1 free). Heatmaps: staffing · call-in · miss→AI.</p>
+          <p class="people-note">15‑min BH timeline · 6 cause tags · Erlang C · counterfactual to 75% · caller journeys. Punch = scheduled; <b>available</b> = punched in and not on a TalkDesk call (TD login feed not available).</p>
           <div class="hours-week-bar">
             <label>Week</label>
             <button type="button" class="rest-btn" id="coverage-week-prev">←</button>
@@ -4629,6 +4645,7 @@ async function renderPeople() {
             <button type="button" class="rest-btn" id="coverage-week-go">Apply</button>
             <span class="hours-week-label" id="coverage-week-label">W${j.selectedWeek}</span>
           </div>
+          <div class="coverage-venue-bar" id="coverage-venue-bar"></div>
           <div id="coverage-lab-root"><div class="loading">Loading coverage…</div></div>
         </div>
       </div>
@@ -4987,21 +5004,24 @@ function applyHoursCalendarTotals(cal) {
 }
 
 let _coverageCatalog = null;
+let _coverageVenueId = 'all';
+let _coverageWeekRep = null;
 
-async function loadCoverageCatalog() {
-  if (_coverageCatalog?.ok) return _coverageCatalog;
+async function loadCoverageCatalog(force) {
+  if (_coverageCatalog?.ok && _coverageCatalog.version === 2 && !force) return _coverageCatalog;
+  _coverageCatalog = null;
   try {
     const r = await fetch('/api/people/coverage');
     if (r.ok) {
       const j = await r.json();
-      if (j?.ok && j.byWeek) { _coverageCatalog = j; return j; }
+      if (j?.ok && j.byWeek && j.version === 2) { _coverageCatalog = j; return j; }
     }
   } catch (_) {}
   try {
     const r = await fetch(staticAssetUrl('coverage-experiment.json') + '?t=' + Date.now());
     if (r.ok) {
       const j = await r.json();
-      if (j?.ok) { _coverageCatalog = j; return j; }
+      if (j?.ok && j.version === 2) { _coverageCatalog = j; return j; }
     }
   } catch (_) {}
   return null;
@@ -5010,8 +5030,7 @@ async function loadCoverageCatalog() {
 function heatColorStaff(v, max) {
   if (!(max > 0) || !(v > 0)) return 'rgba(42,48,80,.35)';
   const t = Math.min(1, v / max);
-  const a = 0.25 + t * 0.75;
-  return `rgba(52,211,153,${a.toFixed(2)})`;
+  return `rgba(52,211,153,${(0.25 + t * 0.75).toFixed(2)})`;
 }
 function heatColorCalls(v, max) {
   if (!(max > 0) || !(v > 0)) return 'rgba(42,48,80,.35)';
@@ -5022,6 +5041,11 @@ function heatColorMiss(v, max) {
   if (!(max > 0) || !(v > 0)) return 'rgba(42,48,80,.35)';
   const t = Math.min(1, v / max);
   return `rgba(248,113,113,${(0.2 + t * 0.8).toFixed(2)})`;
+}
+function heatColorAvail(v, max) {
+  if (!(max > 0) || !(v > 0)) return 'rgba(42,48,80,.35)';
+  const t = Math.min(1, v / max);
+  return `rgba(167,139,250,${(0.2 + t * 0.8).toFixed(2)})`;
 }
 
 function paintCoverageHeat(title, matrix, days, hours, colorFn) {
@@ -5046,70 +5070,167 @@ function paintCoverageHeat(title, matrix, days, hours, colorFn) {
     + '</tr></thead><tbody>' + body + '</tbody></table></div></div>';
 }
 
+const COVERAGE_CAUSE_META = [
+  { key: 'coverage_gap', label: 'Coverage gap', blurb: 'No one punched in' },
+  { key: 'capacity_shortfall', label: 'Capacity shortfall', blurb: 'On clock, all on calls' },
+  { key: 'setup_available_to_ai', label: 'Setup → AI', blurb: 'Available, still If-No-Answer' },
+  { key: 'process_no_pickup', label: 'Process / no pickup', blurb: 'Transfer or abandon w/ free agents' },
+  { key: 'ai_performance', label: 'AI performance', blurb: 'Abandoned on AI path' },
+  { key: 'other_non_human', label: 'Other', blurb: 'Unclassified non-human' },
+];
+
+function paintCoverageVenue(rep, venue) {
+  const t = venue.totals || {};
+  const cf = venue.counterfactual || {};
+  const jn = venue.journeys || {};
+  const causes = t.causes || {};
+  const causePct = t.causePct || {};
+
+  const setupPriority = cf.priority === 'setup';
+  const capPriority = cf.priority === 'capacity';
+  const verdict =
+    cf.priority === 'setup'
+      ? 'Priority = SETUP (routing / ring timeout / agent status). Fixing available→AI closes more of the gap to 75% than adding capacity alone.'
+      : cf.priority === 'capacity'
+        ? 'Priority = CAPACITY. Closing all-busy intervals moves you further toward 75% than setup fixes alone.'
+        : 'Mixed — setup and capacity close a similar share of the gap to 75%. Attack both peak hours and available→AI.';
+
+  const causeCards = COVERAGE_CAUSE_META.map(m => {
+    const n = causes[m.key] || 0;
+    const p = causePct[m.key] || 0;
+    const hot = m.key === 'setup_available_to_ai' || m.key === 'capacity_shortfall';
+    return `<div class="coverage-miss-card ${m.key}" style="${hot ? 'outline:1px solid rgba(251,191,36,.35)' : ''}">
+      <div class="lbl">${m.label}</div>
+      <div class="val">${p}%</div>
+      <div class="sub">${Number(n).toLocaleString()} · ${m.blurb}</div>
+    </div>`;
+  }).join('');
+
+  const worst = [...(venue.slots || [])]
+    .filter(s => s.offered > 0)
+    .sort((a, b) => (b.fteHoursShort - a.fteHoursShort) || (b.offered - a.offered))
+    .slice(0, 8);
+  const worstRows = worst.map(s =>
+    `<tr><td>${escAttr(s.label)}</td><td class="num">${s.offered}</td><td class="num">${s.humanAnswered}</td>
+     <td class="num">${s.scheduled}</td><td class="num">${s.available}</td><td class="num">${s.erlangNeed}</td>
+     <td class="num">${Number(s.fteHoursShort).toFixed(2)}</td>
+     <td class="num">${s.causes?.setup_available_to_ai || 0}</td>
+     <td class="num">${s.causes?.capacity_shortfall || 0}</td></tr>`
+  ).join('');
+
+  return `
+    <div class="ov-cc-summary" style="margin:0 0 14px;grid-template-columns:repeat(4,1fr)">
+      <div class="ov-cc-card"><div class="ov-cc-label">Offered (BH)</div><div class="ov-cc-val">${Number(t.offered||0).toLocaleString()}</div>
+        <div class="ov-cc-py">Inbound + abandoned · 15‑min model</div></div>
+      <div class="ov-cc-card"><div class="ov-cc-label">Human answered</div><div class="ov-cc-val" style="color:var(--green)">${Number(t.humanAnswered||0).toLocaleString()}</div>
+        <div class="ov-cc-py">${t.firstTryHumanPct ?? '—'}% · target ${cf.targetHumanPct ?? 75}%</div></div>
+      <div class="ov-cc-card"><div class="ov-cc-label">Erlang FTE-hours short</div><div class="ov-cc-val" style="color:var(--y26)">${t.fteHoursShort ?? '—'}</div>
+        <div class="ov-cc-py">Need for 75% ≤20s vs available · AHT ${t.avgAhtSec || '—'}s</div></div>
+      <div class="ov-cc-card"><div class="ov-cc-label">Peak available</div><div class="ov-cc-val">${t.peakAvailable ?? '—'}</div>
+        <div class="ov-cc-py">Peak scheduled ${t.peakScheduled ?? '—'} · punch pool</div></div>
+    </div>
+
+    <h3 style="margin:0 0 6px;font-size:14px">Cause mix — non-human outcomes</h3>
+    <div class="coverage-miss-bars cols-6">${causeCards}</div>
+    <p class="loc-summary-note" style="margin:0 0 8px"><b>Verdict:</b> ${escAttr(verdict)}</p>
+
+    <h3 style="margin:16px 0 6px;font-size:14px">Counterfactual — path to 75%</h3>
+    <div class="coverage-cf">
+      <div class="coverage-cf-card ${setupPriority ? 'winner' : ''}">
+        <h4>If every Setup→AI call were answered</h4>
+        <div class="big" style="color:#60a5fa">${cf.ifSetupFixedPct ?? '—'}%</div>
+        <div class="sub">Closes ${Number(cf.setupClosesGap||0).toLocaleString()} of ${Number(cf.gapToTarget||0).toLocaleString()} gap calls · current ${cf.currentHumanPct ?? '—'}%</div>
+      </div>
+      <div class="coverage-cf-card ${capPriority ? 'winner' : ''}">
+        <h4>If every capacity-shortfall call were answered</h4>
+        <div class="big" style="color:#fbbf24">${cf.ifCapacityFixedPct ?? '—'}%</div>
+        <div class="sub">Closes ${Number(cf.capacityClosesGap||0).toLocaleString()} of ${Number(cf.gapToTarget||0).toLocaleString()} gap calls · current ${cf.currentHumanPct ?? '—'}%</div>
+      </div>
+    </div>
+
+    <h3 style="margin:8px 0 6px;font-size:14px">Caller journeys (≤30 min window)</h3>
+    <div class="ov-cc-summary" style="margin:0 0 14px;grid-template-columns:repeat(4,1fr)">
+      <div class="ov-cc-card"><div class="ov-cc-label">Unique journeys</div><div class="ov-cc-val">${Number(jn.uniqueCallers||0).toLocaleString()}</div></div>
+      <div class="ov-cc-card"><div class="ov-cc-label">Eventually human</div><div class="ov-cc-val" style="color:var(--green)">${jn.eventuallyHumanPct ?? '—'}%</div>
+        <div class="ov-cc-py">${Number(jn.eventuallyHuman||0).toLocaleString()} journeys</div></div>
+      <div class="ov-cc-card"><div class="ov-cc-label">Avg bounces to human</div><div class="ov-cc-val">${jn.avgBouncesToHuman ?? '—'}</div>
+        <div class="ov-cc-py">Median ${jn.medianBouncesToHuman ?? '—'}</div></div>
+      <div class="ov-cc-card"><div class="ov-cc-label">Loop share</div><div class="ov-cc-val" style="color:#c084fc">${jn.loopSharePct ?? '—'}%</div>
+        <div class="ov-cc-py">Multi-leg / bounce journeys</div></div>
+    </div>
+
+    ${paintCoverageHeat('Staffing heatmap — avg # punched in (hourly from 15‑min)', venue.staffHeat, rep.days, rep.hours, heatColorStaff)}
+    <div class="coverage-legend"><span><i style="background:rgba(52,211,153,.85)"></i>Scheduled (punch)</span></div>
+    ${paintCoverageHeat('Available heatmap — punched in & not on a call', venue.availableHeat, rep.days, rep.hours, heatColorAvail)}
+    <div class="coverage-legend"><span><i style="background:rgba(167,139,250,.85)"></i>Phone-available proxy</span></div>
+    ${paintCoverageHeat('Call-in heatmap — offered (inbound + abandoned)', venue.callHeat, rep.days, rep.hours, heatColorCalls)}
+    <div class="coverage-legend"><span><i style="background:rgba(61,142,248,.85)"></i>Demand</span></div>
+    ${paintCoverageHeat('Non-human / miss heatmap', venue.missHeat, rep.days, rep.hours, heatColorMiss)}
+    <div class="coverage-legend"><span><i style="background:rgba(248,113,113,.85)"></i>AI + process + AI-drop volume</span></div>
+
+    <h3 style="margin:18px 0 4px;font-size:14px">Worst 15‑min slots by FTE-hours short</h3>
+    <div class="coverage-heat-wrap">
+      <table class="coverage-top-table">
+        <thead><tr>
+          <th>Slot</th><th class="num">Offered</th><th class="num">Human</th><th class="num">Sched</th><th class="num">Avail</th>
+          <th class="num">Erlang need</th><th class="num">FTE-h short</th><th class="num">Setup→AI</th><th class="num">Capacity</th>
+        </tr></thead>
+        <tbody>${worstRows || '<tr><td colspan="9">No slots</td></tr>'}</tbody>
+      </table>
+    </div>
+    <div class="stat-note" style="margin-top:12px">${[...(rep.poolNotes||[]), ...(rep.notes||[])].map(n => escAttr(n)).join(' · ')}
+      · Source ${escAttr(rep.punchSource || '')} · ${escAttr(rep.dateFrom || '')}–${escAttr(rep.dateTo || '')}</div>
+  `;
+}
+
 async function renderCoverageLabPanel(j) {
   const root = document.getElementById('coverage-lab-root');
   const label = document.getElementById('coverage-week-label');
+  const venueBar = document.getElementById('coverage-venue-bar');
   if (!root) return;
   const week = j?.selectedWeek || _peopleSelectedWeek || D?.cutoff;
   if (label) label.innerHTML = 'Selected <b>W' + week + '</b>';
   root.innerHTML = '<div class="loading">Loading coverage for W' + week + '…</div>';
 
-  const cat = await loadCoverageCatalog();
+  const cat = await loadCoverageCatalog(true);
   const key = '2026-W' + String(week).padStart(2, '0');
   let rep = cat?.byWeek?.[key];
-  if (!rep?.ok) {
+  if (!rep?.ok || rep.version !== 2) {
     try {
       const r = await fetch('/api/people/coverage?week=' + week);
       if (r.ok) rep = await r.json();
     } catch (_) {}
   }
-  if (!rep?.ok) {
-    root.innerHTML = '<p class="people-note">No coverage data for W' + week
-      + '. Need punch PDF for that week, then run <code>npm run coverage:build</code>. '
+  if (!rep?.ok || rep.version !== 2) {
+    root.innerHTML = '<p class="people-note">No v2 coverage data for W' + week
+      + '. Need punch PDF, then run <code>npm run coverage:build</code>. '
       + (cat?.weeks?.length ? ('Available: W' + cat.weeks.join(', W')) : '') + '</p>';
+    if (venueBar) venueBar.innerHTML = '';
     return;
   }
+  _coverageWeekRep = rep;
 
-  const t = rep.totals || {};
-  const miss = t.missToAi || 0;
-  const verdict = (t.allBusyPct || 0) + (t.uncoveredPct || 0) >= 40
-    ? 'Staffing / capacity is a major driver of AI overflow this week.'
-    : (t.avoidablePct || 0) >= 60
-      ? 'Most AI misses happened while someone was free on the clock — process / pickup priority, not pure headcount.'
-      : 'Mixed — review uncovered vs all-busy vs avoidable by hour below.';
+  if (venueBar) {
+    venueBar.innerHTML = (rep.venues || []).map(v =>
+      `<button type="button" data-venue="${escAttr(v.restaurantId)}" class="${v.restaurantId === _coverageVenueId ? 'active' : ''}">${escAttr(v.label)}</button>`
+    ).join('');
+    venueBar.querySelectorAll('button').forEach(btn => {
+      btn.onclick = () => {
+        _coverageVenueId = btn.dataset.venue;
+        venueBar.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
+        const venue = (rep.venues || []).find(v => String(v.restaurantId) === String(_coverageVenueId)) || rep.venues[0];
+        root.innerHTML = paintCoverageVenue(rep, venue);
+      };
+    });
+  }
 
-  root.innerHTML = `
-    <div class="ov-cc-summary" style="margin:0 0 14px;grid-template-columns:repeat(4,1fr)">
-      <div class="ov-cc-card"><div class="ov-cc-label">Inbound (BH MAIN)</div><div class="ov-cc-val">${Number(t.inbound||0).toLocaleString()}</div>
-        <div class="ov-cc-py">Business hours · excludes Back-from-Hostie</div></div>
-      <div class="ov-cc-card"><div class="ov-cc-label">Human answered</div><div class="ov-cc-val" style="color:var(--green)">${Number(t.humanAnswered||0).toLocaleString()}</div>
-        <div class="ov-cc-py">First-try answer ${t.firstTryAnswerPct ?? '—'}%</div></div>
-      <div class="ov-cc-card"><div class="ov-cc-label">Miss → AI</div><div class="ov-cc-val" style="color:var(--y26)">${Number(miss).toLocaleString()}</div>
-        <div class="ov-cc-py">If-No-Answer on MAIN</div></div>
-      <div class="ov-cc-card"><div class="ov-cc-label">Peak staffed</div><div class="ov-cc-val">${t.peakStaffed ?? '—'}</div>
-        <div class="ov-cc-py">${t.agentsOnPunch || 0} on punch roster</div></div>
-    </div>
-    <div class="coverage-miss-bars">
-      <div class="coverage-miss-card uncovered"><div class="lbl">Uncovered</div>
-        <div class="val">${t.uncoveredPct ?? 0}%</div>
-        <div class="sub">${Number(t.uncovered||0).toLocaleString()} misses · nobody punched in</div></div>
-      <div class="coverage-miss-card allbusy"><div class="lbl">All busy</div>
-        <div class="val">${t.allBusyPct ?? 0}%</div>
-        <div class="sub">${Number(t.allBusy||0).toLocaleString()} misses · on clock, all on a call</div></div>
-      <div class="coverage-miss-card avoidable"><div class="lbl">Avoidable</div>
-        <div class="val">${t.avoidablePct ?? 0}%</div>
-        <div class="sub">${Number(t.avoidable||0).toLocaleString()} misses · ≥1 free on clock</div></div>
-    </div>
-    <p class="loc-summary-note" style="margin:0 0 8px"><b>Verdict:</b> ${escAttr(verdict)}</p>
-    ${paintCoverageHeat('Staffing heatmap — # punched in (:30 sample)', rep.staffHeat, rep.days, rep.hours, heatColorStaff)}
-    <div class="coverage-legend"><span><i style="background:rgba(52,211,153,.85)"></i>More people on clock</span></div>
-    ${paintCoverageHeat('Call-in heatmap — inbound BH MAIN starts', rep.callHeat, rep.days, rep.hours, heatColorCalls)}
-    <div class="coverage-legend"><span><i style="background:rgba(61,142,248,.85)"></i>More inbound calls</span></div>
-    ${paintCoverageHeat('Miss → AI heatmap — If-No-Answer volume', rep.missHeat, rep.days, rep.hours, heatColorMiss)}
-    <div class="coverage-legend"><span><i style="background:rgba(248,113,113,.85)"></i>More first-try misses to AI</span>
-      <span style="margin-left:8px">Source: ${escAttr(rep.punchSource || 'punch PDF')} · ${escAttr(rep.dateFrom || '')}–${escAttr(rep.dateTo || '')}</span></div>
-    <div class="stat-note" style="margin-top:12px">${(rep.notes || []).map(n => escAttr(n)).join(' · ')}</div>
-  `;
+  const venue = (rep.venues || []).find(v => String(v.restaurantId) === String(_coverageVenueId)) || rep.venues[0];
+  if (!venue) {
+    root.innerHTML = '<p class="people-note">No venue payloads in coverage report.</p>';
+    return;
+  }
+  _coverageVenueId = venue.restaurantId;
+  root.innerHTML = paintCoverageVenue(rep, venue);
 }
 
 async function renderStaffHoursPanel(j) {
