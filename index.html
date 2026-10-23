@@ -4507,7 +4507,7 @@ async function renderPeople() {
         <button class="people-subtab" data-people-panel="type">Summary — Type of Call</button>
         <button class="people-subtab" data-people-panel="peak">Summary — Peak Times</button>
         <button class="people-subtab" data-people-panel="hours">Staff Hours</button>
-        <button class="people-subtab" data-people-panel="coverage">Coverage lab</button>
+        <button class="people-subtab" data-people-panel="coverage">Staffing vs AI</button>
       </div>
 
       ${callCenterSummaryHtml()}
@@ -4619,8 +4619,8 @@ async function renderPeople() {
       </div>
       <div id="people-panel-coverage" style="display:none">
         <div class="table-card">
-          <h3>Coverage lab — staffing vs calls to AI</h3>
-          <p class="people-note">Experiment: join ADP punches (who was on the clock) with TalkDesk (inbound → human vs If-No-Answer). Classify each MAIN miss to AI as <b>Uncovered</b> (nobody punched in), <b>All busy</b> (on clock but everyone on a call), or <b>Avoidable</b> (≥1 free). Week follows Call Center report week.</p>
+          <h3>Staffing vs AI — coverage experiment</h3>
+          <p class="people-note">Why calls go to AI: join ADP punches (who was on the clock) with TalkDesk (inbound → human vs If-No-Answer). Each MAIN miss is <b>Uncovered</b> (nobody punched in), <b>All busy</b> (on clock but everyone on a call), or <b>Avoidable</b> (≥1 free). Heatmaps: staffing · call-in · miss→AI.</p>
           <div class="hours-week-bar">
             <label>Week</label>
             <button type="button" class="rest-btn" id="coverage-week-prev">←</button>
