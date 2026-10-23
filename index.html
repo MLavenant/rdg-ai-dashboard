@@ -369,6 +369,13 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 .hours-cal-table thead th{position:sticky;top:0;z-index:2;background:var(--surface);font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
 .hours-cal-table th.agent-col,.hours-cal-table td.agent-col{position:sticky;left:0;z-index:1;background:var(--surface);text-align:left;min-width:160px;box-shadow:2px 0 0 var(--border)}
 .hours-cal-table thead th.agent-col{z-index:3}
+.hours-cal-table th.week-active,.hours-cal-table td.week-active{background:rgba(61,142,248,.14)!important;box-shadow:inset 0 -2px 0 #3d8ef8}
+.hours-cal-table thead th.week-active{color:#93c5fd}
+.hours-week-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2)}
+.hours-week-bar label{font-size:12px;color:var(--muted)}
+.hours-week-bar input[type=number]{width:64px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text)}
+.hours-week-bar .hours-week-label{font-size:13px;font-weight:600;color:var(--text);margin-left:4px}
+.hours-week-bar .rest-btn{padding:6px 12px}
 .hours-cal-table button.agent-punch-link{appearance:none;border:0;background:none;color:var(--accent,#3d8ef8);font:inherit;font-weight:600;cursor:pointer;padding:0;text-align:left}
 .hours-cal-table button.agent-punch-link:hover{text-decoration:underline}
 .hours-cal-table .punch-badge{font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#34d399;margin-left:6px;opacity:.9}
@@ -4252,14 +4259,67 @@ async function loadPeople(week) {
     throw new Error('People snapshot missing. Re-export with: npm run dashboard:export');
   }
   const weeks = _peopleStatic.weeks || {};
-  const pick = weeks[String(week)] || weeks[String(_peopleStatic.latestWeek)] || Object.values(weeks)[0];
-  if (!pick) throw new Error('No people data available in snapshot');
-  // Overlay live shared hours (Worker / people-worked-hours.json)
-  const shared = await fetchSharedHoursStore(pick.selectedWeek || week);
-  if (shared?.store) {
-    return applyHoursStoreToPeopleReport(structuredClone(pick), shared.store);
+  let pick = weeks[String(week)];
+  if (!pick) {
+    // Fall back to nearest available week ≤ requested, then latest
+    const keys = Object.keys(weeks).map(Number).filter(Number.isFinite).sort((a, b) => b - a);
+    const nearest = keys.find((w) => w <= week) ?? keys[0];
+    pick = nearest != null ? weeks[String(nearest)] : Object.values(weeks)[0];
   }
-  return pick;
+  if (!pick) throw new Error('No people data available in snapshot');
+  const cloned = structuredClone(pick);
+  // Keep UI week as what the user asked for (calendar / punch detail follow this)
+  cloned.selectedWeek = week;
+  const shared = await fetchSharedHoursStore(week);
+  if (shared?.store) {
+    return applyHoursStoreToPeopleReport(cloned, shared.store);
+  }
+  // Rebuild calendar against the requested week even if snapshot was nearest-week fallback
+  if (_hoursStoreCache) {
+    return applyHoursStoreToPeopleReport(cloned, _hoursStoreCache);
+  }
+  const tdNames = (cloned.ringGroups?.agents || []).filter((a) => !a.isAi).map((a) => a.agentName);
+  if (cloned.hoursCalendar) {
+    cloned.hoursCalendar = buildHoursCalendarClient(
+      { version: 1, roster: [], hidden: [], hours: {} },
+      week,
+      cloned.year || 2026,
+      tdNames
+    );
+  }
+  return cloned;
+}
+
+let _peopleSelectedWeek = null;
+let _peopleActivePanel = 'cc';
+
+function resolvePeopleWeek() {
+  const cutoff = D?.cutoff || 53;
+  const fromInput = document.getElementById('people-week');
+  const typed = fromInput ? parseInt(fromInput.value, 10) : NaN;
+  let w = _peopleSelectedWeek;
+  if (w == null && Number.isFinite(typed) && typed >= 1) w = typed;
+  if (w == null) w = cutoff;
+  w = Math.max(1, Math.min(53, w));
+  // Prefer not to go past latest data week when user hasn't explicitly picked ahead
+  if (_peopleSelectedWeek == null && w > cutoff) w = cutoff;
+  return w;
+}
+
+function applyPeopleWeek(week, opts = {}) {
+  const w = Math.max(1, Math.min(53, parseInt(week, 10) || 0));
+  if (w < 1) return;
+  _peopleSelectedWeek = w;
+  if (opts.panel) _peopleActivePanel = opts.panel;
+  const inp = document.getElementById('people-week');
+  if (inp) inp.value = String(w);
+  const hoursInp = document.getElementById('hours-week');
+  if (hoursInp) hoursInp.value = String(w);
+  if (document.getElementById('f-wk-to')) {
+    document.getElementById('f-wk-to').value = w;
+    F.wkTo = w;
+  }
+  renderPeople();
 }
 
 async function renderPeople() {
@@ -4267,7 +4327,8 @@ async function renderPeople() {
   if (!el) return;
   el.innerHTML = `<div class="loading">Loading Call Center…</div>`;
   try {
-    const week = D.cutoff || F.wkTo || 24;
+    const week = resolvePeopleWeek();
+    _peopleSelectedWeek = week;
     const j = await loadPeople(week);
     if (!j.ok) {
       el.innerHTML = `${callCenterSummaryHtml()}
@@ -4542,8 +4603,16 @@ async function renderPeople() {
       </div>
       <div id="people-panel-hours" style="display:none">
         <div class="table-card" style="overflow:visible">
-          <h3>Staff Hours — 5-week calendar</h3>
-          <p class="people-note">Hours for W40+ come from ADP punch reports (clock in/out). <b>Click a name</b> to see day-by-day segments. Older weeks can still be typed manually — totals feed Call Center Calls/Hour.</p>
+          <h3>Staff Hours — ending W${j.selectedWeek}</h3>
+          <p class="people-note">Change the week below to slide the 5-week window and refresh hours. W40+ come from ADP punch reports — <b>click a name</b> for clock in/out by day.</p>
+          <div class="hours-week-bar">
+            <label>Week</label>
+            <button type="button" class="rest-btn" id="hours-week-prev" title="Previous week">←</button>
+            <input type="number" id="hours-week" min="1" max="53" value="${j.selectedWeek}">
+            <button type="button" class="rest-btn" id="hours-week-next" title="Next week">→</button>
+            <button type="button" class="rest-btn" id="hours-week-go">Apply</button>
+            <span class="hours-week-label">Showing W${Math.max(1, j.selectedWeek - 4)}–W${j.selectedWeek} · selected <b>W${j.selectedWeek}</b></span>
+          </div>
           <div class="hours-cal-toolbar">
             <span class="people-note" id="hours-edit-hint"></span>
             <span id="hours-save-hint" class="save-hint"></span>
@@ -4561,16 +4630,37 @@ async function renderPeople() {
     // stash report for chart renderers when panels open
     window._peopleReport = j;
 
-    document.getElementById('people-week-go')?.addEventListener('click', () => {
+    const goPeopleWeek = () => {
       const w = +document.getElementById('people-week').value;
-      if (w >= 1 && w <= 53) { F.wkTo = w; document.getElementById('f-wk-to').value = w; renderPeople(); }
+      if (w >= 1 && w <= 53) applyPeopleWeek(w);
+    };
+    document.getElementById('people-week-go')?.addEventListener('click', goPeopleWeek);
+    document.getElementById('people-week')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); goPeopleWeek(); }
+    });
+
+    const goHoursWeek = () => {
+      const w = +document.getElementById('hours-week').value;
+      if (w >= 1 && w <= 53) applyPeopleWeek(w, { panel: 'hours' });
+    };
+    document.getElementById('hours-week-go')?.addEventListener('click', goHoursWeek);
+    document.getElementById('hours-week')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); goHoursWeek(); }
+    });
+    document.getElementById('hours-week-prev')?.addEventListener('click', () => {
+      applyPeopleWeek(Math.max(1, (j.selectedWeek || 1) - 1), { panel: 'hours' });
+    });
+    document.getElementById('hours-week-next')?.addEventListener('click', () => {
+      const cap = D?.cutoff || 53;
+      applyPeopleWeek(Math.min(cap, (j.selectedWeek || 1) + 1), { panel: 'hours' });
     });
 
     document.querySelectorAll('.people-subtab').forEach(btn => {
       btn.addEventListener('click', () => {
+        const panel = btn.dataset.peoplePanel;
+        _peopleActivePanel = panel;
         document.querySelectorAll('.people-subtab').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        const panel = btn.dataset.peoplePanel;
         ['cc','ring','type','peak','hours'].forEach(p => {
           const node = document.getElementById('people-panel-' + p);
           if (node) node.style.display = p === panel ? '' : 'none';
@@ -4582,7 +4672,14 @@ async function renderPeople() {
       });
     });
 
-    requestAnimationFrame(() => paintCallCenterSummaryCharts());
+    // Restore last sub-panel (so week changes on Staff Hours stay there)
+    const restore = _peopleActivePanel || 'cc';
+    const restoreBtn = document.querySelector(`.people-subtab[data-people-panel="${restore}"]`);
+    if (restoreBtn && restore !== 'cc') {
+      restoreBtn.click();
+    } else {
+      requestAnimationFrame(() => paintCallCenterSummaryCharts());
+    }
 
     el.querySelectorAll('.hours-input').forEach(input => {
       input.addEventListener('change', async () => {
@@ -4704,17 +4801,22 @@ function paintHoursCalendar(cal, editable) {
   }
   const weeks = cal.weeks || [];
   const agents = cal.agents || [];
-  const head = weeks.map(w => '<th>' + (w.label || ('W' + w.week)) + '</th>').join('')
+  const activeWeek = cal.anchorWeek || _peopleSelectedWeek || window._peopleReport?.selectedWeek;
+  const head = weeks.map(w => {
+    const active = w.week === activeWeek ? ' class="week-active"' : '';
+    return '<th' + active + '>' + (w.label || ('W' + w.week)) + '</th>';
+  }).join('')
     + '<th>Total</th><th>WoW</th>' + (editable ? '<th></th>' : '');
   const rows = agents.map(a => {
     const cells = weeks.map(w => {
       const v = a.hours ? a.hours[w.week] : null;
+      const active = w.week === activeWeek ? ' class="week-active"' : '';
       if (editable) {
-        return '<td><input class="hours-cal-input" type="number" min="0" step="0.25" inputmode="decimal" data-agent="'
+        return '<td' + active + '><input class="hours-cal-input" type="number" min="0" step="0.25" inputmode="decimal" data-agent="'
           + escAttr(a.agentName) + '" data-week="' + w.week
           + '" value="' + (v != null ? v : '') + '" placeholder="—" title="Hours for ' + escAttr(a.agentName) + ' · ' + (w.label || ('W' + w.week)) + '"></td>';
       }
-      return '<td>' + (v != null ? v : '—') + '</td>';
+      return '<td' + active + '>' + (v != null ? v : '—') + '</td>';
     }).join('');
     const hasPunch = agentHasPunch(a.agentName);
     const tag = a.source === 'manual' ? '<span class="manual-tag">added</span>' : '';
@@ -4732,7 +4834,8 @@ function paintHoursCalendar(cal, editable) {
   }).join('');
   const totCells = weeks.map(w => {
     const v = cal.totals && cal.totals.hours ? cal.totals.hours[w.week] : 0;
-    return '<td data-week-total="' + w.week + '">' + (v != null ? v : 0) + '</td>';
+    const active = w.week === activeWeek ? ' class="week-active"' : '';
+    return '<td' + active + ' data-week-total="' + w.week + '">' + (v != null ? v : 0) + '</td>';
   }).join('');
   const foot = '<tr><td class="agent-col">Total hours</td>' + totCells
     + '<td class="foot-total">' + ((cal.totals && cal.totals.total) || 0) + '</td><td class="foot-wow">' + fmtWow(cal.totals && cal.totals.wow) + '</td>'
@@ -4741,7 +4844,7 @@ function paintHoursCalendar(cal, editable) {
     + head + '</tr></thead><tbody>' + rows + '</tbody><tfoot>' + foot + '</tfoot></table></div>';
 
   root.querySelectorAll('.agent-punch-link').forEach(btn => {
-    btn.onclick = () => openPunchDetailModal(btn.dataset.agent);
+    btn.onclick = () => openPunchDetailModal(btn.dataset.agent, activeWeek);
   });
 }
 
@@ -4763,7 +4866,7 @@ function openPunchDetailModal(agentName, preferWeek) {
     document.getElementById('punch-close-btn')?.addEventListener('click', closePunchDetailModal);
     return;
   }
-  const anchor = window._peopleReport?.selectedWeek;
+  const anchor = _peopleSelectedWeek ?? window._peopleReport?.selectedWeek;
   let week = preferWeek;
   if (week == null || !available.includes(week)) {
     week = available.includes(anchor) ? anchor : available[0];
