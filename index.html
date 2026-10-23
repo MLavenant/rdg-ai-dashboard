@@ -369,6 +369,26 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 .hours-cal-table thead th{position:sticky;top:0;z-index:2;background:var(--surface);font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
 .hours-cal-table th.agent-col,.hours-cal-table td.agent-col{position:sticky;left:0;z-index:1;background:var(--surface);text-align:left;min-width:160px;box-shadow:2px 0 0 var(--border)}
 .hours-cal-table thead th.agent-col{z-index:3}
+.hours-cal-table button.agent-punch-link{appearance:none;border:0;background:none;color:var(--accent,#3d8ef8);font:inherit;font-weight:600;cursor:pointer;padding:0;text-align:left}
+.hours-cal-table button.agent-punch-link:hover{text-decoration:underline}
+.hours-cal-table .punch-badge{font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#34d399;margin-left:6px;opacity:.9}
+.punch-modal-backdrop{position:fixed;inset:0;background:rgba(6,8,14,.72);z-index:80;display:flex;align-items:flex-start;justify-content:center;padding:48px 16px;overflow:auto}
+.punch-modal{width:min(720px,100%);background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 64px rgba(0,0,0,.45);padding:18px 20px 22px}
+.punch-modal h3{margin:0 0 4px;font-size:18px}
+.punch-modal .punch-meta{color:var(--muted);font-size:12px;margin:0 0 14px}
+.punch-modal .punch-week-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}
+.punch-modal .punch-week-tabs button{appearance:none;border:1px solid var(--border);background:var(--surface2);color:var(--text);border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer}
+.punch-modal .punch-week-tabs button.active{border-color:rgba(61,142,248,.55);background:rgba(61,142,248,.15);color:#93c5fd}
+.punch-modal table{width:100%;border-collapse:collapse;font-size:12px}
+.punch-modal th,.punch-modal td{padding:7px 8px;border-bottom:1px solid var(--border);text-align:left}
+.punch-modal th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.04em}
+.punch-modal td.num,.punch-modal th.num{text-align:right;font-variant-numeric:tabular-nums}
+.punch-modal .day-total{font-weight:700;background:rgba(255,255,255,.03)}
+.punch-modal .seg-row td{color:var(--muted);font-weight:500}
+.punch-modal .seg-row td.time{color:var(--text)}
+.punch-modal .lp-tag{font-size:9px;font-weight:700;color:#fbbf24;margin-left:6px}
+.punch-modal .punch-close{float:right;appearance:none;border:1px solid var(--border);background:var(--surface2);color:var(--text);border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer}
+.punch-modal .punch-empty{color:var(--muted);font-size:13px;padding:12px 0}
 .hours-cal-table input.hours-cal-input{width:72px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;text-align:right;font-variant-numeric:tabular-nums}
 .hours-cal-table input.hours-cal-input:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 2px rgba(61,142,248,.25)}
 .hours-cal-table input.hours-cal-input.saving{opacity:.55}
@@ -415,7 +435,7 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 .save-hint{font-size:11px;color:var(--green);margin-left:8px}
 
 </style>
-  <!--RDG_HOURS_API--><script>window.RDG_HOURS_API="https://rdg-hours-api.plum-rat.workers.dev";</script><!--/RDG_HOURS_API-->
+  <!--RDG_HOURS_API--><script>window.RDG_HOURS_API=window.RDG_HOURS_API||"";</script><!--/RDG_HOURS_API-->
 </head>
 <body>
 
@@ -4523,7 +4543,7 @@ async function renderPeople() {
       <div id="people-panel-hours" style="display:none">
         <div class="table-card" style="overflow:visible">
           <h3>Staff Hours — 5-week calendar</h3>
-          <p class="people-note">Type hours for any agent/week (Tab or Enter to move). Totals and WoW update live and feed Call Center Calls/Hour. Add or remove people below — removals hide them from Staff Hours and Call Center hours.</p>
+          <p class="people-note">Hours for W40+ come from ADP punch reports (clock in/out). <b>Click a name</b> to see day-by-day segments. Older weeks can still be typed manually — totals feed Call Center Calls/Hour.</p>
           <div class="hours-cal-toolbar">
             <span class="people-note" id="hours-edit-hint"></span>
             <span id="hours-save-hint" class="save-hint"></span>
@@ -4534,6 +4554,7 @@ async function renderPeople() {
             <button class="rest-btn" id="hours-add-agent" type="button">Add person</button>
           </div>
         </div>
+        <div id="punch-modal-root"></div>
       </div>
     `;
 
@@ -4623,6 +4644,57 @@ function escAttr(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }
 
+let _punchCatalog = null;
+let _punchCatalogPromise = null;
+
+async function loadPunchCatalog(force) {
+  if (_punchCatalog && !force) return _punchCatalog;
+  if (_punchCatalogPromise && !force) return _punchCatalogPromise;
+  _punchCatalogPromise = (async () => {
+    try {
+      const local = await fetch('/api/people/punch-hours');
+      if (local.ok) {
+        const j = await local.json();
+        if (j?.ok) { _punchCatalog = j; return j; }
+      }
+    } catch (_) {}
+    try {
+      const r = await fetch(staticAssetUrl('punch-hours.json') + '?t=' + Date.now());
+      if (r.ok) {
+        const raw = await r.json();
+        if (raw?.ok) { _punchCatalog = raw; return raw; }
+        if (raw?.weeks) {
+          const weeks = Object.values(raw.weeks).map(w => ({
+            week: w.week, year: w.year, label: w.label,
+            dateFrom: w.dateFrom, dateTo: w.dateTo,
+            sourceFile: w.sourceFile, employeeCount: w.employeeCount, totalHours: w.totalHours,
+          })).sort((a, b) => b.week - a.week);
+          const byAgent = {};
+          for (const w of Object.values(raw.weeks)) {
+            for (const e of (w.employees || [])) {
+              if (!byAgent[e.displayName]) byAgent[e.displayName] = [];
+              byAgent[e.displayName].push({
+                week: w.week, year: w.year, hours: e.subtotalHours, days: (e.days || []).length,
+              });
+            }
+          }
+          _punchCatalog = { ok: true, updatedAt: raw.updatedAt, year: raw.year, weeks, byAgent, detail: raw.weeks };
+          return _punchCatalog;
+        }
+      }
+    } catch (_) {}
+    _punchCatalog = { ok: false, weeks: [], byAgent: {}, detail: {} };
+    return _punchCatalog;
+  })();
+  return _punchCatalogPromise;
+}
+
+function agentHasPunch(agentName) {
+  const cat = _punchCatalog;
+  if (!cat?.byAgent) return false;
+  return Array.isArray(cat.byAgent[agentName]) && cat.byAgent[agentName].length > 0;
+}
+
 function paintHoursCalendar(cal, editable) {
   const root = document.getElementById('hours-cal-root');
   if (!root) return;
@@ -4644,12 +4716,18 @@ function paintHoursCalendar(cal, editable) {
       }
       return '<td>' + (v != null ? v : '—') + '</td>';
     }).join('');
+    const hasPunch = agentHasPunch(a.agentName);
     const tag = a.source === 'manual' ? '<span class="manual-tag">added</span>' : '';
+    const punchTag = hasPunch ? '<span class="punch-badge">punch</span>' : '';
+    const nameCell = hasPunch
+      ? '<button type="button" class="agent-punch-link" data-agent="' + escAttr(a.agentName) + '" title="View clock in/out by day">'
+        + escAttr(a.agentName) + '</button>' + punchTag + tag
+      : escAttr(a.agentName) + tag;
     const remove = editable
       ? '<td><button type="button" class="btn-remove-agent" data-agent="'
         + escAttr(a.agentName) + '" title="Remove from Staff Hours &amp; Call Center">Remove</button></td>'
       : '';
-    return '<tr data-agent-row="' + escAttr(a.agentName) + '"><td class="agent-col">' + escAttr(a.agentName) + tag + '</td>' + cells
+    return '<tr data-agent-row="' + escAttr(a.agentName) + '"><td class="agent-col">' + nameCell + '</td>' + cells
       + '<td class="row-total">' + (a.total != null ? a.total : 0) + '</td><td class="row-wow">' + fmtWow(a.wow) + '</td>' + remove + '</tr>';
   }).join('');
   const totCells = weeks.map(w => {
@@ -4661,6 +4739,79 @@ function paintHoursCalendar(cal, editable) {
     + (editable ? '<td></td>' : '') + '</tr>';
   root.innerHTML = '<div class="hours-cal-wrap"><table class="people-table hours-cal-table"><thead><tr><th class="agent-col">Agent</th>'
     + head + '</tr></thead><tbody>' + rows + '</tbody><tfoot>' + foot + '</tfoot></table></div>';
+
+  root.querySelectorAll('.agent-punch-link').forEach(btn => {
+    btn.onclick = () => openPunchDetailModal(btn.dataset.agent);
+  });
+}
+
+function closePunchDetailModal() {
+  const root = document.getElementById('punch-modal-root');
+  if (root) root.innerHTML = '';
+}
+
+function openPunchDetailModal(agentName, preferWeek) {
+  const cat = _punchCatalog;
+  const root = document.getElementById('punch-modal-root');
+  if (!root || !cat?.detail) return;
+  const available = (cat.byAgent?.[agentName] || []).map(x => x.week);
+  if (!available.length) {
+    root.innerHTML = '<div class="punch-modal-backdrop" id="punch-backdrop"><div class="punch-modal">'
+      + '<button type="button" class="punch-close" id="punch-close-btn">Close</button>'
+      + '<h3>' + escAttr(agentName) + '</h3>'
+      + '<p class="punch-empty">No punch-report detail for this person yet.</p></div></div>';
+    document.getElementById('punch-close-btn')?.addEventListener('click', closePunchDetailModal);
+    return;
+  }
+  const anchor = window._peopleReport?.selectedWeek;
+  let week = preferWeek;
+  if (week == null || !available.includes(week)) {
+    week = available.includes(anchor) ? anchor : available[0];
+  }
+  const key = '2026-W' + String(week).padStart(2, '0');
+  const weekPayload = cat.detail[key];
+  const emp = (weekPayload?.employees || []).find(e => e.displayName === agentName);
+  const tabs = available.map(w =>
+    '<button type="button" class="' + (w === week ? 'active' : '') + '" data-week="' + w + '">W' + w + '</button>'
+  ).join('');
+
+  let body = '<p class="punch-empty">No punches for W' + week + '.</p>';
+  if (emp) {
+    const dayRows = (emp.days || []).map(d => {
+      const segs = (d.segments || []).map(s =>
+        '<tr class="seg-row"><td></td><td class="time">' + escAttr(s.clockIn) + ' – ' + escAttr(s.clockOut)
+        + (s.lp ? '<span class="lp-tag">LP</span>' : '') + '</td><td class="num">' + Number(s.hours).toFixed(2)
+        + '</td><td>' + escAttr(s.location || '') + '</td></tr>'
+      ).join('');
+      return '<tr class="day-total"><td>' + escAttr(d.day) + ' ' + escAttr(d.date) + '</td><td></td><td class="num">'
+        + Number(d.hours).toFixed(2) + '</td><td></td></tr>' + segs;
+    }).join('');
+    body = '<table><thead><tr><th>Day</th><th>Clock in – out</th><th class="num">Hours</th><th>Location</th></tr></thead><tbody>'
+      + dayRows
+      + '<tr class="day-total"><td colspan="2"><b>Week total</b></td><td class="num"><b>'
+      + Number(emp.subtotalHours).toFixed(2) + '</b></td><td></td></tr></tbody></table>';
+  }
+
+  const range = weekPayload?.dateFrom && weekPayload?.dateTo
+    ? (weekPayload.dateFrom + ' – ' + weekPayload.dateTo)
+    : '';
+  const src = weekPayload?.sourceFile ? (' · ' + weekPayload.sourceFile) : '';
+
+  root.innerHTML = '<div class="punch-modal-backdrop" id="punch-backdrop"><div class="punch-modal">'
+    + '<button type="button" class="punch-close" id="punch-close-btn">Close</button>'
+    + '<h3>' + escAttr(agentName) + '</h3>'
+    + '<p class="punch-meta">Punch detail · W' + week + (range ? ' · ' + escAttr(range) : '') + escAttr(src) + '</p>'
+    + '<div class="punch-week-tabs" id="punch-week-tabs">' + tabs + '</div>'
+    + body
+    + '</div></div>';
+
+  document.getElementById('punch-close-btn')?.addEventListener('click', closePunchDetailModal);
+  document.getElementById('punch-backdrop')?.addEventListener('click', (e) => {
+    if (e.target && e.target.id === 'punch-backdrop') closePunchDetailModal();
+  });
+  document.querySelectorAll('#punch-week-tabs button').forEach(btn => {
+    btn.addEventListener('click', () => openPunchDetailModal(agentName, +btn.dataset.week));
+  });
 }
 
 function applyHoursCalendarTotals(cal) {
@@ -4690,12 +4841,14 @@ async function renderStaffHoursPanel(j) {
   const hint = document.getElementById('hours-edit-hint');
   const canEdit = !_peopleReadOnly;
   _hoursEditMode = canEdit;
+  await loadPunchCatalog();
+  const punchWeeks = (_punchCatalog?.weeks || []).map(w => 'W' + w.week).join(', ');
   if (hint) {
     hint.textContent = !canEdit
-      ? 'View-only — set RDG_HOURS_API and republish to enable shared editing.'
+      ? ('View-only' + (punchWeeks ? ' · Punch detail: ' + punchWeeks + ' (click a name)' : '') + ' — set RDG_HOURS_API to enable shared editing.')
       : (hoursApiBase()
-        ? 'Shared edit — changes save for everyone on this link.'
-        : 'Editable — click a cell, type hours, Tab/Enter to save.');
+        ? ('Shared edit' + (punchWeeks ? ' · Punch detail: ' + punchWeeks + ' (click a name)' : ''))
+        : ('Editable' + (punchWeeks ? ' · Punch detail: ' + punchWeeks + ' (click a name)' : '') + ' — Tab/Enter to save typed hours.'));
   }
   if (addRow) addRow.style.display = canEdit ? 'flex' : 'none';
 
