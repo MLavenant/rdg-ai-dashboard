@@ -398,9 +398,10 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 .punch-modal .punch-empty{color:var(--muted);font-size:13px;padding:12px 0}
 .coverage-heat-wrap{overflow:auto;border:1px solid var(--border);border-radius:10px;margin-top:8px}
 .coverage-heat{border-collapse:separate;border-spacing:2px;font-size:10px;min-width:640px}
-.coverage-heat th,.coverage-heat td{padding:4px 5px;text-align:center;min-width:28px}
+.coverage-heat th,.coverage-heat td{padding:3px 2px;text-align:center;min-width:22px}
+.coverage-heat th.slot-col{font-size:8px;font-weight:600;color:var(--muted);writing-mode:horizontal-tb;max-width:28px;line-height:1.1;padding:4px 1px}
 .coverage-heat th.day-col{text-align:left;position:sticky;left:0;background:var(--surface);z-index:1;min-width:72px}
-.coverage-heat .heat-cell{border-radius:4px;font-variant-numeric:tabular-nums;font-weight:600;color:rgba(255,255,255,.92)}
+.coverage-heat .heat-cell{border-radius:3px;font-variant-numeric:tabular-nums;font-weight:600;font-size:9px;color:rgba(255,255,255,.92)}
 .coverage-legend{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:8px 0 0;font-size:11px;color:var(--muted)}
 .coverage-legend i{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:middle;margin-right:4px}
 .coverage-miss-bars{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0 16px}
@@ -5048,19 +5049,18 @@ function heatColorAvail(v, max) {
   return `rgba(167,139,250,${(0.2 + t * 0.8).toFixed(2)})`;
 }
 
-function paintCoverageHeat(title, matrix, days, hours, colorFn) {
+function paintCoverageHeat(title, matrix, days, columns, colorFn) {
   let max = 0;
   for (const row of matrix || []) for (const v of row) if (v > max) max = v;
-  const head = '<th class="day-col">Day</th>' + (hours || []).map(h => {
-    const hr = ((h % 12) === 0 ? 12 : h % 12);
-    const ap = h < 12 ? 'a' : 'p';
-    return '<th>' + hr + ap + '</th>';
-  }).join('');
+  const cols = columns || [];
+  const head = '<th class="day-col">Day</th>' + cols.map(c =>
+    '<th class="slot-col">' + escAttr(c) + '</th>'
+  ).join('');
   const body = (days || []).map((d, i) => {
-    const cells = (hours || []).map((h, j) => {
+    const cells = cols.map((c, j) => {
       const v = (matrix[i] && matrix[i][j]) || 0;
       return '<td class="heat-cell" style="background:' + colorFn(v, max) + '" title="'
-        + escAttr(d.day + ' ' + d.date + ' · ' + h + ':00 · ' + v) + '">' + (v || '') + '</td>';
+        + escAttr(d.day + ' ' + d.date + ' · ' + c + ' · ' + v) + '">' + (v || '') + '</td>';
     }).join('');
     return '<tr><th class="day-col">' + escAttr(d.day) + '<div style="font-size:9px;color:var(--muted);font-weight:500">'
       + escAttr((d.date || '').slice(5)) + '</div></th>' + cells + '</tr>';
@@ -5159,13 +5159,13 @@ function paintCoverageVenue(rep, venue) {
         <div class="ov-cc-py">Multi-leg / bounce journeys</div></div>
     </div>
 
-    ${paintCoverageHeat('Staffing heatmap — avg # punched in (hourly from 15‑min)', venue.staffHeat, rep.days, rep.hours, heatColorStaff)}
-    <div class="coverage-legend"><span><i style="background:rgba(52,211,153,.85)"></i>Scheduled (punch)</span></div>
-    ${paintCoverageHeat('Available heatmap — punched in & not on a call', venue.availableHeat, rep.days, rep.hours, heatColorAvail)}
+    ${paintCoverageHeat('Staffing heatmap — # punched in (15‑min)', venue.staffHeat, rep.days, venue.slotColumns || rep.hours, heatColorStaff)}
+    <div class="coverage-legend"><span><i style="background:rgba(52,211,153,.85)"></i>Scheduled (punch) · each column = 15 min</span></div>
+    ${paintCoverageHeat('Available heatmap — punched in & not on a call (15‑min)', venue.availableHeat, rep.days, venue.slotColumns || rep.hours, heatColorAvail)}
     <div class="coverage-legend"><span><i style="background:rgba(167,139,250,.85)"></i>Phone-available proxy</span></div>
-    ${paintCoverageHeat('Call-in heatmap — offered (inbound + abandoned)', venue.callHeat, rep.days, rep.hours, heatColorCalls)}
+    ${paintCoverageHeat('Call-in heatmap — offered inbound + abandoned (15‑min)', venue.callHeat, rep.days, venue.slotColumns || rep.hours, heatColorCalls)}
     <div class="coverage-legend"><span><i style="background:rgba(61,142,248,.85)"></i>Demand</span></div>
-    ${paintCoverageHeat('Non-human / miss heatmap', venue.missHeat, rep.days, rep.hours, heatColorMiss)}
+    ${paintCoverageHeat('Non-human / miss heatmap (15‑min)', venue.missHeat, rep.days, venue.slotColumns || rep.hours, heatColorMiss)}
     <div class="coverage-legend"><span><i style="background:rgba(248,113,113,.85)"></i>AI + process + AI-drop volume</span></div>
 
     <h3 style="margin:18px 0 4px;font-size:14px">Worst 15‑min slots by FTE-hours short</h3>
