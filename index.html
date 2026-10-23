@@ -396,6 +396,21 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 .punch-modal .lp-tag{font-size:9px;font-weight:700;color:#fbbf24;margin-left:6px}
 .punch-modal .punch-close{float:right;appearance:none;border:1px solid var(--border);background:var(--surface2);color:var(--text);border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer}
 .punch-modal .punch-empty{color:var(--muted);font-size:13px;padding:12px 0}
+.coverage-heat-wrap{overflow:auto;border:1px solid var(--border);border-radius:10px;margin-top:8px}
+.coverage-heat{border-collapse:separate;border-spacing:2px;font-size:10px;min-width:640px}
+.coverage-heat th,.coverage-heat td{padding:4px 5px;text-align:center;min-width:28px}
+.coverage-heat th.day-col{text-align:left;position:sticky;left:0;background:var(--surface);z-index:1;min-width:72px}
+.coverage-heat .heat-cell{border-radius:4px;font-variant-numeric:tabular-nums;font-weight:600;color:rgba(255,255,255,.92)}
+.coverage-legend{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:8px 0 0;font-size:11px;color:var(--muted)}
+.coverage-legend i{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:middle;margin-right:4px}
+.coverage-miss-bars{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0 16px}
+.coverage-miss-card{border:1px solid var(--border);border-radius:10px;padding:12px 14px;background:var(--surface2)}
+.coverage-miss-card .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.coverage-miss-card .val{font-size:22px;font-weight:700;margin-top:4px}
+.coverage-miss-card .sub{font-size:12px;color:var(--muted);margin-top:4px}
+.coverage-miss-card.uncovered .val{color:#f87171}
+.coverage-miss-card.allbusy .val{color:#fbbf24}
+.coverage-miss-card.avoidable .val{color:#60a5fa}
 .hours-cal-table input.hours-cal-input{width:72px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;text-align:right;font-variant-numeric:tabular-nums}
 .hours-cal-table input.hours-cal-input:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 2px rgba(61,142,248,.25)}
 .hours-cal-table input.hours-cal-input.saving{opacity:.55}
@@ -4492,6 +4507,7 @@ async function renderPeople() {
         <button class="people-subtab" data-people-panel="type">Summary — Type of Call</button>
         <button class="people-subtab" data-people-panel="peak">Summary — Peak Times</button>
         <button class="people-subtab" data-people-panel="hours">Staff Hours</button>
+        <button class="people-subtab" data-people-panel="coverage">Coverage lab</button>
       </div>
 
       ${callCenterSummaryHtml()}
@@ -4601,6 +4617,21 @@ async function renderPeople() {
           </table>
         </div>
       </div>
+      <div id="people-panel-coverage" style="display:none">
+        <div class="table-card">
+          <h3>Coverage lab — staffing vs calls to AI</h3>
+          <p class="people-note">Experiment: join ADP punches (who was on the clock) with TalkDesk (inbound → human vs If-No-Answer). Classify each MAIN miss to AI as <b>Uncovered</b> (nobody punched in), <b>All busy</b> (on clock but everyone on a call), or <b>Avoidable</b> (≥1 free). Week follows Call Center report week.</p>
+          <div class="hours-week-bar">
+            <label>Week</label>
+            <button type="button" class="rest-btn" id="coverage-week-prev">←</button>
+            <input type="number" id="coverage-week" min="1" max="53" value="${j.selectedWeek}">
+            <button type="button" class="rest-btn" id="coverage-week-next">→</button>
+            <button type="button" class="rest-btn" id="coverage-week-go">Apply</button>
+            <span class="hours-week-label" id="coverage-week-label">W${j.selectedWeek}</span>
+          </div>
+          <div id="coverage-lab-root"><div class="loading">Loading coverage…</div></div>
+        </div>
+      </div>
       <div id="people-panel-hours" style="display:none">
         <div class="table-card" style="overflow:visible">
           <h3>Staff Hours — ending W${j.selectedWeek}</h3>
@@ -4655,13 +4686,29 @@ async function renderPeople() {
       applyPeopleWeek(Math.min(cap, (j.selectedWeek || 1) + 1), { panel: 'hours' });
     });
 
+    const goCoverageWeek = () => {
+      const w = +document.getElementById('coverage-week').value;
+      if (w >= 1 && w <= 53) applyPeopleWeek(w, { panel: 'coverage' });
+    };
+    document.getElementById('coverage-week-go')?.addEventListener('click', goCoverageWeek);
+    document.getElementById('coverage-week')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); goCoverageWeek(); }
+    });
+    document.getElementById('coverage-week-prev')?.addEventListener('click', () => {
+      applyPeopleWeek(Math.max(1, (j.selectedWeek || 1) - 1), { panel: 'coverage' });
+    });
+    document.getElementById('coverage-week-next')?.addEventListener('click', () => {
+      const cap = D?.cutoff || 53;
+      applyPeopleWeek(Math.min(cap, (j.selectedWeek || 1) + 1), { panel: 'coverage' });
+    });
+
     document.querySelectorAll('.people-subtab').forEach(btn => {
       btn.addEventListener('click', () => {
         const panel = btn.dataset.peoplePanel;
         _peopleActivePanel = panel;
         document.querySelectorAll('.people-subtab').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        ['cc','ring','type','peak','hours'].forEach(p => {
+        ['cc','ring','type','peak','hours','coverage'].forEach(p => {
           const node = document.getElementById('people-panel-' + p);
           if (node) node.style.display = p === panel ? '' : 'none';
         });
@@ -4669,6 +4716,7 @@ async function renderPeople() {
         if (panel === 'type') requestAnimationFrame(() => renderPeopleTypeCharts(window._peopleReport));
         if (panel === 'peak') requestAnimationFrame(() => renderPeoplePeakCharts(window._peopleReport));
         if (panel === 'hours') requestAnimationFrame(() => renderStaffHoursPanel(window._peopleReport));
+        if (panel === 'coverage') requestAnimationFrame(() => renderCoverageLabPanel(window._peopleReport));
       });
     });
 
@@ -4936,6 +4984,132 @@ function applyHoursCalendarTotals(cal) {
   const fw = document.querySelector('.foot-wow');
   if (ft) ft.textContent = String((cal.totals && cal.totals.total) || 0);
   if (fw) fw.innerHTML = fmtWow(cal.totals && cal.totals.wow);
+}
+
+let _coverageCatalog = null;
+
+async function loadCoverageCatalog() {
+  if (_coverageCatalog?.ok) return _coverageCatalog;
+  try {
+    const r = await fetch('/api/people/coverage');
+    if (r.ok) {
+      const j = await r.json();
+      if (j?.ok && j.byWeek) { _coverageCatalog = j; return j; }
+    }
+  } catch (_) {}
+  try {
+    const r = await fetch(staticAssetUrl('coverage-experiment.json') + '?t=' + Date.now());
+    if (r.ok) {
+      const j = await r.json();
+      if (j?.ok) { _coverageCatalog = j; return j; }
+    }
+  } catch (_) {}
+  return null;
+}
+
+function heatColorStaff(v, max) {
+  if (!(max > 0) || !(v > 0)) return 'rgba(42,48,80,.35)';
+  const t = Math.min(1, v / max);
+  const a = 0.25 + t * 0.75;
+  return `rgba(52,211,153,${a.toFixed(2)})`;
+}
+function heatColorCalls(v, max) {
+  if (!(max > 0) || !(v > 0)) return 'rgba(42,48,80,.35)';
+  const t = Math.min(1, v / max);
+  return `rgba(61,142,248,${(0.2 + t * 0.8).toFixed(2)})`;
+}
+function heatColorMiss(v, max) {
+  if (!(max > 0) || !(v > 0)) return 'rgba(42,48,80,.35)';
+  const t = Math.min(1, v / max);
+  return `rgba(248,113,113,${(0.2 + t * 0.8).toFixed(2)})`;
+}
+
+function paintCoverageHeat(title, matrix, days, hours, colorFn) {
+  let max = 0;
+  for (const row of matrix || []) for (const v of row) if (v > max) max = v;
+  const head = '<th class="day-col">Day</th>' + (hours || []).map(h => {
+    const hr = ((h % 12) === 0 ? 12 : h % 12);
+    const ap = h < 12 ? 'a' : 'p';
+    return '<th>' + hr + ap + '</th>';
+  }).join('');
+  const body = (days || []).map((d, i) => {
+    const cells = (hours || []).map((h, j) => {
+      const v = (matrix[i] && matrix[i][j]) || 0;
+      return '<td class="heat-cell" style="background:' + colorFn(v, max) + '" title="'
+        + escAttr(d.day + ' ' + d.date + ' · ' + h + ':00 · ' + v) + '">' + (v || '') + '</td>';
+    }).join('');
+    return '<tr><th class="day-col">' + escAttr(d.day) + '<div style="font-size:9px;color:var(--muted);font-weight:500">'
+      + escAttr((d.date || '').slice(5)) + '</div></th>' + cells + '</tr>';
+  }).join('');
+  return '<div style="margin-top:16px"><h3 style="margin:0 0 4px;font-size:14px">' + title + '</h3>'
+    + '<div class="coverage-heat-wrap"><table class="coverage-heat"><thead><tr>' + head
+    + '</tr></thead><tbody>' + body + '</tbody></table></div></div>';
+}
+
+async function renderCoverageLabPanel(j) {
+  const root = document.getElementById('coverage-lab-root');
+  const label = document.getElementById('coverage-week-label');
+  if (!root) return;
+  const week = j?.selectedWeek || _peopleSelectedWeek || D?.cutoff;
+  if (label) label.innerHTML = 'Selected <b>W' + week + '</b>';
+  root.innerHTML = '<div class="loading">Loading coverage for W' + week + '…</div>';
+
+  const cat = await loadCoverageCatalog();
+  const key = '2026-W' + String(week).padStart(2, '0');
+  let rep = cat?.byWeek?.[key];
+  if (!rep?.ok) {
+    try {
+      const r = await fetch('/api/people/coverage?week=' + week);
+      if (r.ok) rep = await r.json();
+    } catch (_) {}
+  }
+  if (!rep?.ok) {
+    root.innerHTML = '<p class="people-note">No coverage data for W' + week
+      + '. Need punch PDF for that week, then run <code>npm run coverage:build</code>. '
+      + (cat?.weeks?.length ? ('Available: W' + cat.weeks.join(', W')) : '') + '</p>';
+    return;
+  }
+
+  const t = rep.totals || {};
+  const miss = t.missToAi || 0;
+  const verdict = (t.allBusyPct || 0) + (t.uncoveredPct || 0) >= 40
+    ? 'Staffing / capacity is a major driver of AI overflow this week.'
+    : (t.avoidablePct || 0) >= 60
+      ? 'Most AI misses happened while someone was free on the clock — process / pickup priority, not pure headcount.'
+      : 'Mixed — review uncovered vs all-busy vs avoidable by hour below.';
+
+  root.innerHTML = `
+    <div class="ov-cc-summary" style="margin:0 0 14px;grid-template-columns:repeat(4,1fr)">
+      <div class="ov-cc-card"><div class="ov-cc-label">Inbound (BH MAIN)</div><div class="ov-cc-val">${Number(t.inbound||0).toLocaleString()}</div>
+        <div class="ov-cc-py">Business hours · excludes Back-from-Hostie</div></div>
+      <div class="ov-cc-card"><div class="ov-cc-label">Human answered</div><div class="ov-cc-val" style="color:var(--green)">${Number(t.humanAnswered||0).toLocaleString()}</div>
+        <div class="ov-cc-py">First-try answer ${t.firstTryAnswerPct ?? '—'}%</div></div>
+      <div class="ov-cc-card"><div class="ov-cc-label">Miss → AI</div><div class="ov-cc-val" style="color:var(--y26)">${Number(miss).toLocaleString()}</div>
+        <div class="ov-cc-py">If-No-Answer on MAIN</div></div>
+      <div class="ov-cc-card"><div class="ov-cc-label">Peak staffed</div><div class="ov-cc-val">${t.peakStaffed ?? '—'}</div>
+        <div class="ov-cc-py">${t.agentsOnPunch || 0} on punch roster</div></div>
+    </div>
+    <div class="coverage-miss-bars">
+      <div class="coverage-miss-card uncovered"><div class="lbl">Uncovered</div>
+        <div class="val">${t.uncoveredPct ?? 0}%</div>
+        <div class="sub">${Number(t.uncovered||0).toLocaleString()} misses · nobody punched in</div></div>
+      <div class="coverage-miss-card allbusy"><div class="lbl">All busy</div>
+        <div class="val">${t.allBusyPct ?? 0}%</div>
+        <div class="sub">${Number(t.allBusy||0).toLocaleString()} misses · on clock, all on a call</div></div>
+      <div class="coverage-miss-card avoidable"><div class="lbl">Avoidable</div>
+        <div class="val">${t.avoidablePct ?? 0}%</div>
+        <div class="sub">${Number(t.avoidable||0).toLocaleString()} misses · ≥1 free on clock</div></div>
+    </div>
+    <p class="loc-summary-note" style="margin:0 0 8px"><b>Verdict:</b> ${escAttr(verdict)}</p>
+    ${paintCoverageHeat('Staffing heatmap — # punched in (:30 sample)', rep.staffHeat, rep.days, rep.hours, heatColorStaff)}
+    <div class="coverage-legend"><span><i style="background:rgba(52,211,153,.85)"></i>More people on clock</span></div>
+    ${paintCoverageHeat('Call-in heatmap — inbound BH MAIN starts', rep.callHeat, rep.days, rep.hours, heatColorCalls)}
+    <div class="coverage-legend"><span><i style="background:rgba(61,142,248,.85)"></i>More inbound calls</span></div>
+    ${paintCoverageHeat('Miss → AI heatmap — If-No-Answer volume', rep.missHeat, rep.days, rep.hours, heatColorMiss)}
+    <div class="coverage-legend"><span><i style="background:rgba(248,113,113,.85)"></i>More first-try misses to AI</span>
+      <span style="margin-left:8px">Source: ${escAttr(rep.punchSource || 'punch PDF')} · ${escAttr(rep.dateFrom || '')}–${escAttr(rep.dateTo || '')}</span></div>
+    <div class="stat-note" style="margin-top:12px">${(rep.notes || []).map(n => escAttr(n)).join(' · ')}</div>
+  `;
 }
 
 async function renderStaffHoursPanel(j) {
