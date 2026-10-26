@@ -5134,6 +5134,62 @@ function paintDominantHeat(title, matrix, days, columns) {
     + '</div></div>';
 }
 
+function aggregateCoverageSlots(slots) {
+  const byDay = new Map();
+  const byHour = new Map();
+  const bump = (row, s) => {
+    row.offered += s.offered || 0;
+    row.human += s.humanAnswered || 0;
+    row.cov += s.causes?.staffing_coverage || 0;
+    row.busy += s.causes?.staffing_busy || 0;
+    row.pickup += s.causes?.process_pickup || 0;
+    row.routing += s.causes?.process_routing || 0;
+    row.loop += s.causes?.process_loop || 0;
+    row.ai += s.causes?.ai_drop || 0;
+  };
+  const empty = () => ({ offered: 0, human: 0, cov: 0, busy: 0, pickup: 0, routing: 0, loop: 0, ai: 0 });
+  for (const s of slots || []) {
+    const dKey = s.date;
+    if (!byDay.has(dKey)) byDay.set(dKey, { date: s.date, day: s.day, ...empty() });
+    bump(byDay.get(dKey), s);
+    if (!byHour.has(s.hour)) byHour.set(s.hour, { hour: s.hour, ...empty() });
+    bump(byHour.get(s.hour), s);
+  }
+  const days = [...byDay.values()].sort((a, b) => a.date.localeCompare(b.date));
+  const hours = [...byHour.values()].sort((a, b) => a.hour - b.hour);
+  const tot = empty();
+  for (const r of days) {
+    tot.offered += r.offered; tot.human += r.human; tot.cov += r.cov; tot.busy += r.busy;
+    tot.pickup += r.pickup; tot.routing += r.routing; tot.loop += r.loop; tot.ai += r.ai;
+  }
+  return { days, hours, tot };
+}
+
+function coverageBreakRow(label, r, bold) {
+  const staff = r.cov + r.busy;
+  const free = r.pickup + r.routing + r.loop;
+  const tag = bold ? 'font-weight:700' : '';
+  return `<tr style="${tag}">
+    <td>${escAttr(label)}</td>
+    <td class="num">${r.offered}</td>
+    <td class="num">${r.human}</td>
+    <td class="num">${r.cov}</td>
+    <td class="num">${r.busy}</td>
+    <td class="num">${staff}</td>
+    <td class="num">${r.pickup}</td>
+    <td class="num">${r.routing}</td>
+    <td class="num">${r.loop}</td>
+    <td class="num">${free}</td>
+    <td class="num">${r.ai}</td>
+  </tr>`;
+}
+
+function hourLabel12(h) {
+  const ap = h < 12 ? 'a' : 'p';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return h12 + ap;
+}
+
 function paintCoverageVenue(rep, venue) {
   const a = venue.answer;
   if (!a) {
@@ -5150,6 +5206,14 @@ function paintCoverageVenue(rep, venue) {
     `<li><span>${escAttr(x.label)}</span><span class="gain">+${x.pointsGained} pts</span></li>`
   ).join('') || '<li><span>No ranked actions</span></li>';
 
+  const agg = aggregateCoverageSlots(venue.slots);
+  const dayRows = agg.days.map(d =>
+    coverageBreakRow(`${d.day} ${(d.date || '').slice(5)}`, d, false)
+  ).join('') + coverageBreakRow('Week total', agg.tot, true);
+  const hourRows = agg.hours.map(h =>
+    coverageBreakRow(hourLabel12(h.hour), h, false)
+  ).join('') + coverageBreakRow('Week total', agg.tot, true);
+
   const worstRows = (venue.worst || []).map(w =>
     `<tr>
       <td>${escAttr(w.label)}</td>
@@ -5165,12 +5229,19 @@ function paintCoverageVenue(rep, venue) {
     `<tr><td>${escAttr(o.label)}</td><td class="num">${o.minutes}</td></tr>`
   ).join('');
 
+  const breakHead = `<thead><tr>
+    <th></th><th class="num">Journeys</th><th class="num">Human</th>
+    <th class="num">No punch</th><th class="num">All busy</th><th class="num">Staffing</th>
+    <th class="num">Pickup</th><th class="num">Routing</th><th class="num">Loop</th><th class="num">Free→miss</th>
+    <th class="num">AI drop</th>
+  </tr></thead>`;
+
   return `
   <div class="coverage-v3">
     <div class="coverage-v3-verdict ${a.headline === 'Staffing' ? 'staff-led' : ''}">
       <div class="headline">W${rep.week} verdict · <b class="${hlClass}">${escAttr(a.headline)}</b></div>
       <p class="sentence">${escAttr(a.sentence)}</p>
-      <p class="defn">${escAttr(a.definition)} · ${Number(a.journeys).toLocaleString()} journeys</p>
+      <p class="defn">${escAttr(a.definition)} · ${Number(a.journeys).toLocaleString()} journeys · inbound + abandoned only</p>
     </div>
 
     <div class="coverage-gap-bar-wrap">
@@ -5193,12 +5264,12 @@ function paintCoverageVenue(rep, venue) {
       <div class="coverage-tile staffing">
         <div class="lbl">Staffing points</div>
         <div class="pts">${a.staffingPts}</div>
-        <div class="sub">${Number(a.staffing).toLocaleString()} journeys · coverage ${Number(bd.staffing?.coverage||0).toLocaleString()}, everyone busy ${Number(bd.staffing?.busy||0).toLocaleString()}</div>
+        <div class="sub">${Number(a.staffing).toLocaleString()} journeys · no punch ${Number(bd.staffing?.coverage||0).toLocaleString()}, all busy ${Number(bd.staffing?.busy||0).toLocaleString()}</div>
       </div>
       <div class="coverage-tile process">
         <div class="lbl">Process points</div>
         <div class="pts">${a.processPts}</div>
-        <div class="sub">${Number(a.process).toLocaleString()} journeys · pickup ${Number(bd.process?.pickup||0).toLocaleString()}, routing ${Number(bd.process?.routing||0).toLocaleString()}, loop ${Number(bd.process?.loop||0).toLocaleString()}</div>
+        <div class="sub">${Number(a.process).toLocaleString()} journeys · someone free, still missed · pickup ${Number(bd.process?.pickup||0).toLocaleString()}, routing ${Number(bd.process?.routing||0).toLocaleString()}, loop ${Number(bd.process?.loop||0).toLocaleString()}</div>
       </div>
       <div class="coverage-tile ai">
         <div class="lbl">AI points</div>
@@ -5207,7 +5278,36 @@ function paintCoverageVenue(rep, venue) {
       </div>
     </div>
 
-    <h3 style="margin:0 0 8px;font-size:14px">Actions — ranked by points gained</h3>
+    <h3 style="margin:4px 0 4px;font-size:14px">1) Lost to staffing — no punch vs everyone busy</h3>
+    <p class="people-note" style="margin:0 0 8px">Only BH inbound journeys that never reached a human. <b>No punch</b> = nobody clocked in. <b>All busy</b> = punched in but every agent was on a call (incl. outbound).</p>
+    <div class="ov-cc-summary" style="margin:0 0 12px;grid-template-columns:repeat(3,1fr)">
+      <div class="ov-cc-card"><div class="ov-cc-label">Staffing total</div><div class="ov-cc-val" style="color:#fbbf24">${Number(a.staffing).toLocaleString()}</div>
+        <div class="ov-cc-py">${a.staffingPct}% of journeys</div></div>
+      <div class="ov-cc-card"><div class="ov-cc-label">No one punched in</div><div class="ov-cc-val">${Number(bd.staffing?.coverage||0).toLocaleString()}</div></div>
+      <div class="ov-cc-card"><div class="ov-cc-label">Everyone busy</div><div class="ov-cc-val">${Number(bd.staffing?.busy||0).toLocaleString()}</div></div>
+    </div>
+
+    <h3 style="margin:12px 0 4px;font-size:14px">2) Someone was free — process vs AI drop</h3>
+    <p class="people-note" style="margin:0 0 8px"><b>Free→miss</b> = at least one agent punched in and not on a call, but the journey still missed (pickup / routing / loop). <b>AI drop</b> = stayed on AI and caller left. Back-from-Hostie = Hostie/AI transferring back into the CC queue (often lands on If-No-Answer again = loop/pickup, not “staffing”).</p>
+    <div class="ov-cc-summary" style="margin:0 0 12px;grid-template-columns:repeat(3,1fr)">
+      <div class="ov-cc-card"><div class="ov-cc-label">Free but missed</div><div class="ov-cc-val" style="color:#60a5fa">${Number(a.process).toLocaleString()}</div>
+        <div class="ov-cc-py">pickup ${Number(bd.process?.pickup||0).toLocaleString()} · loop ${Number(bd.process?.loop||0).toLocaleString()} · routing ${Number(bd.process?.routing||0).toLocaleString()}</div></div>
+      <div class="ov-cc-card"><div class="ov-cc-label">AI drop</div><div class="ov-cc-val" style="color:#fb923c">${Number(a.ai).toLocaleString()}</div>
+        <div class="ov-cc-py">${a.aiPct}% of journeys</div></div>
+      <div class="ov-cc-card"><div class="ov-cc-label">Human answered</div><div class="ov-cc-val" style="color:var(--green)">${Number(a.human).toLocaleString()}</div>
+        <div class="ov-cc-py">${a.humanPct}%</div></div>
+    </div>
+
+    <h3 style="margin:8px 0 6px;font-size:14px">By day</h3>
+    <div class="coverage-heat-wrap">
+      <table class="coverage-top-table">${breakHead}<tbody>${dayRows}</tbody></table>
+    </div>
+    <h3 style="margin:14px 0 6px;font-size:14px">By hour</h3>
+    <div class="coverage-heat-wrap">
+      <table class="coverage-top-table">${breakHead}<tbody>${hourRows}</tbody></table>
+    </div>
+
+    <h3 style="margin:16px 0 8px;font-size:14px">Actions — ranked by points gained</h3>
     <ul class="coverage-actions">${actions}</ul>
 
     <h3 style="margin:8px 0 6px;font-size:14px">Where — worst venue × hour</h3>
