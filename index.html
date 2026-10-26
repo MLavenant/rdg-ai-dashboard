@@ -462,6 +462,27 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 .coverage-actions li .gain{font-weight:700;color:#34d399;white-space:nowrap;font-variant-numeric:tabular-nums}
 .coverage-evidence details{border:1px solid var(--border);border-radius:10px;padding:10px 14px;background:var(--surface2);margin-top:12px}
 .coverage-evidence summary{cursor:pointer;font-weight:650;font-size:13px;color:var(--text)}
+.coverage-lost-filters{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 10px;align-items:center}
+.coverage-lost-filters button{appearance:none;border:1px solid var(--border);background:var(--surface2);color:var(--text);border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer}
+.coverage-lost-filters button.active{border-color:rgba(61,142,248,.55);background:rgba(61,142,248,.15);color:#93c5fd}
+.coverage-lost-filters input{padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:12px;width:110px}
+.coverage-lost-table{width:100%;border-collapse:collapse;font-size:12px}
+.coverage-lost-table th,.coverage-lost-table td{padding:7px 8px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}
+.coverage-lost-table th{color:var(--muted);font-size:10px;text-transform:uppercase;position:sticky;top:0;background:var(--surface);z-index:1}
+.coverage-lost-table td.num{text-align:right;font-variant-numeric:tabular-nums}
+.coverage-lost-table tr.lost-row{cursor:pointer}
+.coverage-lost-table tr.lost-row:hover{background:rgba(255,255,255,.03)}
+.coverage-lost-table tr.lost-row.open{background:rgba(61,142,248,.08)}
+.coverage-lost-detail{background:rgba(0,0,0,.18);font-size:12px;line-height:1.45}
+.coverage-lost-detail td{padding:10px 12px}
+.coverage-agent-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+.coverage-agent-chips span{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;border:1px solid var(--border)}
+.coverage-agent-chips .free{background:rgba(96,165,250,.18);border-color:rgba(96,165,250,.45);color:#93c5fd}
+.coverage-agent-chips .busy{background:rgba(251,191,36,.15);border-color:rgba(251,191,36,.4);color:#fbbf24}
+.coverage-agent-chips .in{background:rgba(52,211,153,.12);border-color:rgba(52,211,153,.35);color:#6ee7b7}
+.coverage-reason-staffing{color:#fbbf24}
+.coverage-reason-process{color:#60a5fa}
+.coverage-reason-ai{color:#fb923c}
 .coverage-dom-heat .heat-cell[data-d="1"]{background:rgba(251,191,36,.85)!important}
 .coverage-dom-heat .heat-cell[data-d="2"]{background:rgba(96,165,250,.85)!important}
 .coverage-dom-heat .heat-cell[data-d="3"]{background:rgba(251,146,60,.85)!important}
@@ -5331,6 +5352,24 @@ function paintCoverageVenue(rep, venue) {
       </table>
     </div>` : ''}
 
+    <div class="coverage-evidence" style="margin-top:16px">
+      <details open id="coverage-lost-panel">
+        <summary>Lost-call detail — who was free / on a call when inbound missed human</summary>
+        <p class="people-note" style="margin:8px 0">Every BH inbound journey that never reached a human. Expand a row to see <b>free</b> agents (punched in, not on a call — did not take it), <b>on call</b>, and everyone punched in.</p>
+        <div class="coverage-lost-filters" id="coverage-lost-filters"></div>
+        <div id="coverage-lost-meta" class="people-note" style="margin:0 0 8px"></div>
+        <div class="coverage-heat-wrap" style="max-height:520px">
+          <table class="coverage-lost-table">
+            <thead><tr>
+              <th>When</th><th>Venue</th><th>Phone</th><th>Reason</th>
+              <th class="num">Free</th><th class="num">On call</th><th class="num">Wait</th><th>Miss agent</th>
+            </tr></thead>
+            <tbody id="coverage-lost-tbody"><tr><td colspan="8">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </details>
+    </div>
+
     <div class="coverage-evidence">
       <details>
         <summary>Evidence — staffing, availability, call volume heatmaps</summary>
@@ -5387,6 +5426,7 @@ async function renderCoverageLabPanel(j) {
         venueBar.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
         const venue = (rep.venues || []).find(v => String(v.restaurantId) === String(_coverageVenueId)) || rep.venues[0];
         root.innerHTML = paintCoverageVenue(rep, venue);
+        void renderCoverageLostDetail(week, _coverageVenueId);
       };
     });
   }
@@ -5398,6 +5438,165 @@ async function renderCoverageLabPanel(j) {
   }
   _coverageVenueId = venue.restaurantId;
   root.innerHTML = paintCoverageVenue(rep, venue);
+  void renderCoverageLostDetail(week, _coverageVenueId);
+}
+
+let _lostDetailCache = null;
+let _lostFilter = { bucket: 'all', cause: 'all', q: '', openId: null };
+
+async function loadLostDetailCatalog(force) {
+  if (_lostDetailCache?.ok && !force) return _lostDetailCache;
+  try {
+    const r = await fetch('/api/people/coverage-lost');
+    if (r.ok) {
+      const j = await r.json();
+      if (j?.ok && j.byWeek) { _lostDetailCache = j; return j; }
+    }
+  } catch (_) {}
+  try {
+    const r = await fetch(staticAssetUrl('coverage-lost-detail.json') + '?t=' + Date.now());
+    if (r.ok) {
+      const j = await r.json();
+      if (j?.ok && j.byWeek) { _lostDetailCache = j; return j; }
+    }
+  } catch (_) {}
+  return null;
+}
+
+function chips(list, cls) {
+  if (!list?.length) return '<span style="color:var(--muted)">—</span>';
+  return '<div class="coverage-agent-chips">' + list.map(n =>
+    `<span class="${cls}">${escAttr(n)}</span>`
+  ).join('') + '</div>';
+}
+
+async function renderCoverageLostDetail(week, venueId) {
+  const tbody = document.getElementById('coverage-lost-tbody');
+  const filters = document.getElementById('coverage-lost-filters');
+  const meta = document.getElementById('coverage-lost-meta');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="8">Loading lost-call detail…</td></tr>';
+  const cat = await loadLostDetailCatalog(false);
+  const key = '2026-W' + String(week).padStart(2, '0');
+  let weekData = cat?.byWeek?.[key];
+  if (!weekData?.ok) {
+    try {
+      const r = await fetch('/api/people/coverage-lost?week=' + week);
+      if (r.ok) weekData = await r.json();
+    } catch (_) {}
+  }
+  if (!weekData?.ok || !Array.isArray(weekData.journeys)) {
+    tbody.innerHTML = '<tr><td colspan="8">No lost-call detail for W' + week + ' — run <code>npm run coverage:build</code>.</td></tr>';
+    return;
+  }
+
+  let rows = weekData.journeys;
+  if (venueId && venueId !== 'all') {
+    rows = rows.filter(j => String(j.restaurantId) === String(venueId));
+  }
+
+  const paint = () => {
+    const f = _lostFilter;
+    let list = rows;
+    if (f.bucket !== 'all') list = list.filter(j => j.bucket === f.bucket);
+    if (f.cause !== 'all') list = list.filter(j => j.cause === f.cause);
+    if (f.q) {
+      const q = f.q.replace(/\D/g, '');
+      list = list.filter(j => (j.phoneLast4 || '').includes(q) || (j.venue || '').toLowerCase().includes(f.q.toLowerCase()));
+    }
+    if (meta) {
+      meta.textContent = `Showing ${list.length.toLocaleString()} of ${rows.length.toLocaleString()} lost journeys`
+        + (venueId && venueId !== 'all' ? ' (this venue)' : '');
+    }
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="8">No rows for this filter.</td></tr>';
+      return;
+    }
+    // Cap render for speed; show first 400 matching
+    const MAX = 400;
+    const slice = list.slice(0, MAX);
+    tbody.innerHTML = slice.map(j => {
+      const open = f.openId === j.id;
+      const reasonCls = 'coverage-reason-' + (j.bucket || 'process');
+      const busyHint = (j.onCallTypes || []).map(x => `${x.agent} (${x.callType})`).join(', ');
+      const main = `<tr class="lost-row ${open ? 'open' : ''}" data-id="${escAttr(j.id)}">
+        <td>${escAttr(j.startLabel)}<div style="font-size:10px;color:var(--muted)">${escAttr((j.date||'').slice(5))}</div></td>
+        <td>${escAttr(j.venue)}${j.isBackFromHostie ? '<div style="font-size:10px;color:#c084fc">Back from Hostie</div>' : ''}</td>
+        <td>···${escAttr(j.phoneLast4)}</td>
+        <td class="${reasonCls}">${escAttr(j.reasonLabel)}</td>
+        <td class="num">${(j.free||[]).length}</td>
+        <td class="num" title="${escAttr(busyHint)}">${(j.onCall||[]).length}</td>
+        <td class="num">${j.waitingSec ?? '—' }s</td>
+        <td>${escAttr(j.missAgent)}</td>
+      </tr>`;
+      if (!open) return main;
+      const detail = `<tr class="coverage-lost-detail"><td colspan="8">
+        <div><b>Free (did not take this inbound)</b>${chips(j.free, 'free')}</div>
+        <div style="margin-top:8px"><b>On a call</b>${chips((j.onCallTypes||[]).map(x => x.agent + ' · ' + x.callType), 'busy') || chips(j.onCall, 'busy')}</div>
+        <div style="margin-top:8px"><b>Punched in</b>${chips(j.punchedIn, 'in')}</div>
+        <div style="margin-top:8px;color:var(--muted)">Legs ${j.legCount} · hangup ${escAttr(j.hangup || '—')} · wait ${j.waitingSec}s</div>
+      </td></tr>`;
+      return main + detail;
+    }).join('') + (list.length > MAX
+      ? `<tr><td colspan="8" style="color:var(--muted)">Showing first ${MAX} of ${list.length}. Narrow the filter to see more.</td></tr>`
+      : '');
+
+    tbody.querySelectorAll('tr.lost-row').forEach(tr => {
+      tr.onclick = () => {
+        _lostFilter.openId = _lostFilter.openId === tr.dataset.id ? null : tr.dataset.id;
+        paint();
+      };
+    });
+  };
+
+  if (filters) {
+    const buckets = [
+      ['all', 'All'],
+      ['staffing', 'Staffing'],
+      ['process', 'Process / free'],
+      ['ai', 'AI drop'],
+    ];
+    const causes = [
+      ['all', 'Any reason'],
+      ['staffing_coverage', 'No punch'],
+      ['staffing_busy', 'All busy'],
+      ['process_pickup', 'Pickup'],
+      ['process_routing', 'Routing'],
+      ['process_loop', 'Loop'],
+      ['ai_drop', 'AI drop'],
+    ];
+    filters.innerHTML =
+      buckets.map(([k, l]) =>
+        `<button type="button" data-bucket="${k}" class="${_lostFilter.bucket === k ? 'active' : ''}">${l}</button>`
+      ).join('') +
+      `<select id="coverage-lost-cause" style="padding:5px 8px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:12px">` +
+      causes.map(([k, l]) =>
+        `<option value="${k}" ${_lostFilter.cause === k ? 'selected' : ''}>${l}</option>`
+      ).join('') + `</select>` +
+      `<input id="coverage-lost-q" type="search" placeholder="Phone ··· / venue" value="${escAttr(_lostFilter.q || '')}">`;
+    filters.querySelectorAll('button[data-bucket]').forEach(btn => {
+      btn.onclick = () => {
+        _lostFilter.bucket = btn.dataset.bucket;
+        _lostFilter.openId = null;
+        filters.querySelectorAll('button[data-bucket]').forEach(b =>
+          b.classList.toggle('active', b === btn)
+        );
+        paint();
+      };
+    });
+    const causeSel = document.getElementById('coverage-lost-cause');
+    if (causeSel) causeSel.onchange = () => {
+      _lostFilter.cause = causeSel.value;
+      _lostFilter.openId = null;
+      paint();
+    };
+    const qIn = document.getElementById('coverage-lost-q');
+    if (qIn) qIn.oninput = () => {
+      _lostFilter.q = qIn.value.trim();
+      paint();
+    };
+  }
+  paint();
 }
 
 async function renderStaffHoursPanel(j) {
