@@ -535,7 +535,7 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 .save-hint{font-size:11px;color:var(--green);margin-left:8px}
 
 </style>
-  <!--RDG_HOURS_API--><script>window.RDG_HOURS_API=window.RDG_HOURS_API||"";</script><!--/RDG_HOURS_API-->
+  <!--RDG_HOURS_API--><script>window.RDG_HOURS_API="https://rdg-hours-api.plum-rat.workers.dev";</script><!--/RDG_HOURS_API-->
 </head>
 <body>
 
@@ -5267,7 +5267,8 @@ function paintCoverageVenue(rep, venue) {
     <div class="coverage-v3-verdict ${a.headline === 'Staffing' ? 'staff-led' : ''}">
       <div class="headline">W${rep.week} verdict · <b class="${hlClass}">${escAttr(a.headline)}</b></div>
       <p class="sentence">${escAttr(a.sentence)}</p>
-      <p class="defn">${escAttr(a.definition)} · ${Number(a.journeys).toLocaleString()} journeys · inbound + abandoned only</p>
+      <p class="defn">${escAttr(a.definition)} · ${Number(a.journeys).toLocaleString()} unique calls</p>
+      ${a.sankeyTieOut ? `<p class="defn" style="margin-top:6px">Same set as Sankey <b>HUMAN did not</b>: <b>${Number(a.sankeyTieOut.nonHuman).toLocaleString()}</b> unique calls dissected here → Staffing ${Number(a.staffing).toLocaleString()} + Process ${Number(a.process).toLocaleString()} + AI ${Number(a.ai).toLocaleString()} · (${Number(a.sankeyTieOut.human).toLocaleString()} human / ${Number(a.sankeyTieOut.uniqueCalls).toLocaleString()} unique)</p>` : ''}
     </div>
 
     <div class="coverage-gap-bar-wrap">
