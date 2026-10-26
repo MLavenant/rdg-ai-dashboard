@@ -5355,16 +5355,16 @@ function paintCoverageVenue(rep, venue) {
     <div class="coverage-evidence" style="margin-top:16px">
       <details open id="coverage-lost-panel">
         <summary>Lost-call detail — who was free / on a call when inbound missed human</summary>
-        <p class="people-note" style="margin:8px 0">Every BH inbound journey that never reached a human. Expand a row to see <b>free</b> agents (punched in, not on a call — did not take it), <b>on call</b>, and everyone punched in.</p>
+        <p class="people-note" style="margin:8px 0">Every BH inbound journey that never reached a human. <b>Call ID</b> = TalkDesk Interaction ID (copy to look up in TD). <b>Back from Hostie</b> = AI asked for a human → 2nd queue hold ≤30s. <b>Process / no pickup</b> = at least one agent was free at offer time (start of that leg) but the call still went to If-No-Answer — not proof they were Ready every second of the wait. Expand a row for free agents, and for busy agents the <b>call ID they were on</b>.</p>
         <div class="coverage-lost-filters" id="coverage-lost-filters"></div>
         <div id="coverage-lost-meta" class="people-note" style="margin:0 0 8px"></div>
         <div class="coverage-heat-wrap" style="max-height:520px">
           <table class="coverage-lost-table">
             <thead><tr>
-              <th>When</th><th>Venue</th><th>Phone</th><th>Reason</th>
+              <th>When</th><th>Venue</th><th>Phone</th><th>Call ID</th><th>Reason</th>
               <th class="num">Free</th><th class="num">On call</th><th class="num">Wait</th><th>Miss agent</th>
             </tr></thead>
-            <tbody id="coverage-lost-tbody"><tr><td colspan="8">Loading…</td></tr></tbody>
+            <tbody id="coverage-lost-tbody"><tr><td colspan="9">Loading…</td></tr></tbody>
           </table>
         </div>
       </details>
@@ -5475,8 +5475,8 @@ async function renderCoverageLostDetail(week, venueId) {
   const filters = document.getElementById('coverage-lost-filters');
   const meta = document.getElementById('coverage-lost-meta');
   if (!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="8">Loading lost-call detail…</td></tr>';
-  const cat = await loadLostDetailCatalog(false);
+  tbody.innerHTML = '<tr><td colspan="9">Loading lost-call detail…</td></tr>';
+  const cat = await loadLostDetailCatalog(true);
   const key = '2026-W' + String(week).padStart(2, '0');
   let weekData = cat?.byWeek?.[key];
   if (!weekData?.ok) {
@@ -5486,7 +5486,7 @@ async function renderCoverageLostDetail(week, venueId) {
     } catch (_) {}
   }
   if (!weekData?.ok || !Array.isArray(weekData.journeys)) {
-    tbody.innerHTML = '<tr><td colspan="8">No lost-call detail for W' + week + ' — run <code>npm run coverage:build</code>.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9">No lost-call detail for W' + week + ' — run <code>npm run coverage:build</code>.</td></tr>';
     return;
   }
 
@@ -5495,21 +5495,33 @@ async function renderCoverageLostDetail(week, venueId) {
     rows = rows.filter(j => String(j.restaurantId) === String(venueId));
   }
 
+  const shortId = (id) => {
+    if (!id) return '—';
+    return id.length > 12 ? id.slice(0, 8) + '…' + id.slice(-4) : id;
+  };
+
   const paint = () => {
     const f = _lostFilter;
     let list = rows;
     if (f.bucket !== 'all') list = list.filter(j => j.bucket === f.bucket);
     if (f.cause !== 'all') list = list.filter(j => j.cause === f.cause);
     if (f.q) {
-      const q = f.q.replace(/\D/g, '');
-      list = list.filter(j => (j.phoneLast4 || '').includes(q) || (j.venue || '').toLowerCase().includes(f.q.toLowerCase()));
+      const q = f.q.toLowerCase();
+      const qd = q.replace(/\D/g, '');
+      list = list.filter(j =>
+        (j.phoneLast4 || '').includes(qd) ||
+        (j.venue || '').toLowerCase().includes(q) ||
+        (j.callId || '').toLowerCase().includes(q) ||
+        (j.legCallIds || []).some(id => String(id).toLowerCase().includes(q)) ||
+        (j.onCallTypes || []).some(x => String(x.callId || '').toLowerCase().includes(q))
+      );
     }
     if (meta) {
       meta.textContent = `Showing ${list.length.toLocaleString()} of ${rows.length.toLocaleString()} lost journeys`
         + (venueId && venueId !== 'all' ? ' (this venue)' : '');
     }
     if (!list.length) {
-      tbody.innerHTML = '<tr><td colspan="8">No rows for this filter.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9">No rows for this filter.</td></tr>';
       return;
     }
     // Cap render for speed; show first 400 matching
@@ -5518,11 +5530,14 @@ async function renderCoverageLostDetail(week, venueId) {
     tbody.innerHTML = slice.map(j => {
       const open = f.openId === j.id;
       const reasonCls = 'coverage-reason-' + (j.bucket || 'process');
-      const busyHint = (j.onCallTypes || []).map(x => `${x.agent} (${x.callType})`).join(', ');
+      const busyHint = (j.onCallTypes || []).map(x => `${x.agent} (${x.callType} ${x.callId || ''})`).join(', ');
       const main = `<tr class="lost-row ${open ? 'open' : ''}" data-id="${escAttr(j.id)}">
         <td>${escAttr(j.startLabel)}<div style="font-size:10px;color:var(--muted)">${escAttr((j.date||'').slice(5))}</div></td>
-        <td>${escAttr(j.venue)}${j.isBackFromHostie ? '<div style="font-size:10px;color:#c084fc">Back from Hostie</div>' : ''}</td>
+        <td>${escAttr(j.venue)}${j.isBackFromHostie ? '<div style="font-size:10px;color:#c084fc">Back from Hostie · 2nd queue</div>' : ''}</td>
         <td>···${escAttr(j.phoneLast4)}</td>
+        <td style="font-family:ui-monospace,Consolas,monospace;font-size:11px" title="${escAttr(j.callId || '')}">
+          <button type="button" class="rest-btn copy-callid" data-callid="${escAttr(j.callId || '')}" style="padding:2px 6px;font-size:11px">${escAttr(shortId(j.callId))}</button>
+        </td>
         <td class="${reasonCls}">${escAttr(j.reasonLabel)}</td>
         <td class="num">${(j.free||[]).length}</td>
         <td class="num" title="${escAttr(busyHint)}">${(j.onCall||[]).length}</td>
@@ -5530,21 +5545,54 @@ async function renderCoverageLostDetail(week, venueId) {
         <td>${escAttr(j.missAgent)}</td>
       </tr>`;
       if (!open) return main;
-      const detail = `<tr class="coverage-lost-detail"><td colspan="8">
-        <div><b>Free (did not take this inbound)</b>${chips(j.free, 'free')}</div>
-        <div style="margin-top:8px"><b>On a call</b>${chips((j.onCallTypes||[]).map(x => x.agent + ' · ' + x.callType), 'busy') || chips(j.onCall, 'busy')}</div>
+      const busyRows = (j.onCallTypes || []).map(x =>
+        `<div style="margin:4px 0 0;font-size:12px">
+          <span class="coverage-agent-chips"><span class="busy">${escAttr(x.agent)} · ${escAttr(x.callType)}</span></span>
+          <span style="margin-left:8px;font-family:ui-monospace,Consolas,monospace;font-size:11px" title="${escAttr(x.callId||'')}">
+            on call <button type="button" class="rest-btn copy-callid" data-callid="${escAttr(x.callId||'')}" style="padding:1px 6px;font-size:11px">${escAttr(shortId(x.callId))}</button>
+            <span style="color:var(--muted)"> · started ${escAttr(x.startLabel || '')}</span>
+          </span>
+        </div>`
+      ).join('') || chips(j.onCall, 'busy');
+      const legIds = (j.legCallIds || []).map(id =>
+        `<button type="button" class="rest-btn copy-callid" data-callid="${escAttr(id)}" style="padding:1px 6px;font-size:11px;margin:2px">${escAttr(shortId(id))}</button>`
+      ).join(' ');
+      const detail = `<tr class="coverage-lost-detail"><td colspan="9">
+        <div style="margin-bottom:8px"><b>This miss Call ID</b>
+          <button type="button" class="rest-btn copy-callid" data-callid="${escAttr(j.callId||'')}" style="padding:2px 8px;font-size:11px;margin-left:6px">${escAttr(j.callId || '—')}</button>
+          ${j.isBackFromHostie ? '<span style="margin-left:8px;color:#c084fc">Back from Hostie = AI→human 2nd queue (hold ≤30s)</span>' : ''}
+        </div>
+        <div><b>Free at offer time (could have taken it)</b>${chips(j.free, 'free')}
+          <div style="color:var(--muted);margin-top:4px;font-size:11px">${escAttr(j.freeNote || '')}</div>
+        </div>
+        <div style="margin-top:8px"><b>On a call — which call</b>${busyRows}</div>
         <div style="margin-top:8px"><b>Punched in</b>${chips(j.punchedIn, 'in')}</div>
-        <div style="margin-top:8px;color:var(--muted)">Legs ${j.legCount} · hangup ${escAttr(j.hangup || '—')} · wait ${j.waitingSec}s</div>
+        <div style="margin-top:8px;color:var(--muted)">Legs ${j.legCount} · hangup ${escAttr(j.hangup || '—')} · wait ${j.waitingSec}s · display ${escAttr(j.displayName || '—')}</div>
+        <div style="margin-top:6px;color:var(--muted)">All leg Call IDs: ${legIds || '—'}</div>
       </td></tr>`;
       return main + detail;
     }).join('') + (list.length > MAX
-      ? `<tr><td colspan="8" style="color:var(--muted)">Showing first ${MAX} of ${list.length}. Narrow the filter to see more.</td></tr>`
+      ? `<tr><td colspan="9" style="color:var(--muted)">Showing first ${MAX} of ${list.length}. Narrow the filter to see more.</td></tr>`
       : '');
 
     tbody.querySelectorAll('tr.lost-row').forEach(tr => {
-      tr.onclick = () => {
+      tr.onclick = (e) => {
+        if (e.target.closest?.('.copy-callid')) return;
         _lostFilter.openId = _lostFilter.openId === tr.dataset.id ? null : tr.dataset.id;
         paint();
+      };
+    });
+    tbody.querySelectorAll('.copy-callid').forEach(btn => {
+      btn.onclick = async (e) => {
+        e.stopPropagation();
+        const id = btn.getAttribute('data-callid') || '';
+        if (!id) return;
+        try {
+          await navigator.clipboard.writeText(id);
+          const prev = btn.textContent;
+          btn.textContent = 'copied';
+          setTimeout(() => { btn.textContent = prev; }, 900);
+        } catch (_) {}
       };
     });
   };
@@ -5573,7 +5621,7 @@ async function renderCoverageLostDetail(week, venueId) {
       causes.map(([k, l]) =>
         `<option value="${k}" ${_lostFilter.cause === k ? 'selected' : ''}>${l}</option>`
       ).join('') + `</select>` +
-      `<input id="coverage-lost-q" type="search" placeholder="Phone ··· / venue" value="${escAttr(_lostFilter.q || '')}">`;
+      `<input id="coverage-lost-q" type="search" placeholder="Call ID / phone / venue" value="${escAttr(_lostFilter.q || '')}" style="width:160px">`;
     filters.querySelectorAll('button[data-bucket]').forEach(btn => {
       btn.onclick = () => {
         _lostFilter.bucket = btn.dataset.bucket;
