@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-23T15:25:44.032856+00:00",
+  "updatedAt": "2026-10-26T16:59:58.241457+00:00",
   "year": 2026,
   "weeks": {
     "2026-W40": {
@@ -5436,6 +5436,1794 @@
               "clockOut": "01:11 PM",
               "hours": 3.58,
               "lp": true,
+              "location": "Corp 6th Floor"
+            }
+          ]
+        }
+      ]
+    },
+    "2026-W43": {
+      "week": 43,
+      "year": 2026,
+      "label": "2026-W43",
+      "dateFrom": "10/19/2026",
+      "dateTo": "10/25/2026",
+      "sourceFile": "punch-report-week-43.pdf",
+      "importedAt": "2026-10-26T16:59:58.241391+00:00",
+      "employeeCount": 10,
+      "totalHours": 311.24,
+      "employees": [
+        {
+          "employeeId": "XYH456931",
+          "nameRaw": "Dangelo Marixcelli",
+          "displayName": "Marixcelli Dangelo",
+          "subtotalHours": 23.89,
+          "days": [
+            {
+              "date": "10/20/2026",
+              "day": "Tue",
+              "hours": 7.61,
+              "segments": [
+                {
+                  "clockIn": "03:35 PM",
+                  "clockOut": "05:58 PM",
+                  "hours": 2.38,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "09:50 AM",
+                  "clockOut": "03:04 PM",
+                  "hours": 5.23,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/23/2026",
+              "day": "Fri",
+              "hours": 6.12,
+              "segments": [
+                {
+                  "clockIn": "02:52 PM",
+                  "clockOut": "04:31 PM",
+                  "hours": 1.65,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "09:51 AM",
+                  "clockOut": "02:19 PM",
+                  "hours": 4.47,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/24/2026",
+              "day": "Sat",
+              "hours": 7.46,
+              "segments": [
+                {
+                  "clockIn": "04:02 PM",
+                  "clockOut": "10:49 PM",
+                  "hours": 6.78,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "11:20 PM",
+                  "clockOut": "12:01 AM",
+                  "hours": 0.68,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/25/2026",
+              "day": "Sun",
+              "hours": 2.7,
+              "segments": [
+                {
+                  "clockIn": "03:33 PM",
+                  "clockOut": "06:15 PM",
+                  "hours": 2.7,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            }
+          ],
+          "punches": [
+            {
+              "date": "10/20/2026",
+              "day": "Tue",
+              "clockIn": "03:35 PM",
+              "clockOut": "05:58 PM",
+              "hours": 2.38,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/20/2026",
+              "day": "Tue",
+              "clockIn": "09:50 AM",
+              "clockOut": "03:04 PM",
+              "hours": 5.23,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/23/2026",
+              "day": "Fri",
+              "clockIn": "02:52 PM",
+              "clockOut": "04:31 PM",
+              "hours": 1.65,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/23/2026",
+              "day": "Fri",
+              "clockIn": "09:51 AM",
+              "clockOut": "02:19 PM",
+              "hours": 4.47,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/24/2026",
+              "day": "Sat",
+              "clockIn": "04:02 PM",
+              "clockOut": "10:49 PM",
+              "hours": 6.78,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/24/2026",
+              "day": "Sat",
+              "clockIn": "11:20 PM",
+              "clockOut": "12:01 AM",
+              "hours": 0.68,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/25/2026",
+              "day": "Sun",
+              "clockIn": "03:33 PM",
+              "clockOut": "06:15 PM",
+              "hours": 2.7,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            }
+          ]
+        },
+        {
+          "employeeId": "XYH456930",
+          "nameRaw": "Diop Koutouba",
+          "displayName": "Koutouba Diop",
+          "subtotalHours": 36.68,
+          "days": [
+            {
+              "date": "10/19/2026",
+              "day": "Mon",
+              "hours": 7.57,
+              "segments": [
+                {
+                  "clockIn": "02:03 PM",
+                  "clockOut": "05:16 PM",
+                  "hours": 3.22,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "05:45 PM",
+                  "clockOut": "10:06 PM",
+                  "hours": 4.35,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/20/2026",
+              "day": "Tue",
+              "hours": 7.54,
+              "segments": [
+                {
+                  "clockIn": "02:02 PM",
+                  "clockOut": "04:39 PM",
+                  "hours": 2.62,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "05:11 PM",
+                  "clockOut": "10:06 PM",
+                  "hours": 4.92,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/21/2026",
+              "day": "Wed",
+              "hours": 7.56,
+              "segments": [
+                {
+                  "clockIn": "03:29 PM",
+                  "clockOut": "06:31 PM",
+                  "hours": 3.03,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "10:27 AM",
+                  "clockOut": "02:59 PM",
+                  "hours": 4.53,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/24/2026",
+              "day": "Sat",
+              "hours": 6.53,
+              "segments": [
+                {
+                  "clockIn": "02:13 PM",
+                  "clockOut": "04:46 PM",
+                  "hours": 2.55,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "09:44 AM",
+                  "clockOut": "01:43 PM",
+                  "hours": 3.98,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/25/2026",
+              "day": "Sun",
+              "hours": 7.48,
+              "segments": [
+                {
+                  "clockIn": "03:11 PM",
+                  "clockOut": "06:32 PM",
+                  "hours": 3.35,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "10:31 AM",
+                  "clockOut": "02:39 PM",
+                  "hours": 4.13,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            }
+          ],
+          "punches": [
+            {
+              "date": "10/19/2026",
+              "day": "Mon",
+              "clockIn": "02:03 PM",
+              "clockOut": "05:16 PM",
+              "hours": 3.22,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/19/2026",
+              "day": "Mon",
+              "clockIn": "05:45 PM",
+              "clockOut": "10:06 PM",
+              "hours": 4.35,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/20/2026",
+              "day": "Tue",
+              "clockIn": "02:02 PM",
+              "clockOut": "04:39 PM",
+              "hours": 2.62,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/20/2026",
+              "day": "Tue",
+              "clockIn": "05:11 PM",
+              "clockOut": "10:06 PM",
+              "hours": 4.92,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/21/2026",
+              "day": "Wed",
+              "clockIn": "03:29 PM",
+              "clockOut": "06:31 PM",
+              "hours": 3.03,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/21/2026",
+              "day": "Wed",
+              "clockIn": "10:27 AM",
+              "clockOut": "02:59 PM",
+              "hours": 4.53,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/24/2026",
+              "day": "Sat",
+              "clockIn": "02:13 PM",
+              "clockOut": "04:46 PM",
+              "hours": 2.55,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/24/2026",
+              "day": "Sat",
+              "clockIn": "09:44 AM",
+              "clockOut": "01:43 PM",
+              "hours": 3.98,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/25/2026",
+              "day": "Sun",
+              "clockIn": "03:11 PM",
+              "clockOut": "06:32 PM",
+              "hours": 3.35,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/25/2026",
+              "day": "Sun",
+              "clockIn": "10:31 AM",
+              "clockOut": "02:39 PM",
+              "hours": 4.13,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            }
+          ]
+        },
+        {
+          "employeeId": "XYH456943",
+          "nameRaw": "Durante Espinoza Ana Paula",
+          "displayName": "Ana Paula Durante Espinoza",
+          "subtotalHours": 37.09,
+          "days": [
+            {
+              "date": "10/19/2026",
+              "day": "Mon",
+              "hours": 7.58,
+              "segments": [
+                {
+                  "clockIn": "03:20 PM",
+                  "clockOut": "05:47 PM",
+                  "hours": 2.45,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "09:40 AM",
+                  "clockOut": "02:48 PM",
+                  "hours": 5.13,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/22/2026",
+              "day": "Thu",
+              "hours": 6.8,
+              "segments": [
+                {
+                  "clockIn": "03:14 PM",
+                  "clockOut": "05:02 PM",
+                  "hours": 1.8,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "09:39 AM",
+                  "clockOut": "02:39 PM",
+                  "hours": 5.0,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/23/2026",
+              "day": "Fri",
+              "hours": 7.49,
+              "segments": [
+                {
+                  "clockIn": "04:02 PM",
+                  "clockOut": "09:00 PM",
+                  "hours": 4.97,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "09:31 PM",
+                  "clockOut": "12:02 AM",
+                  "hours": 2.52,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/24/2026",
+              "day": "Sat",
+              "hours": 7.55,
+              "segments": [
+                {
+                  "clockIn": "01:56 PM",
+                  "clockOut": "08:00 PM",
+                  "hours": 6.07,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "08:32 PM",
+                  "clockOut": "10:01 PM",
+                  "hours": 1.48,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/25/2026",
+              "day": "Sun",
+              "hours": 7.67,
+              "segments": [
+                {
+                  "clockIn": "04:04 PM",
+                  "clockOut": "07:08 PM",
+                  "hours": 3.07,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "10:55 AM",
+                  "clockOut": "03:31 PM",
+                  "hours": 4.6,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            }
+          ],
+          "punches": [
+            {
+              "date": "10/19/2026",
+              "day": "Mon",
+              "clockIn": "03:20 PM",
+              "clockOut": "05:47 PM",
+              "hours": 2.45,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/19/2026",
+              "day": "Mon",
+              "clockIn": "09:40 AM",
+              "clockOut": "02:48 PM",
+              "hours": 5.13,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/22/2026",
+              "day": "Thu",
+              "clockIn": "03:14 PM",
+              "clockOut": "05:02 PM",
+              "hours": 1.8,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/22/2026",
+              "day": "Thu",
+              "clockIn": "09:39 AM",
+              "clockOut": "02:39 PM",
+              "hours": 5.0,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/23/2026",
+              "day": "Fri",
+              "clockIn": "04:02 PM",
+              "clockOut": "09:00 PM",
+              "hours": 4.97,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/23/2026",
+              "day": "Fri",
+              "clockIn": "09:31 PM",
+              "clockOut": "12:02 AM",
+              "hours": 2.52,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/24/2026",
+              "day": "Sat",
+              "clockIn": "01:56 PM",
+              "clockOut": "08:00 PM",
+              "hours": 6.07,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/24/2026",
+              "day": "Sat",
+              "clockIn": "08:32 PM",
+              "clockOut": "10:01 PM",
+              "hours": 1.48,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/25/2026",
+              "day": "Sun",
+              "clockIn": "04:04 PM",
+              "clockOut": "07:08 PM",
+              "hours": 3.07,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/25/2026",
+              "day": "Sun",
+              "clockIn": "10:55 AM",
+              "clockOut": "03:31 PM",
+              "hours": 4.6,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            }
+          ]
+        },
+        {
+          "employeeId": "XYH456867",
+          "nameRaw": "Edwin Connil",
+          "displayName": "Connil Edwin",
+          "subtotalHours": 36.17,
+          "days": [
+            {
+              "date": "10/19/2026",
+              "day": "Mon",
+              "hours": 7.54,
+              "segments": [
+                {
+                  "clockIn": "02:03 PM",
+                  "clockOut": "04:37 PM",
+                  "hours": 2.57,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "05:08 PM",
+                  "clockOut": "10:06 PM",
+                  "hours": 4.97,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/22/2026",
+              "day": "Thu",
+              "hours": 7.4,
+              "segments": [
+                {
+                  "clockIn": "04:06 PM",
+                  "clockOut": "08:59 PM",
+                  "hours": 4.88,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "09:31 PM",
+                  "clockOut": "12:02 AM",
+                  "hours": 2.52,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/23/2026",
+              "day": "Fri",
+              "hours": 6.5,
+              "segments": [
+                {
+                  "clockIn": "03:01 PM",
+                  "clockOut": "08:05 PM",
+                  "hours": 5.07,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "08:36 PM",
+                  "clockOut": "10:02 PM",
+                  "hours": 1.43,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/24/2026",
+              "day": "Sat",
+              "hours": 7.35,
+              "segments": [
+                {
+                  "clockIn": "04:08 PM",
+                  "clockOut": "06:35 PM",
+                  "hours": 2.45,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "10:44 AM",
+                  "clockOut": "03:38 PM",
+                  "hours": 4.9,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/25/2026",
+              "day": "Sun",
+              "hours": 7.38,
+              "segments": [
+                {
+                  "clockIn": "03:10 PM",
+                  "clockOut": "05:33 PM",
+                  "hours": 2.38,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "09:40 AM",
+                  "clockOut": "02:40 PM",
+                  "hours": 5.0,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            }
+          ],
+          "punches": [
+            {
+              "date": "10/19/2026",
+              "day": "Mon",
+              "clockIn": "02:03 PM",
+              "clockOut": "04:37 PM",
+              "hours": 2.57,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/19/2026",
+              "day": "Mon",
+              "clockIn": "05:08 PM",
+              "clockOut": "10:06 PM",
+              "hours": 4.97,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/22/2026",
+              "day": "Thu",
+              "clockIn": "04:06 PM",
+              "clockOut": "08:59 PM",
+              "hours": 4.88,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/22/2026",
+              "day": "Thu",
+              "clockIn": "09:31 PM",
+              "clockOut": "12:02 AM",
+              "hours": 2.52,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/23/2026",
+              "day": "Fri",
+              "clockIn": "03:01 PM",
+              "clockOut": "08:05 PM",
+              "hours": 5.07,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/23/2026",
+              "day": "Fri",
+              "clockIn": "08:36 PM",
+              "clockOut": "10:02 PM",
+              "hours": 1.43,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/24/2026",
+              "day": "Sat",
+              "clockIn": "04:08 PM",
+              "clockOut": "06:35 PM",
+              "hours": 2.45,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/24/2026",
+              "day": "Sat",
+              "clockIn": "10:44 AM",
+              "clockOut": "03:38 PM",
+              "hours": 4.9,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/25/2026",
+              "day": "Sun",
+              "clockIn": "03:10 PM",
+              "clockOut": "05:33 PM",
+              "hours": 2.38,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/25/2026",
+              "day": "Sun",
+              "clockIn": "09:40 AM",
+              "clockOut": "02:40 PM",
+              "hours": 5.0,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            }
+          ]
+        },
+        {
+          "employeeId": "XYH456952",
+          "nameRaw": "Guardiola Lea",
+          "displayName": "Lea Guardiola",
+          "subtotalHours": 6.07,
+          "days": [
+            {
+              "date": "10/22/2026",
+              "day": "Thu",
+              "hours": 6.07,
+              "segments": [
+                {
+                  "clockIn": "03:29 PM",
+                  "clockOut": "07:30 PM",
+                  "hours": 4.02,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "07:59 PM",
+                  "clockOut": "10:02 PM",
+                  "hours": 2.05,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            }
+          ],
+          "punches": [
+            {
+              "date": "10/22/2026",
+              "day": "Thu",
+              "clockIn": "03:29 PM",
+              "clockOut": "07:30 PM",
+              "hours": 4.02,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/22/2026",
+              "day": "Thu",
+              "clockIn": "07:59 PM",
+              "clockOut": "10:02 PM",
+              "hours": 2.05,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            }
+          ]
+        },
+        {
+          "employeeId": "XYH456866",
+          "nameRaw": "Lankina-Hubman Angelika",
+          "displayName": "Angelika Lankina",
+          "subtotalHours": 28.97,
+          "days": [
+            {
+              "date": "10/20/2026",
+              "day": "Tue",
+              "hours": 6.37,
+              "segments": [
+                {
+                  "clockIn": "03:11 PM",
+                  "clockOut": "04:45 PM",
+                  "hours": 1.57,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "09:45 AM",
+                  "clockOut": "02:33 PM",
+                  "hours": 4.8,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/21/2026",
+              "day": "Wed",
+              "hours": 7.7,
+              "segments": [
+                {
+                  "clockIn": "01:59 PM",
+                  "clockOut": "05:27 PM",
+                  "hours": 3.47,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "05:58 PM",
+                  "clockOut": "10:12 PM",
+                  "hours": 4.23,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/22/2026",
+              "day": "Thu",
+              "hours": 7.38,
+              "segments": [
+                {
+                  "clockIn": "02:36 PM",
+                  "clockOut": "05:44 PM",
+                  "hours": 3.13,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "09:45 AM",
+                  "clockOut": "02:00 PM",
+                  "hours": 4.25,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/23/2026",
+              "day": "Fri",
+              "hours": 7.52,
+              "segments": [
+                {
+                  "clockIn": "03:59 PM",
+                  "clockOut": "07:23 PM",
+                  "hours": 3.4,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "07:55 PM",
+                  "clockOut": "12:02 AM",
+                  "hours": 4.12,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            }
+          ],
+          "punches": [
+            {
+              "date": "10/20/2026",
+              "day": "Tue",
+              "clockIn": "03:11 PM",
+              "clockOut": "04:45 PM",
+              "hours": 1.57,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/20/2026",
+              "day": "Tue",
+              "clockIn": "09:45 AM",
+              "clockOut": "02:33 PM",
+              "hours": 4.8,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/21/2026",
+              "day": "Wed",
+              "clockIn": "01:59 PM",
+              "clockOut": "05:27 PM",
+              "hours": 3.47,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/21/2026",
+              "day": "Wed",
+              "clockIn": "05:58 PM",
+              "clockOut": "10:12 PM",
+              "hours": 4.23,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/22/2026",
+              "day": "Thu",
+              "clockIn": "02:36 PM",
+              "clockOut": "05:44 PM",
+              "hours": 3.13,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/22/2026",
+              "day": "Thu",
+              "clockIn": "09:45 AM",
+              "clockOut": "02:00 PM",
+              "hours": 4.25,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/23/2026",
+              "day": "Fri",
+              "clockIn": "03:59 PM",
+              "clockOut": "07:23 PM",
+              "hours": 3.4,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/23/2026",
+              "day": "Fri",
+              "clockIn": "07:55 PM",
+              "clockOut": "12:02 AM",
+              "hours": 4.12,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            }
+          ]
+        },
+        {
+          "employeeId": "XYH456871",
+          "nameRaw": "Paramore Brandon",
+          "displayName": "Brandon Paramore",
+          "subtotalHours": 37.04,
+          "days": [
+            {
+              "date": "10/21/2026",
+              "day": "Wed",
+              "hours": 6.62,
+              "segments": [
+                {
+                  "clockIn": "02:40 PM",
+                  "clockOut": "04:47 PM",
+                  "hours": 2.12,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "09:32 AM",
+                  "clockOut": "02:02 PM",
+                  "hours": 4.5,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/22/2026",
+              "day": "Thu",
+              "hours": 7.55,
+              "segments": [
+                {
+                  "clockIn": "03:56 PM",
+                  "clockOut": "07:01 PM",
+                  "hours": 3.08,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "07:34 PM",
+                  "clockOut": "12:02 AM",
+                  "hours": 4.47,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/23/2026",
+              "day": "Fri",
+              "hours": 7.88,
+              "segments": [
+                {
+                  "clockIn": "05:38 PM",
+                  "clockOut": "08:13 PM",
+                  "hours": 2.58,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "11:51 AM",
+                  "clockOut": "05:09 PM",
+                  "hours": 5.3,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/24/2026",
+              "day": "Sat",
+              "hours": 7.45,
+              "segments": [
+                {
+                  "clockIn": "04:42 PM",
+                  "clockOut": "08:06 PM",
+                  "hours": 3.4,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "12:02 PM",
+                  "clockOut": "04:05 PM",
+                  "hours": 4.05,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/25/2026",
+              "day": "Sun",
+              "hours": 7.54,
+              "segments": [
+                {
+                  "clockIn": "02:36 PM",
+                  "clockOut": "05:31 PM",
+                  "hours": 2.92,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "09:23 AM",
+                  "clockOut": "02:00 PM",
+                  "hours": 4.62,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            }
+          ],
+          "punches": [
+            {
+              "date": "10/21/2026",
+              "day": "Wed",
+              "clockIn": "02:40 PM",
+              "clockOut": "04:47 PM",
+              "hours": 2.12,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/21/2026",
+              "day": "Wed",
+              "clockIn": "09:32 AM",
+              "clockOut": "02:02 PM",
+              "hours": 4.5,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/22/2026",
+              "day": "Thu",
+              "clockIn": "03:56 PM",
+              "clockOut": "07:01 PM",
+              "hours": 3.08,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/22/2026",
+              "day": "Thu",
+              "clockIn": "07:34 PM",
+              "clockOut": "12:02 AM",
+              "hours": 4.47,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/23/2026",
+              "day": "Fri",
+              "clockIn": "05:38 PM",
+              "clockOut": "08:13 PM",
+              "hours": 2.58,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/23/2026",
+              "day": "Fri",
+              "clockIn": "11:51 AM",
+              "clockOut": "05:09 PM",
+              "hours": 5.3,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/24/2026",
+              "day": "Sat",
+              "clockIn": "04:42 PM",
+              "clockOut": "08:06 PM",
+              "hours": 3.4,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/24/2026",
+              "day": "Sat",
+              "clockIn": "12:02 PM",
+              "clockOut": "04:05 PM",
+              "hours": 4.05,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/25/2026",
+              "day": "Sun",
+              "clockIn": "02:36 PM",
+              "clockOut": "05:31 PM",
+              "hours": 2.92,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/25/2026",
+              "day": "Sun",
+              "clockIn": "09:23 AM",
+              "clockOut": "02:00 PM",
+              "hours": 4.62,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            }
+          ]
+        },
+        {
+          "employeeId": "XYH001479",
+          "nameRaw": "Ristova Katerina",
+          "displayName": "Katerina Ristova",
+          "subtotalHours": 39.64,
+          "days": [
+            {
+              "date": "10/19/2026",
+              "day": "Mon",
+              "hours": 2.85,
+              "segments": [
+                {
+                  "clockIn": "01:19 PM",
+                  "clockOut": "04:10 PM",
+                  "hours": 2.85,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/20/2026",
+              "day": "Tue",
+              "hours": 7.55,
+              "segments": [
+                {
+                  "clockIn": "02:00 PM",
+                  "clockOut": "05:14 PM",
+                  "hours": 3.23,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "05:45 PM",
+                  "clockOut": "10:04 PM",
+                  "hours": 4.32,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/21/2026",
+              "day": "Wed",
+              "hours": 7.5,
+              "segments": [
+                {
+                  "clockIn": "04:22 PM",
+                  "clockOut": "05:54 PM",
+                  "hours": 1.53,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "09:55 AM",
+                  "clockOut": "03:53 PM",
+                  "hours": 5.97,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/22/2026",
+              "day": "Thu",
+              "hours": 7.55,
+              "segments": [
+                {
+                  "clockIn": "06:39 PM",
+                  "clockOut": "08:03 PM",
+                  "hours": 1.4,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "11:59 AM",
+                  "clockOut": "06:08 PM",
+                  "hours": 6.15,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/23/2026",
+              "day": "Fri",
+              "hours": 6.6,
+              "segments": [
+                {
+                  "clockIn": "02:41 PM",
+                  "clockOut": "05:00 PM",
+                  "hours": 2.32,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "09:54 AM",
+                  "clockOut": "02:11 PM",
+                  "hours": 4.28,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/24/2026",
+              "day": "Sat",
+              "hours": 7.59,
+              "segments": [
+                {
+                  "clockIn": "03:51 PM",
+                  "clockOut": "06:01 PM",
+                  "hours": 2.17,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "09:55 AM",
+                  "clockOut": "03:20 PM",
+                  "hours": 5.42,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            }
+          ],
+          "punches": [
+            {
+              "date": "10/19/2026",
+              "day": "Mon",
+              "clockIn": "01:19 PM",
+              "clockOut": "04:10 PM",
+              "hours": 2.85,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/20/2026",
+              "day": "Tue",
+              "clockIn": "02:00 PM",
+              "clockOut": "05:14 PM",
+              "hours": 3.23,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/20/2026",
+              "day": "Tue",
+              "clockIn": "05:45 PM",
+              "clockOut": "10:04 PM",
+              "hours": 4.32,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/21/2026",
+              "day": "Wed",
+              "clockIn": "04:22 PM",
+              "clockOut": "05:54 PM",
+              "hours": 1.53,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/21/2026",
+              "day": "Wed",
+              "clockIn": "09:55 AM",
+              "clockOut": "03:53 PM",
+              "hours": 5.97,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/22/2026",
+              "day": "Thu",
+              "clockIn": "06:39 PM",
+              "clockOut": "08:03 PM",
+              "hours": 1.4,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/22/2026",
+              "day": "Thu",
+              "clockIn": "11:59 AM",
+              "clockOut": "06:08 PM",
+              "hours": 6.15,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/23/2026",
+              "day": "Fri",
+              "clockIn": "02:41 PM",
+              "clockOut": "05:00 PM",
+              "hours": 2.32,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/23/2026",
+              "day": "Fri",
+              "clockIn": "09:54 AM",
+              "clockOut": "02:11 PM",
+              "hours": 4.28,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/24/2026",
+              "day": "Sat",
+              "clockIn": "03:51 PM",
+              "clockOut": "06:01 PM",
+              "hours": 2.17,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/24/2026",
+              "day": "Sat",
+              "clockIn": "09:55 AM",
+              "clockOut": "03:20 PM",
+              "hours": 5.42,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            }
+          ]
+        },
+        {
+          "employeeId": "XYH456964",
+          "nameRaw": "Salazar-barguil Vanessa",
+          "displayName": "Vanessa Salazar Barguil",
+          "subtotalHours": 31.73,
+          "days": [
+            {
+              "date": "10/21/2026",
+              "day": "Wed",
+              "hours": 1.73,
+              "segments": [
+                {
+                  "clockIn": "03:14 PM",
+                  "clockOut": "04:58 PM",
+                  "hours": 1.73,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/22/2026",
+              "day": "Thu",
+              "hours": 7.37,
+              "segments": [
+                {
+                  "clockIn": "03:50 PM",
+                  "clockOut": "06:30 PM",
+                  "hours": 2.67,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "10:37 AM",
+                  "clockOut": "03:19 PM",
+                  "hours": 4.7,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/23/2026",
+              "day": "Fri",
+              "hours": 7.55,
+              "segments": [
+                {
+                  "clockIn": "04:58 PM",
+                  "clockOut": "06:37 PM",
+                  "hours": 1.65,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "10:33 AM",
+                  "clockOut": "04:27 PM",
+                  "hours": 5.9,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/24/2026",
+              "day": "Sat",
+              "hours": 7.51,
+              "segments": [
+                {
+                  "clockIn": "04:00 PM",
+                  "clockOut": "08:44 PM",
+                  "hours": 4.73,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "09:15 PM",
+                  "clockOut": "12:02 AM",
+                  "hours": 2.78,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/25/2026",
+              "day": "Sun",
+              "hours": 7.57,
+              "segments": [
+                {
+                  "clockIn": "02:00 PM",
+                  "clockOut": "06:16 PM",
+                  "hours": 4.27,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "06:47 PM",
+                  "clockOut": "10:05 PM",
+                  "hours": 3.3,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            }
+          ],
+          "punches": [
+            {
+              "date": "10/21/2026",
+              "day": "Wed",
+              "clockIn": "03:14 PM",
+              "clockOut": "04:58 PM",
+              "hours": 1.73,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/22/2026",
+              "day": "Thu",
+              "clockIn": "03:50 PM",
+              "clockOut": "06:30 PM",
+              "hours": 2.67,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/22/2026",
+              "day": "Thu",
+              "clockIn": "10:37 AM",
+              "clockOut": "03:19 PM",
+              "hours": 4.7,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/23/2026",
+              "day": "Fri",
+              "clockIn": "04:58 PM",
+              "clockOut": "06:37 PM",
+              "hours": 1.65,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/23/2026",
+              "day": "Fri",
+              "clockIn": "10:33 AM",
+              "clockOut": "04:27 PM",
+              "hours": 5.9,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/24/2026",
+              "day": "Sat",
+              "clockIn": "04:00 PM",
+              "clockOut": "08:44 PM",
+              "hours": 4.73,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/24/2026",
+              "day": "Sat",
+              "clockIn": "09:15 PM",
+              "clockOut": "12:02 AM",
+              "hours": 2.78,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/25/2026",
+              "day": "Sun",
+              "clockIn": "02:00 PM",
+              "clockOut": "06:16 PM",
+              "hours": 4.27,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/25/2026",
+              "day": "Sun",
+              "clockIn": "06:47 PM",
+              "clockOut": "10:05 PM",
+              "hours": 3.3,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            }
+          ]
+        },
+        {
+          "employeeId": "XYH001493",
+          "nameRaw": "Vila Cano Alexandra",
+          "displayName": "Alexandra Vila Cano",
+          "subtotalHours": 33.96,
+          "days": [
+            {
+              "date": "10/19/2026",
+              "day": "Mon",
+              "hours": 6.95,
+              "segments": [
+                {
+                  "clockIn": "01:46 PM",
+                  "clockOut": "05:18 PM",
+                  "hours": 3.53,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "09:54 AM",
+                  "clockOut": "01:19 PM",
+                  "hours": 3.42,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/20/2026",
+              "day": "Tue",
+              "hours": 4.85,
+              "segments": [
+                {
+                  "clockIn": "09:09 AM",
+                  "clockOut": "02:00 PM",
+                  "hours": 4.85,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/21/2026",
+              "day": "Wed",
+              "hours": 9.1,
+              "segments": [
+                {
+                  "clockIn": "01:54 PM",
+                  "clockOut": "06:37 PM",
+                  "hours": 4.72,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "09:00 AM",
+                  "clockOut": "01:23 PM",
+                  "hours": 4.38,
+                  "lp": true,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/22/2026",
+              "day": "Thu",
+              "hours": 7.98,
+              "segments": [
+                {
+                  "clockIn": "01:48 PM",
+                  "clockOut": "05:11 PM",
+                  "hours": 3.38,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                },
+                {
+                  "clockIn": "08:41 AM",
+                  "clockOut": "01:17 PM",
+                  "hours": 4.6,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            },
+            {
+              "date": "10/23/2026",
+              "day": "Fri",
+              "hours": 5.08,
+              "segments": [
+                {
+                  "clockIn": "09:09 AM",
+                  "clockOut": "02:14 PM",
+                  "hours": 5.08,
+                  "lp": false,
+                  "location": "Corp 6th Floor"
+                }
+              ]
+            }
+          ],
+          "punches": [
+            {
+              "date": "10/19/2026",
+              "day": "Mon",
+              "clockIn": "01:46 PM",
+              "clockOut": "05:18 PM",
+              "hours": 3.53,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/19/2026",
+              "day": "Mon",
+              "clockIn": "09:54 AM",
+              "clockOut": "01:19 PM",
+              "hours": 3.42,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/20/2026",
+              "day": "Tue",
+              "clockIn": "09:09 AM",
+              "clockOut": "02:00 PM",
+              "hours": 4.85,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/21/2026",
+              "day": "Wed",
+              "clockIn": "01:54 PM",
+              "clockOut": "06:37 PM",
+              "hours": 4.72,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/21/2026",
+              "day": "Wed",
+              "clockIn": "09:00 AM",
+              "clockOut": "01:23 PM",
+              "hours": 4.38,
+              "lp": true,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/22/2026",
+              "day": "Thu",
+              "clockIn": "01:48 PM",
+              "clockOut": "05:11 PM",
+              "hours": 3.38,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/22/2026",
+              "day": "Thu",
+              "clockIn": "08:41 AM",
+              "clockOut": "01:17 PM",
+              "hours": 4.6,
+              "lp": false,
+              "location": "Corp 6th Floor"
+            },
+            {
+              "date": "10/23/2026",
+              "day": "Fri",
+              "clockIn": "09:09 AM",
+              "clockOut": "02:14 PM",
+              "hours": 5.08,
+              "lp": false,
               "location": "Corp 6th Floor"
             }
           ]
