@@ -5148,24 +5148,19 @@ function paintDominantHeat(title, dominantMatrix, countMatrix, days, columns) {
     + '</div></div>';
 }
 
-/** Human-% only: classic muted red → amber → green vs 75% target. Black labels. */
+/**
+ * Human-% only — classic spreadsheet conditional colors (not neon).
+ * Soft rose / peach / sage; black text always.
+ */
 function heatColorHumanPct(pct) {
   if (pct == null || isNaN(pct)) return { bg: 'rgba(255,255,255,.04)', fg: 'transparent' };
-  const t = Math.max(0, Math.min(1, Number(pct) / 75));
-  // dusty rose → soft amber → soft sage (not neon)
-  let r, g, b;
-  if (t <= 0.5) {
-    const u = t / 0.5;
-    r = Math.round(176 + (196 - 176) * u);
-    g = Math.round(120 + (168 - 120) * u);
-    b = Math.round(110 + (100 - 110) * u);
-  } else {
-    const u = (t - 0.5) / 0.5;
-    r = Math.round(196 + (110 - 196) * u);
-    g = Math.round(168 + (148 - 168) * u);
-    b = Math.round(100 + (118 - 100) * u);
-  }
-  return { bg: `rgb(${r},${g},${b})`, fg: '#000' };
+  const p = Number(pct);
+  // Excel-like pastels: red → orange → yellow → green as we approach 75%
+  if (p < 25) return { bg: '#e6b8b7', fg: '#000' };      // soft red
+  if (p < 45) return { bg: '#f5c6a5', fg: '#000' };      // soft orange
+  if (p < 60) return { bg: '#ffe599', fg: '#000' };      // soft yellow/amber
+  if (p < 75) return { bg: '#d9ead3', fg: '#000' };      // pale green (below target)
+  return { bg: '#b6d7a8', fg: '#000' };                  // classic green (at/above 75%)
 }
 
 function paintHumanPctHeat(title, offeredMatrix, missMatrix, days, columns) {
@@ -5184,11 +5179,11 @@ function paintHumanPctHeat(title, offeredMatrix, missMatrix, days, columns) {
       }
       const human = Math.max(0, offered - lost);
       const pct = Math.round((human / offered) * 1000) / 10;
-      const { bg, fg } = heatColorHumanPct(pct);
+      const { bg } = heatColorHumanPct(pct);
       const tip = `${d.day} ${d.date} · ${c} · human ${human}/${offered} = ${pct}% (target ${TARGET}%)`;
-      const label = pct >= 10 || offered >= 3 ? String(Math.round(pct)) : String(Math.round(pct));
-      return '<td class="heat-cell" style="background:' + bg + ';color:#000!important" title="'
-        + escAttr(tip) + '">' + label + '</td>';
+      const label = String(Math.round(pct));
+      return '<td class="heat-cell" style="background:' + bg + ';color:#000" title="'
+        + escAttr(tip) + '"><span style="color:#000">' + label + '</span></td>';
     }).join('');
     return '<tr><th class="day-col">' + escAttr(d.day) + '<div style="font-size:9px;color:var(--muted);font-weight:500">'
       + escAttr((d.date || '').slice(5)) + '</div></th>' + cells + '</tr>';
@@ -5199,7 +5194,7 @@ function paintHumanPctHeat(title, offeredMatrix, missMatrix, days, columns) {
     + '</tr></thead><tbody>' + body + '</tbody></table></div>'
     + '<div class="coverage-human-legend">'
     + '<span>0%</span><span class="bar">'
-    + '<i style="background:#b0786e"></i><i style="background:#c4a864"></i><i style="background:#6e9476"></i>'
+    + '<i style="background:#e6b8b7"></i><i style="background:#f5c6a5"></i><i style="background:#ffe599"></i><i style="background:#d9ead3"></i><i style="background:#b6d7a8"></i>'
     + '</span><span>' + TARGET + '%+</span>'
     + '</div></div>';
 }
