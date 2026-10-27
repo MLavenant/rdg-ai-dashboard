@@ -5149,18 +5149,26 @@ function paintDominantHeat(title, dominantMatrix, countMatrix, days, columns) {
 }
 
 /**
- * Human-% only — classic spreadsheet conditional colors (not neon).
- * Soft rose / peach / sage; black text always.
+ * Human-% only — regular red → green vs 75% target. Black numbers always.
+ * Dominant-cause heatmap is separate and unchanged.
  */
 function heatColorHumanPct(pct) {
   if (pct == null || isNaN(pct)) return { bg: 'rgba(255,255,255,.04)', fg: 'transparent' };
-  const p = Number(pct);
-  // Excel-like pastels: red → orange → yellow → green as we approach 75%
-  if (p < 25) return { bg: '#e6b8b7', fg: '#000' };      // soft red
-  if (p < 45) return { bg: '#f5c6a5', fg: '#000' };      // soft orange
-  if (p < 60) return { bg: '#ffe599', fg: '#000' };      // soft yellow/amber
-  if (p < 75) return { bg: '#d9ead3', fg: '#000' };      // pale green (below target)
-  return { bg: '#b6d7a8', fg: '#000' };                  // classic green (at/above 75%)
+  const t = Math.max(0, Math.min(1, Number(pct) / 75));
+  // regular red #dc6b6b → amber #e0b85a → green #6aaa6a
+  let r, g, b;
+  if (t <= 0.5) {
+    const u = t / 0.5;
+    r = Math.round(220 + (224 - 220) * u);
+    g = Math.round(107 + (184 - 107) * u);
+    b = Math.round(107 + (90 - 107) * u);
+  } else {
+    const u = (t - 0.5) / 0.5;
+    r = Math.round(224 + (106 - 224) * u);
+    g = Math.round(184 + (170 - 184) * u);
+    b = Math.round(90 + (106 - 90) * u);
+  }
+  return { bg: `rgb(${r},${g},${b})`, fg: '#000' };
 }
 
 function paintHumanPctHeat(title, offeredMatrix, missMatrix, days, columns) {
@@ -5194,7 +5202,7 @@ function paintHumanPctHeat(title, offeredMatrix, missMatrix, days, columns) {
     + '</tr></thead><tbody>' + body + '</tbody></table></div>'
     + '<div class="coverage-human-legend">'
     + '<span>0%</span><span class="bar">'
-    + '<i style="background:#e6b8b7"></i><i style="background:#f5c6a5"></i><i style="background:#ffe599"></i><i style="background:#d9ead3"></i><i style="background:#b6d7a8"></i>'
+    + '<i style="background:#dc6b6b"></i><i style="background:#e0b85a"></i><i style="background:#6aaa6a"></i>'
     + '</span><span>' + TARGET + '%+</span>'
     + '</div></div>';
 }
