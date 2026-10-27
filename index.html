@@ -5149,24 +5149,24 @@ function paintDominantHeat(title, dominantMatrix, countMatrix, days, columns) {
 }
 
 /**
- * Human-% only — regular red → green vs 75% target. Black numbers always.
- * Dominant-cause heatmap is separate and unchanged.
+ * Human-% only — original red → amber → green vs 75% target.
+ * Numbers always black on the colored background.
  */
 function heatColorHumanPct(pct) {
   if (pct == null || isNaN(pct)) return { bg: 'rgba(255,255,255,.04)', fg: 'transparent' };
   const t = Math.max(0, Math.min(1, Number(pct) / 75));
-  // regular red #dc6b6b → amber #e0b85a → green #6aaa6a
+  // initial: 0% #ef4444 → mid #f59e0b → 75%+ #22c55e
   let r, g, b;
   if (t <= 0.5) {
     const u = t / 0.5;
-    r = Math.round(220 + (224 - 220) * u);
-    g = Math.round(107 + (184 - 107) * u);
-    b = Math.round(107 + (90 - 107) * u);
+    r = Math.round(239 + (245 - 239) * u);
+    g = Math.round(68 + (158 - 68) * u);
+    b = Math.round(68 + (11 - 68) * u);
   } else {
     const u = (t - 0.5) / 0.5;
-    r = Math.round(224 + (106 - 224) * u);
-    g = Math.round(184 + (170 - 184) * u);
-    b = Math.round(90 + (106 - 90) * u);
+    r = Math.round(245 + (34 - 245) * u);
+    g = Math.round(158 + (197 - 158) * u);
+    b = Math.round(11 + (94 - 11) * u);
   }
   return { bg: `rgb(${r},${g},${b})`, fg: '#000' };
 }
@@ -5202,7 +5202,7 @@ function paintHumanPctHeat(title, offeredMatrix, missMatrix, days, columns) {
     + '</tr></thead><tbody>' + body + '</tbody></table></div>'
     + '<div class="coverage-human-legend">'
     + '<span>0%</span><span class="bar">'
-    + '<i style="background:#dc6b6b"></i><i style="background:#e0b85a"></i><i style="background:#6aaa6a"></i>'
+    + '<i style="background:#ef4444"></i><i style="background:#f59e0b"></i><i style="background:#22c55e"></i>'
     + '</span><span>' + TARGET + '%+</span>'
     + '</div></div>';
 }
