@@ -467,9 +467,9 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 .coverage-reason-staffing{color:#fbbf24}
 .coverage-reason-process{color:#60a5fa}
 .coverage-reason-ai{color:#fb923c}
-.coverage-dom-heat .heat-cell[data-d="1"]{background:#c9a86c!important;color:#000!important}
-.coverage-dom-heat .heat-cell[data-d="2"]{background:#7a92b0!important;color:#000!important}
-.coverage-dom-heat .heat-cell[data-d="3"]{background:#c48a5a!important;color:#000!important}
+.coverage-dom-heat .heat-cell[data-d="1"]{background:#fbbf24!important;color:#000!important}
+.coverage-dom-heat .heat-cell[data-d="2"]{background:#60a5fa!important;color:#000!important}
+.coverage-dom-heat .heat-cell[data-d="3"]{background:#fb923c!important;color:#000!important}
 .coverage-dom-heat .heat-cell[data-d="0"]{background:rgba(255,255,255,.04)!important;color:transparent!important}
 .coverage-dom-heat .heat-cell{font-size:9px;font-weight:700;color:#000!important}
 .coverage-human-heat .heat-cell{font-size:8px;font-weight:700;color:#000!important}
@@ -5142,28 +5142,28 @@ function paintDominantHeat(title, dominantMatrix, countMatrix, days, columns) {
     + '<div class="coverage-heat-wrap"><table class="coverage-heat"><thead><tr>' + head
     + '</tr></thead><tbody>' + body + '</tbody></table></div>'
     + '<div class="coverage-legend">'
-    + '<span><i style="background:#c9a86c"></i>Staffing</span>'
-    + '<span><i style="background:#7a92b0"></i>Process</span>'
-    + '<span><i style="background:#c48a5a"></i>AI</span>'
+    + '<span><i style="background:#fbbf24"></i>Staffing</span>'
+    + '<span><i style="background:#60a5fa"></i>Process</span>'
+    + '<span><i style="background:#fb923c"></i>AI</span>'
     + '</div></div>';
 }
 
-/** Classic muted red → amber → green toward 75% human-answer target. */
+/** Human-% only: classic muted red → amber → green vs 75% target. Black labels. */
 function heatColorHumanPct(pct) {
   if (pct == null || isNaN(pct)) return { bg: 'rgba(255,255,255,.04)', fg: 'transparent' };
   const t = Math.max(0, Math.min(1, Number(pct) / 75));
-  // 0% #b86b6b → mid #c4a05a → 75%+ #6b9a72
+  // dusty rose → soft amber → soft sage (not neon)
   let r, g, b;
   if (t <= 0.5) {
     const u = t / 0.5;
-    r = Math.round(184 + (196 - 184) * u);
-    g = Math.round(107 + (160 - 107) * u);
-    b = Math.round(107 + (90 - 107) * u);
+    r = Math.round(176 + (196 - 176) * u);
+    g = Math.round(120 + (168 - 120) * u);
+    b = Math.round(110 + (100 - 110) * u);
   } else {
     const u = (t - 0.5) / 0.5;
-    r = Math.round(196 + (107 - 196) * u);
-    g = Math.round(160 + (154 - 160) * u);
-    b = Math.round(90 + (114 - 90) * u);
+    r = Math.round(196 + (110 - 196) * u);
+    g = Math.round(168 + (148 - 168) * u);
+    b = Math.round(100 + (118 - 100) * u);
   }
   return { bg: `rgb(${r},${g},${b})`, fg: '#000' };
 }
@@ -5187,7 +5187,7 @@ function paintHumanPctHeat(title, offeredMatrix, missMatrix, days, columns) {
       const { bg, fg } = heatColorHumanPct(pct);
       const tip = `${d.day} ${d.date} · ${c} · human ${human}/${offered} = ${pct}% (target ${TARGET}%)`;
       const label = pct >= 10 || offered >= 3 ? String(Math.round(pct)) : String(Math.round(pct));
-      return '<td class="heat-cell" style="background:' + bg + ';color:' + fg + '" title="'
+      return '<td class="heat-cell" style="background:' + bg + ';color:#000!important" title="'
         + escAttr(tip) + '">' + label + '</td>';
     }).join('');
     return '<tr><th class="day-col">' + escAttr(d.day) + '<div style="font-size:9px;color:var(--muted);font-weight:500">'
@@ -5199,7 +5199,7 @@ function paintHumanPctHeat(title, offeredMatrix, missMatrix, days, columns) {
     + '</tr></thead><tbody>' + body + '</tbody></table></div>'
     + '<div class="coverage-human-legend">'
     + '<span>0%</span><span class="bar">'
-    + '<i style="background:#b86b6b"></i><i style="background:#c4a05a"></i><i style="background:#6b9a72"></i>'
+    + '<i style="background:#b0786e"></i><i style="background:#c4a864"></i><i style="background:#6e9476"></i>'
     + '</span><span>' + TARGET + '%+</span>'
     + '</div></div>';
 }
