@@ -4681,7 +4681,7 @@ async function renderPeople() {
       <div id="people-panel-coverage" style="display:none">
         <div class="table-card">
           <h3>Staffing vs AI</h3>
-          <p class="people-note">Of BH inbound <b>unique calls</b> (same phone, legs ≤2 min — same as Sankey) that did not end with a human — how many were lost because every agent was busy (<b>staffing</b>), how many because a human was free but the call still went elsewhere (<b>process</b>), and how many died on <b>AI</b>?</p>
+          <p class="people-note">Of BH inbound <b>unique calls</b> (same phone, legs ≤2 min — same as Sankey; VIP/Membership excluded) that did not end with a human — how many were lost because every RES agent was busy for the whole offer window (<b>staffing</b>: 15s main / 45s Back-from-Hostie), how many because someone was free in that window but the call still missed (<b>process</b>), and how many died on <b>AI</b>? VIP-assigned punch shifts are removed from capacity.</p>
           <div class="hours-week-bar">
             <label>Week</label>
             <button type="button" class="rest-btn" id="coverage-week-prev">←</button>
@@ -5334,7 +5334,7 @@ function paintCoverageVenue(rep, venue) {
     <div class="coverage-evidence" style="margin-top:16px">
       <details open id="coverage-lost-panel">
         <summary>Lost-call detail — who was free / on a call when inbound missed human</summary>
-        <p class="people-note" style="margin:8px 0">Every BH inbound journey that never reached a human. <b>Call ID</b> = TalkDesk Interaction ID (copy to look up in TD). <b>Back from Hostie</b> = AI asked for a human → 2nd queue hold ≤30s. Expand a row for free agents, and for busy agents the <b>call ID they were on</b>.</p>
+        <p class="people-note" style="margin:8px 0">Every BH inbound journey that never reached a human (VIP/Membership excluded). <b>Call ID</b> = TalkDesk Interaction ID. <b>Main line</b> = 15s ring window; <b>Back from Hostie</b> = 45s 2nd-queue window. Free = RES punch (VIP shifts removed) and not on a TD call for ≥1s in that window. Expand a row for free agents and busy agents’ call IDs.</p>
         <div class="coverage-lost-filters" id="coverage-lost-filters"></div>
         <div id="coverage-lost-meta" class="people-note" style="margin:0 0 8px"></div>
         <div class="coverage-heat-wrap" style="max-height:520px">
@@ -5527,7 +5527,7 @@ async function renderCoverageLostDetail(week, venueId) {
       const detail = `<tr class="coverage-lost-detail"><td colspan="9">
         <div style="margin-bottom:8px"><b>This miss Call ID</b>
           <button type="button" class="rest-btn copy-callid" data-callid="${escAttr(j.callId||'')}" style="padding:2px 8px;font-size:11px;margin-left:6px">${escAttr(j.callId || '—')}</button>
-          ${j.isBackFromHostie ? '<span style="margin-left:8px;color:#c084fc">Back from Hostie = AI→human 2nd queue (hold ≤30s)</span>' : ''}
+          ${j.isBackFromHostie ? `<span style="margin-left:8px;color:#c084fc">Back from Hostie · ${Number(j.offerWindowSec||45)}s offer window</span>` : `<span style="margin-left:8px;color:var(--muted)">Main ring · ${Number(j.offerWindowSec||15)}s offer window</span>`}
         </div>
         <div><b>Free at offer time (could have taken it)</b>${chips(j.free, 'free')}
           <div style="color:var(--muted);margin-top:4px;font-size:11px">${escAttr(j.freeNote || '')}</div>
