@@ -562,8 +562,8 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
   <div class="tabs">
     <button class="tab-btn active" data-tab="overview" onclick="showTab('overview')">Overview</button>
     <button class="tab-btn" data-tab="byrest" onclick="showTab('byrest')">Details</button>
-    <button class="tab-btn" data-tab="people" onclick="showTab('people')">Call Center</button>
-    <button class="tab-btn" data-tab="sankey" onclick="showTab('sankey')">Sankey Diagram</button>
+    <button class="tab-btn" data-tab="people" onclick="showTab('people')">Call Center Dashboard</button>
+    <button class="tab-btn" data-tab="sankey" onclick="showTab('sankey')">AI Analysis</button>
     <button class="tab-btn" data-tab="reservations" onclick="showTab('reservations')">Reservations</button>
     <button class="tab-btn" data-tab="conversation" onclick="showTab('conversation')">Conversation</button>
     <button class="tab-btn" data-tab="settings" onclick="showTab('settings')">Settings</button>
@@ -2429,10 +2429,10 @@ async function exportSankeyPdf() {
   const s = typeof getActiveSankey === 'function' ? getActiveSankey() : null;
   const label = s?.restaurantLabel || SANKEY_SEL?.restaurantId || 'Restaurant';
   const week = s?.week || SANKEY_SEL?.week || D?.cutoff || '';
-  const title = `RDG AI Impact · Sankey · ${label} · W${week}`;
+  const title = `RDG AI Impact · AI Analysis · ${label} · W${week}`;
   await exportElementPdf({
     el: document.getElementById('sankey-pdf-root'),
-    filename: `RDG-Sankey-${String(label).replace(/\s+/g, '-')}-W${week}.pdf`,
+    filename: `RDG-AI-Analysis-${String(label).replace(/\s+/g, '-')}-W${week}.pdf`,
     btn: document.getElementById('sankey-pdf-btn'),
     title,
   });
@@ -4759,7 +4759,7 @@ async function renderPeople() {
     </tr>`;
 
     el.innerHTML = `
-      <div class="section-head">Call Center</div>
+      <div class="section-head">Call Center Dashboard</div>
       ${insightBanner(`Agent ops + location call KPIs. Week <b>W${j.selectedWeek}</b> · Fiscal <b>P${j.fiscalPeriod || fiscalPeriodForWeek(j.selectedWeek).period}</b> PTD = <b>W${j.mtdFromWeek}–W${j.mtdToWeek}</b> (${j.fiscalPeriodLength || fiscalPeriodForWeek(j.selectedWeek).length}-wk period through W${j.fiscalPeriodToWeek || fiscalPeriodForWeek(j.selectedWeek).toWeek}). ${_peopleReadOnly ? '<b>Worked Hours</b> are view-only (Hours API not configured).' : '<b>Worked Hours</b> are editable here — changes sync for everyone.'}`)}
       <div class="people-week-bar">
         <label>Report week</label>
@@ -6210,24 +6210,206 @@ function renderReservations() {
   else renderResDetail(activeResRest);
 }
 
+/** Per-location reservation totals on weeks that exist in BOTH 2025 and 2026 (apples-to-apples). */
+function matchedReservationByLocation(restFilterId) {
+  const from = F.wkFrom, to = F.wkTo;
+  const rests = restFilterId && restFilterId !== 'all'
+    ? RESTS.filter(r => r.id === restFilterId)
+    : RESTS;
+  const rows26 = D.rows26 || [];
+  const rows25 = D.rows25 || [];
+  return rests.map(rest => {
+    const map26 = new Map();
+    const map25 = new Map();
+    rows26.forEach(r => {
+      if (r.restaurantId !== rest.id || r.week < from || r.week > to) return;
+      map26.set(r.week, Number(r.bookingsTotal) || 0);
+    });
+    rows25.forEach(r => {
+      if (r.restaurantId !== rest.id || r.week < from || r.week > to) return;
+      map25.set(r.week, Number(r.bookingsTotal) || 0);
+    });
+    const matchedWeeks = [...map26.keys()].filter(w => map25.has(w)).sort((a, b) => a - b);
+    const b26 = matchedWeeks.reduce((s, w) => s + (map26.get(w) || 0), 0);
+    const b25 = matchedWeeks.reduce((s, w) => s + (map25.get(w) || 0), 0);
+    return {
+      id: rest.id,
+      label: rest.label,
+      color: rest.color,
+      b26,
+      b25,
+      delta: b26 - b25,
+      matchedWeeks,
+      weekFrom: matchedWeeks[0] ?? null,
+      weekTo: matchedWeeks.length ? matchedWeeks[matchedWeeks.length - 1] : null,
+      weekCount: matchedWeeks.length,
+    };
+  });
+}
+
+function reservationDataCoverageNote() {
+  const locs = matchedReservationByLocation('all');
+  const thin = locs.filter(l => l.weekCount < Math.max(1, F.wkTo - F.wkFrom));
+  const thinTxt = thin.length
+    ? thin.map(l => `${l.label} only W${l.weekFrom}–W${l.weekTo} (${l.weekCount} matched weeks)`).join('; ')
+    : 'all locations have matched weeks across the filter';
+  const has25 = (D.rows25 || []).length > 0;
+  const has26 = (D.rows26 || []).length > 0;
+  const w25 = [...new Set((D.rows25 || []).map(r => r.week))].sort((a, b) => a - b);
+  const w26 = [...new Set((D.rows26 || []).map(r => r.week))].sort((a, b) => a - b);
+  return {
+    has25,
+    has26,
+    html: `Data check: <b>2025</b> ${has25 ? `present (W${w25[0]}–W${w25[w25.length - 1]}, ${(D.rows25 || []).length} rows)` : '<span class="dn">MISSING</span>'} · ` +
+      `<b>2026</b> ${has26 ? `present (W${w26[0]}–W${w26[w26.length - 1]}, ${(D.rows26 || []).length} rows)` : '<span class="dn">MISSING</span>'} · ` +
+      `Compare uses <b>matched weeks only</b> per location (same week # in both years within W${F.wkFrom}–W${F.wkTo}). ${thinTxt}.`,
+  };
+}
+
+function paintReservationWaterfall(canvasId, locs) {
+  const total25 = locs.reduce((s, l) => s + l.b25, 0);
+  const total26 = locs.reduce((s, l) => s + l.b26, 0);
+  const labels = ['2025 (PY)', ...locs.map(l => l.label), '2026'];
+  const floats = [];
+  const colors = [];
+  const tipDelta = [];
+  floats.push([0, total25]);
+  colors.push('rgba(255,159,46,.85)');
+  tipDelta.push(total25);
+  let run = total25;
+  locs.forEach(l => {
+    const next = run + l.delta;
+    if (l.delta >= 0) floats.push([run, next]);
+    else floats.push([next, run]);
+    colors.push(l.delta >= 0 ? 'rgba(34,217,142,.85)' : 'rgba(244,63,142,.85)');
+    tipDelta.push(l.delta);
+    run = next;
+  });
+  floats.push([0, total26]);
+  colors.push('rgba(61,142,248,.9)');
+  tipDelta.push(total26);
+
+  mkChart(canvasId, 'bar', {
+    labels,
+    datasets: [{
+      label: 'Reservations',
+      data: floats,
+      backgroundColor: colors,
+      borderWidth: 0,
+      borderSkipped: false,
+      borderRadius: 4,
+    }],
+  }, {
+    scales: {
+      y: {
+        min: undefined,
+        ticks: {
+          color: '#7b82a6',
+          callback: (v) => Number(v).toLocaleString(),
+        },
+      },
+    },
+    plugins: {
+      legend: { display: false },
+      datalabels: {
+        display: true,
+        color: '#eef0fb',
+        font: { size: 10, weight: '600' },
+        formatter: (val, ctx) => {
+          const i = ctx.dataIndex;
+          const n = tipDelta[i];
+          if (i === 0 || i === tipDelta.length - 1) return Number(n).toLocaleString();
+          return (n >= 0 ? '+' : '') + Number(n).toLocaleString();
+        },
+      },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => {
+            const i = ctx.dataIndex;
+            const n = tipDelta[i];
+            if (i === 0) return ` PY total: ${Number(n).toLocaleString()}`;
+            if (i === tipDelta.length - 1) return ` 2026 total: ${Number(n).toLocaleString()}`;
+            return ` YoY Δ: ${(n >= 0 ? '+' : '') + Number(n).toLocaleString()}`;
+          },
+        },
+      },
+    },
+  });
+}
+
 function renderResAllSites() {
   // Consolidated + side-by-side for every location
   const r26 = filteredWeeks(D.rows26);
   const r25 = filteredWeeks(D.rows25);
   const weeks = getWeeks();
-  const b26=sum(r26,'bookingsTotal'), b25=sum(r25,'bookingsTotal');
-  const ph26=sum(r26,'bookingsPhoneHuman'), ph25=sum(r25,'bookingsPhoneHuman');
-  const ai26=sum(r26,'bookingsPhoneAI');
-  const bVar = b25>0 ? ((b26-b25)/b25*100).toFixed(1) : '—';
+  const locs = matchedReservationByLocation('all');
+  const b26 = locs.reduce((s, l) => s + l.b26, 0);
+  const b25 = locs.reduce((s, l) => s + l.b25, 0);
+  const ph26 = sum(r26, 'bookingsPhoneHuman'), ph25 = sum(r25, 'bookingsPhoneHuman');
+  const ai26 = sum(r26, 'bookingsPhoneAI');
+  const bVar = b25 > 0 ? ((b26 - b25) / b25 * 100).toFixed(1) : '—';
+  const delta = b26 - b25;
+  const winners = locs.filter(l => l.delta > 0).sort((a, b) => b.delta - a.delta);
+  const losers = locs.filter(l => l.delta < 0).sort((a, b) => a.delta - b.delta);
+  const cov = reservationDataCoverageNote();
+  const verdict = delta > 0
+    ? `Winning reservations vs PY: <b class="up">+${delta.toLocaleString()}</b> (+${bVar}%) on matched weeks.`
+    : delta < 0
+      ? `Losing reservations vs PY: <b class="dn">${delta.toLocaleString()}</b> (${bVar}%) on matched weeks.`
+      : `Flat vs PY on matched weeks.`;
 
   document.getElementById('res-content').innerHTML = `
-    ${insightBanner(buildOverviewInsight(r26, r25))}
+    ${insightBanner(`<b>Reservations vs prior year</b> · ${verdict} ${losers.length ? `Down at ${losers.map(l => l.label).join(', ')}.` : ''} ${winners.length ? `Up at ${winners.map(l => l.label).join(', ')}.` : ''}`)}
+    <p class="people-note" style="margin:0 0 12px">${cov.html}</p>
     <div class="kpi-row" style="grid-template-columns:repeat(5,1fr)">
-      <div class="kpi"><div class="kpi-label">Total Bookings 2026</div><div class="kpi-value">${fmt(b26)}</div>${yoyBadge(b26,b25)}</div>
-      <div class="kpi"><div class="kpi-label">Total Bookings 2025</div><div class="kpi-value">${fmt(b25)}</div><div class="kpi-sub">Same weeks W${F.wkFrom}–W${F.wkTo}</div></div>
-      <div class="kpi"><div class="kpi-label">Phone/In-House 2026</div><div class="kpi-value" style="color:var(--human)">${fmt(ph26)}</div>${yoyBadge(ph26,ph25)}</div>
-      <div class="kpi"><div class="kpi-label">Phone/AI Bookings</div><div class="kpi-value" style="color:var(--ai)">${fmt(ai26)}</div><div class="kpi-sub">${(ph26+ai26)>0?(ai26/(ph26+ai26)*100).toFixed(1):0}% of phone books</div></div>
-      <div class="kpi"><div class="kpi-label">Bookings Var YoY</div><div class="kpi-value ${parseFloat(bVar)>=0?'up':'dn'}">${bVar}%</div><div class="kpi-sub">All sites combined</div></div>
+      <div class="kpi"><div class="kpi-label">Reservations 2026</div><div class="kpi-value">${fmt(b26)}</div><div class="kpi-sub">Matched weeks · W${F.wkFrom}–W${F.wkTo}</div></div>
+      <div class="kpi"><div class="kpi-label">Reservations 2025 (PY)</div><div class="kpi-value">${fmt(b25)}</div><div class="kpi-sub">Same matched weeks</div></div>
+      <div class="kpi"><div class="kpi-label">YoY #</div><div class="kpi-value ${delta>=0?'up':'dn'}">${delta>=0?'+':''}${delta.toLocaleString()}</div><div class="kpi-sub">${delta>=0?'Winning':'Losing'} vs PY</div></div>
+      <div class="kpi"><div class="kpi-label">YoY %</div><div class="kpi-value ${parseFloat(bVar)>=0?'up':'dn'}">${bVar}%</div><div class="kpi-sub">Apples-to-apples</div></div>
+      <div class="kpi"><div class="kpi-label">Phone/AI 2026</div><div class="kpi-value" style="color:var(--ai)">${fmt(ai26)}</div><div class="kpi-sub">In-House ${fmt(ph26)} · PY phone ${fmt(ph25)}</div></div>
+    </div>
+
+    <div class="section-head">Where are we vs PY — waterfall by location</div>
+    <div class="chart-row cols-1">
+      <div class="chart-card">
+        <h3>Reservation bridge · 2025 → location Δ → 2026</h3>
+        <p>Green = winning vs PY · pink = losing · only weeks present in <b>both</b> years per location</p>
+        <div class="chart-wrap" style="height:320px"><canvas id="res-waterfall"></canvas></div>
+      </div>
+    </div>
+    <div class="table-card" style="margin-bottom:16px">
+      <h3>Location scorecard — matched weeks only</h3>
+      <table>
+        <thead><tr>
+          <th>Location</th><th>Matched weeks</th>
+          <th>2025 (PY)</th><th>2026</th><th>Δ #</th><th>Δ %</th><th>Result</th>
+        </tr></thead>
+        <tbody>
+          ${locs.map(l => {
+            const pct = l.b25 > 0 ? ((l.delta / l.b25) * 100).toFixed(1) : '—';
+            const res = l.delta > 0 ? '<span class="up">Winning</span>' : l.delta < 0 ? '<span class="dn">Losing</span>' : 'Flat';
+            const wk = l.weekCount ? `W${l.weekFrom}–W${l.weekTo} (${l.weekCount})` : '—';
+            return `<tr>
+              <td><span style="color:${l.color}">●</span> ${l.label}</td>
+              <td>${wk}</td>
+              <td>${l.b25.toLocaleString()}</td>
+              <td>${l.b26.toLocaleString()}</td>
+              <td class="${l.delta>=0?'up':'dn'}">${l.delta>=0?'+':''}${l.delta.toLocaleString()}</td>
+              <td class="${l.delta>=0?'up':'dn'}">${pct}%</td>
+              <td>${res}</td>
+            </tr>`;
+          }).join('')}
+          <tr class="total-row">
+            <td><b>All (matched)</b></td>
+            <td>—</td>
+            <td><b>${b25.toLocaleString()}</b></td>
+            <td><b>${b26.toLocaleString()}</b></td>
+            <td class="${delta>=0?'up':'dn'}"><b>${delta>=0?'+':''}${delta.toLocaleString()}</b></td>
+            <td class="${delta>=0?'up':'dn'}"><b>${bVar}%</b></td>
+            <td><b>${delta>=0?'Winning':'Losing'}</b></td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
     <div class="section-head">All Sites — Consolidated</div>
@@ -6293,6 +6475,7 @@ function renderResAllSites() {
   `;
 
   requestAnimationFrame(() => {
+    paintReservationWaterfall('res-waterfall', locs);
     const labels=RESTS.map(r=>r.label);
     const byRest=(rows,field)=>RESTS.map(rest=>sum(rows.filter(x=>x.restaurantId===rest.id),field));
     const m26=aggByWeek(r26,'bookingsTotal'), m25=aggByWeek(r25,'bookingsTotal');
@@ -6386,27 +6569,37 @@ function renderResDetail(restId) {
   const r26 = filteredWeeks(D.rows26).filter(r=>r.restaurantId===restId);
   const r25 = filteredWeeks(D.rows25).filter(r=>r.restaurantId===restId);
   const weeks = getWeeks();
-
-  const b26=sum(r26,'bookingsTotal'), b25=sum(r25,'bookingsTotal');
+  const matched = matchedReservationByLocation(restId)[0] || { b26: 0, b25: 0, delta: 0, weekCount: 0, weekFrom: null, weekTo: null };
+  const b26 = matched.b26, b25 = matched.b25;
+  const delta = matched.delta;
+  const bVar = b25 > 0 ? ((b26 - b25) / b25 * 100).toFixed(1) : '—';
   const ph26=sum(r26,'bookingsPhoneHuman'), ph25=sum(r25,'bookingsPhoneHuman');
   const ai26=sum(r26,'bookingsPhoneAI');
   const ot26=sum(r26,'bookingsOTNetwork'), web26=sum(r26,'bookingsYourNetwork'), wk26=sum(r26,'bookingsWalkIn');
   const phoneShare = b26>0 ? ((ph26+ai26)/b26*100).toFixed(1) : '0';
   const aiOfPhone = (ph26+ai26)>0 ? (ai26/(ph26+ai26)*100).toFixed(1) : '0';
+  const cov = reservationDataCoverageNote();
+  const wkLabel = matched.weekCount ? `W${matched.weekFrom}–W${matched.weekTo} (${matched.weekCount} matched)` : 'No matched weeks';
+  const verdict = delta > 0
+    ? `${rest.label} is <b class="up">winning</b> vs PY (+${delta.toLocaleString()}, +${bVar}%) on ${wkLabel}.`
+    : delta < 0
+      ? `${rest.label} is <b class="dn">losing</b> vs PY (${delta.toLocaleString()}, ${bVar}%) on ${wkLabel}.`
+      : `${rest.label} is flat vs PY on ${wkLabel}.`;
 
   document.getElementById('res-content').innerHTML = `
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
       <h2 style="font-size:20px;font-weight:700;color:${rest.color}">${rest.label} — Reservations</h2>
       <div class="golive-badge">◆ AI Live W${rest.goLive} · 2026</div>
     </div>
-    ${insightBanner(buildRestInsight(rest, r26, r25))}
+    ${insightBanner(verdict)}
+    <p class="people-note" style="margin:0 0 12px">${cov.html}</p>
     <div class="kpi-row" style="grid-template-columns:repeat(6,1fr)">
-      <div class="kpi"><div class="kpi-label">Bookings 2026</div><div class="kpi-value">${fmt(b26)}</div>${yoyBadge(b26,b25)}</div>
-      <div class="kpi"><div class="kpi-label">Bookings 2025</div><div class="kpi-value">${fmt(b25)}</div><div class="kpi-sub">Same week range</div></div>
+      <div class="kpi"><div class="kpi-label">2026 (matched)</div><div class="kpi-value">${fmt(b26)}</div><div class="kpi-sub">${wkLabel}</div></div>
+      <div class="kpi"><div class="kpi-label">2025 PY (matched)</div><div class="kpi-value">${fmt(b25)}</div><div class="kpi-sub">Same weeks</div></div>
+      <div class="kpi"><div class="kpi-label">YoY #</div><div class="kpi-value ${delta>=0?'up':'dn'}">${delta>=0?'+':''}${delta.toLocaleString()}</div><div class="kpi-sub">${delta>=0?'Winning':'Losing'}</div></div>
       <div class="kpi"><div class="kpi-label">Phone/In-House</div><div class="kpi-value" style="color:var(--human)">${fmt(ph26)}</div>${yoyBadge(ph26,ph25)}</div>
       <div class="kpi"><div class="kpi-label">Phone/AI</div><div class="kpi-value" style="color:var(--ai)">${fmt(ai26)}</div><div class="kpi-sub">${aiOfPhone}% of phone books</div></div>
       <div class="kpi"><div class="kpi-label">OT Network</div><div class="kpi-value" style="color:#3d8ef8">${fmt(ot26)}</div><div class="kpi-sub">${b26>0?(ot26/b26*100).toFixed(1):0}% of total</div></div>
-      <div class="kpi"><div class="kpi-label">Phone Share</div><div class="kpi-value">${phoneShare}%</div><div class="kpi-sub">InHouse + AI of all books</div></div>
     </div>
 
     <div class="section-head">Reservation Trends</div>
@@ -6508,18 +6701,18 @@ function renderConvAudioPage() {
   const slice = filtered.slice((_convPage - 1) * CONV_PAGE_SIZE, _convPage * CONV_PAGE_SIZE);
   if (info) info.textContent = `Page ${_convPage} / ${pages} (${filtered.length} calls)`;
   tbody.innerHTML = slice.map(c => {
-    const cat = c.audioCategory || c.category || '—';
-    const why = c.audioCategoryWhy || c.categoryWhy || '';
     const play = c.localAudioUrl
       ? `<audio controls preload="none" style="height:28px;max-width:180px"><source src="${c.localAudioUrl}" type="audio/mpeg"></audio>`
       : (c.recordUrl ? `<a href="${c.recordUrl}" target="_blank" rel="noopener">Listen ↗</a>` : '—');
-    const tx = c.audioTranscript ? `<div class="stat-note" style="text-align:left;max-width:320px;white-space:normal">${String(c.audioTranscript).slice(0,180)}…</div>` : '';
+    const tx = c.audioTranscript
+      ? `<div class="stat-note" style="text-align:left;max-width:360px;white-space:normal">${escHtml(String(c.audioTranscript).slice(0, 180))}…</div>`
+      : '<span style="color:var(--muted)">—</span>';
     return `<tr>
     <td>${(c.startTime||'').replace('T',' ').slice(0,16)}</td>
     <td>${c.restaurant||'—'}</td>
     <td>${c.talkTime||'—'}</td>
-    <td><span class="pill pill-cat">${cat}</span>${tx}<div class="stat-note">${why}</div></td>
-    <td>${c.listenStatus === 'transcribed' ? '<span class="pill pill-h">audio analyzed</span>' : '<span style="color:var(--muted)">pending</span>'}</td>
+    <td>${tx}</td>
+    <td>${c.listenStatus === 'transcribed' ? '<span class="pill pill-h">transcribed</span>' : '<span style="color:var(--muted)">pending</span>'}</td>
     <td>${play}</td>
   </tr>`;
   }).join('');
@@ -6553,10 +6746,6 @@ async function renderConversation() {
     const transcribed = sample.transcribedCount ?? calls.filter(c => c.listenStatus === 'transcribed').length;
     const pending = Math.max(0, calls.length - transcribed);
     const listening = pending > 0 || sample.listeningInProgress;
-    const byCat = sample.byAudioCategory || sample.byCategory || {};
-    const maxCat = Math.max(1, ...Object.values(byCat).map(Number));
-    const catRows = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v]) => `
-      <div class="cat-row"><div>${k}</div><div class="cat-track"><div class="cat-fill" style="width:${(+v/maxCat)*100}%"></div></div><div>${v}</div></div>`).join('');
 
     if (!calls.length) {
       el.innerHTML = `<div class="conv-build"><div class="pulse">🎧</div><h2>Conversation</h2>
@@ -6569,35 +6758,17 @@ async function renderConversation() {
 
     el.innerHTML = `
       ${insightBanner(listening
-        ? `<b>🎧 We are currently listening to calls and analyzing them.</b> ${transcribed} of ${calls.length} sample recordings transcribed so far · ${pending} still in the queue. Use <b>Listen</b> links below while analysis continues.`
-        : `<b>200 TalkDesk audio recordings</b> from If-No-Answer Agent calls. Listen to each call and review categories from Whisper transcription of the mp3.`)}
+        ? `<b>🎧 Listening to calls.</b> ${transcribed} of ${calls.length} sample recordings transcribed · ${pending} still in queue. Use <b>Listen</b> below.`
+        : `<b>${calls.length} TalkDesk audio recordings</b> from If-No-Answer Agent calls — listen and review transcripts.`)}
 
-      <div class="kpi-row" style="grid-template-columns:repeat(5,1fr)">
+      <div class="kpi-row" style="grid-template-columns:repeat(4,1fr)">
         <div class="kpi"><div class="kpi-label">Audio sample</div><div class="kpi-value" style="color:var(--ai)">${calls.length}</div><div class="kpi-sub">TalkDesk mp3 links</div></div>
-        <div class="kpi"><div class="kpi-label">Analyzed</div><div class="kpi-value" style="color:var(--human)">${transcribed}</div><div class="kpi-sub">Whisper + LLM</div></div>
-        <div class="kpi"><div class="kpi-label">${listening ? 'Listening…' : 'Pool'}</div><div class="kpi-value">${listening ? pending : (sample.totalWithRecordUrl || '—')}</div><div class="kpi-sub">${listening ? 'Still to analyze' : 'AI calls w/ recording'}</div></div>
+        <div class="kpi"><div class="kpi-label">Transcribed</div><div class="kpi-value" style="color:var(--human)">${transcribed}</div><div class="kpi-sub">Whisper</div></div>
+        <div class="kpi"><div class="kpi-label">${listening ? 'Listening…' : 'Pool'}</div><div class="kpi-value">${listening ? pending : (sample.totalWithRecordUrl || '—')}</div><div class="kpi-sub">${listening ? 'Still to transcribe' : 'AI calls w/ recording'}</div></div>
         <div class="kpi"><div class="kpi-label">Status</div><div class="kpi-value" style="font-size:14px;color:${listening ? 'var(--ai)' : 'var(--human)'}">${listening ? 'In progress' : 'Complete'}</div></div>
-        <div class="kpi"><div class="kpi-label">Top reason</div><div class="kpi-value" style="font-size:14px">${Object.entries(byCat).sort((a,b)=>b[1]-a[1])[0]?.[0]?.slice(0,18) || '—'}</div></div>
       </div>
 
-      <div class="chart-row cols-2">
-        <div class="chart-card">
-          <h3>Why callers leave — from audio transcription</h3>
-          <p>${listening ? 'Partial results while we continue listening' : 'Categories after Whisper listens to TalkDesk mp3'} (${transcribed} analyzed)</p>
-          <div class="cat-bar">${catRows || '<div style="color:var(--muted)">Analysis in progress — categories appear as transcriptions complete.</div>'}</div>
-        </div>
-        <div class="chart-card">
-          <h3>What we are doing</h3>
-          <p style="line-height:1.7;margin:0">
-            We are <b>listening</b> to TalkDesk AI call recordings and <b>analyzing</b> them (Whisper transcription + categorization).<br><br>
-            ${listening
-              ? `Progress: <b>${transcribed}/${calls.length}</b> transcribed. Refresh after the next <code class="cmd">npm run conversations:transcribe</code> run.`
-              : `Sample complete. Re-run <code class="cmd">npm run conversations:refresh</code> to pull a fresh 200-call set.`}
-          </p>
-        </div>
-      </div>
-
-      <div class="section-head">200 AI calls — listen &amp; analyze</div>
+      <div class="section-head">AI calls — listen &amp; transcript</div>
       <div class="table-card conv-table" id="conv-audio-table">
         <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
           <label style="font-size:12px;color:var(--muted)">Location:</label>
@@ -6610,7 +6781,7 @@ async function renderConversation() {
           <button type="button" class="rest-btn" style="padding:4px 12px" id="conv-next">Next →</button>
         </div>
         <table>
-          <thead><tr><th>When</th><th>Location</th><th>Talk</th><th>Audio analysis</th><th>Status</th><th>Play / Listen</th></tr></thead>
+          <thead><tr><th>When</th><th>Location</th><th>Talk</th><th>Transcript</th><th>Status</th><th>Play / Listen</th></tr></thead>
           <tbody id="conv-sample-tbody"></tbody>
         </table>
         <div class="stat-note">${sample.note || ''} · Updated ${sample.generatedAt ? new Date(sample.generatedAt).toLocaleString() : '—'}</div>
@@ -6812,7 +6983,7 @@ function renderSankey() {
   const cat = getSankeyCatalog();
   if (!cat) {
     const err = D.callSankey?.error || 're-export compare to build call-flow data';
-    el.innerHTML = `<div class="section-head">Sankey Diagram</div>
+    el.innerHTML = `<div class="section-head">AI Analysis</div>
       <div class="table-card"><p class="loc-summary-note" style="margin:0">Sankey data not available yet — ${escHtml(err)}.</p></div>`;
     return;
   }
@@ -6849,7 +7020,7 @@ function renderSankey() {
   if (!s || s.ok === false) {
     el.innerHTML = `
       <div class="overview-toolbar no-print" style="margin:0 0 12px;justify-content:space-between;align-items:center">
-        <div class="section-head" style="margin:0">Sankey Diagram</div>
+        <div class="section-head" style="margin:0">AI Analysis</div>
         <button type="button" class="btn-export" id="sankey-pdf-btn" disabled title="No data for this filter">Export PDF</button>
       </div>
       <div class="sankey-controls">
@@ -6868,7 +7039,7 @@ function renderSankey() {
 
   el.innerHTML = `
     <div class="overview-toolbar no-print" style="margin:0 0 12px;justify-content:space-between;align-items:center">
-      <div class="section-head" style="margin:0">Sankey Diagram</div>
+      <div class="section-head" style="margin:0">AI Analysis</div>
       <button type="button" class="btn-export" id="sankey-pdf-btn" onclick="exportSankeyPdf()">Export PDF</button>
     </div>
     <div class="sankey-controls no-print">
