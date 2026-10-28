@@ -443,6 +443,18 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 .coverage-top-table th{color:var(--muted);font-size:10px;text-transform:uppercase}
 .coverage-top-table td.num{text-align:right;font-variant-numeric:tabular-nums}
 .coverage-v3{margin:0 0 18px}
+.coverage-defs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 14px;max-width:960px;margin-left:auto;margin-right:auto}
+.coverage-def{border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--surface2);text-align:left}
+.coverage-def .def-k{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin:0 0 4px}
+.coverage-def.staffing .def-k{color:#fbbf24}
+.coverage-def.process .def-k{color:#60a5fa}
+.coverage-def.ai .def-k{color:#fb923c}
+.coverage-def p{margin:0;font-size:12px;color:var(--muted);line-height:1.4}
+.coverage-def p b{color:var(--text);font-weight:650}
+.pdf-compact .coverage-defs{gap:6px!important;margin:0 auto 8px!important}
+.pdf-compact .coverage-def{padding:6px 8px!important}
+.pdf-compact .coverage-def p{font-size:9px!important;line-height:1.25!important}
+@media (max-width:900px){.coverage-defs{grid-template-columns:1fr}}
 .coverage-pies{display:grid;grid-template-columns:repeat(3,minmax(220px,280px));gap:12px;margin:0 auto 18px;width:100%;max-width:900px;justify-content:center;justify-items:stretch}
 .coverage-pie-card{border:1px solid var(--border);border-radius:12px;padding:12px 14px 14px;background:var(--surface2);display:flex;flex-direction:column;align-items:center;min-height:0;text-align:center}
 .coverage-pie-card .pie-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:0 0 4px;width:100%}
@@ -4876,7 +4888,7 @@ async function renderPeople() {
             <button type="button" class="btn-export" id="coverage-pdf-btn" onclick="exportCoveragePdf()">Export PDF</button>
           </div>
           <div id="coverage-pdf-root">
-            <p class="people-note">Of BH inbound <b>unique calls</b> (same phone, legs ≤2 min — same as Sankey; VIP/Membership excluded) that did not end with a human — how many were lost because every RES agent was busy for the whole offer window (<b>staffing</b>: 15s main / 45s Back-from-Hostie), how many because someone was free in that window but the call still missed (<b>process</b>), and how many died on <b>AI</b>? VIP-assigned punch shifts are removed from capacity.</p>
+            <p class="people-note">Of BH inbound <b>unique calls</b> (same phone, legs ≤2 min — same as Sankey; VIP/Membership excluded) that did not end with a human — classified as <b>Staffing</b>, <b>Process</b>, or <b>AI</b> using the definitions below. VIP-assigned punch shifts are removed from capacity.</p>
             <div class="hours-week-bar no-print">
               <label>Week</label>
               <button type="button" class="rest-btn" id="coverage-week-prev">←</button>
@@ -5543,6 +5555,21 @@ function paintCoverageVenue(rep, venue) {
   return `
   <div class="coverage-v3">
     <p class="people-note" style="margin:0 0 12px">Same set as Sankey <b>HUMAN did not</b>: <b>${nonHuman.toLocaleString()}</b> unique calls → Staffing ${staff.toLocaleString()} + Process ${proc.toLocaleString()} + AI ${aiN.toLocaleString()} · (${Number(a.human).toLocaleString()} human / ${Number(a.journeys).toLocaleString()} unique)</p>
+
+    <div class="coverage-defs">
+      <div class="coverage-def staffing">
+        <div class="def-k">Staffing</div>
+        <p>No RES agent was <b>free for ≥1s</b> in the offer window (<b>15s</b> MAIN / <b>45s</b> Back-from-Hostie). Split: <b>all busy</b> (punched but on other calls) vs <b>no punch</b> (nobody scheduled).</p>
+      </div>
+      <div class="coverage-def process">
+        <div class="def-k">Process</div>
+        <p>At least one agent <b>was free</b> in the window, but the call still missed human. Split: <b>pickup</b> (didn’t answer), <b>loop</b> (re-queue / bounce waste), <b>routing</b>.</p>
+      </div>
+      <div class="coverage-def ai">
+        <div class="def-k">AI</div>
+        <p>Journey ended on <b>Hostie / If-No-Answer</b> with no human touch — AI handled or caller left before a transfer/answer.</p>
+      </div>
+    </div>
 
     <div class="coverage-pies">
       <div class="coverage-pie-card">
