@@ -2238,6 +2238,176 @@ async function ensurePdfLibs() {
   throw lastErr || new Error('PDF libraries unavailable');
 }
 
+async function ensureHtml2Canvas() {
+  if (typeof window.html2canvas === 'function') return window.html2canvas;
+  const cdns = [
+    'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js',
+    'https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js',
+  ];
+  let lastErr = null;
+  for (const src of cdns) {
+    try {
+      await loadScriptOnce(src);
+      if (typeof window.html2canvas === 'function') return window.html2canvas;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error('html2canvas unavailable');
+}
+
+/** Chart.js canvases often blank in html2canvas — swap to <img> for capture. */
+function swapCanvasesForCapture(root) {
+  const backups = [];
+  root.querySelectorAll('canvas').forEach((c) => {
+    try {
+      const img = document.createElement('img');
+      img.src = c.toDataURL('image/png');
+      img.alt = '';
+      img.width = c.width;
+      img.height = c.height;
+      img.style.cssText = (c.getAttribute('style') || '') + `;width:${c.offsetWidth}px;height:${c.offsetHeight}px;display:block`;
+      c.parentNode.insertBefore(img, c);
+      c.style.display = 'none';
+      backups.push({ c, img });
+    } catch (_) { /* leave canvas */ }
+  });
+  return () => {
+    backups.forEach(({ c, img }) => {
+      try { img.remove(); } catch (_) {}
+      c.style.display = '';
+    });
+  };
+}
+
+/**
+ * Capture a DOM section to a multi-page landscape PDF (dark dashboard look).
+ */
+async function exportElementPdf({ el, filename, btn, title }) {
+  if (!el) {
+    alert('Nothing to export yet — wait for the view to load.');
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = 'Preparing PDF…'; }
+
+  let JsPDF;
+  let html2canvas;
+  try {
+    ({ JsPDF } = await ensurePdfLibs());
+    html2canvas = await ensureHtml2Canvas();
+  } catch (e) {
+    console.error(e);
+    alert('PDF libraries failed to load. Check network/CDN, refresh, and try again.');
+    if (btn) { btn.disabled = false; btn.textContent = 'Export PDF'; }
+    return;
+  }
+
+  const restoreCanvases = swapCanvasesForCapture(el);
+  // Collapse noisy drill-downs for a cleaner PDF
+  const closedForPdf = [];
+  el.querySelectorAll('details[open]').forEach((d) => {
+    const sum = d.querySelector('summary');
+    const label = sum ? (sum.textContent || '') : '';
+    if (d.id === 'coverage-lost-panel' || /Lost-call/i.test(label)) {
+      d.open = false;
+      closedForPdf.push(d);
+    }
+  });
+
+  try {
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const canvas = await html2canvas(el, {
+      backgroundColor: '#0d0f18',
+      scale: Math.min(2, window.devicePixelRatio || 1.5),
+      useCORS: true,
+      logging: false,
+      ignoreElements: (node) => !!(node.classList && node.classList.contains('no-print')),
+    });
+
+    const pdf = new JsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const m = 6;
+    const contentW = pageW - m * 2;
+    const titleH = title ? 8 : 0;
+    const contentH = pageH - m * 2 - titleH;
+
+    const imgW = contentW;
+    const pageCanvasH = Math.max(1, Math.floor((contentH / ((canvas.height * imgW) / canvas.width)) * canvas.height));
+
+    let srcY = 0;
+    let page = 0;
+    while (srcY < canvas.height) {
+      if (page > 0) pdf.addPage();
+      pdf.setFillColor(13, 15, 24);
+      pdf.rect(0, 0, pageW, pageH, 'F');
+
+      let top = m;
+      if (page === 0 && title) {
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(11);
+        pdf.setTextColor(238, 240, 251);
+        pdf.text(title, m, m + 3);
+        top = m + titleH;
+      }
+
+      const sliceH = Math.min(pageCanvasH, canvas.height - srcY);
+      const slice = document.createElement('canvas');
+      slice.width = canvas.width;
+      slice.height = sliceH;
+      const ctx = slice.getContext('2d');
+      ctx.fillStyle = '#0d0f18';
+      ctx.fillRect(0, 0, slice.width, slice.height);
+      ctx.drawImage(canvas, 0, srcY, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+
+      const sliceMmH = (sliceH * imgW) / canvas.width;
+      pdf.addImage(slice.toDataURL('image/png'), 'PNG', m, top, imgW, sliceMmH);
+
+      srcY += sliceH;
+      page += 1;
+      if (page > 20) break;
+    }
+
+    pdf.save(filename || 'RDG-export.pdf');
+  } catch (e) {
+    console.error(e);
+    alert('PDF export failed: ' + (e.message || e));
+  } finally {
+    restoreCanvases();
+    closedForPdf.forEach((d) => { d.open = true; });
+    if (btn) { btn.disabled = false; btn.textContent = 'Export PDF'; }
+  }
+}
+
+async function exportCoveragePdf() {
+  const week = document.getElementById('coverage-week')?.value
+    || _peopleSelectedWeek
+    || D?.cutoff
+    || '';
+  const venueBtn = document.querySelector('#coverage-venue-bar button.active');
+  const venue = venueBtn ? venueBtn.textContent.trim() : 'All venues';
+  const title = `RDG AI Impact · Staffing vs AI · W${week} · ${venue}`;
+  await exportElementPdf({
+    el: document.getElementById('coverage-pdf-root'),
+    filename: `RDG-Staffing-vs-AI-W${week}.pdf`,
+    btn: document.getElementById('coverage-pdf-btn'),
+    title,
+  });
+}
+
+async function exportSankeyPdf() {
+  const s = typeof getActiveSankey === 'function' ? getActiveSankey() : null;
+  const label = s?.restaurantLabel || SANKEY_SEL?.restaurantId || 'Restaurant';
+  const week = s?.week || SANKEY_SEL?.week || D?.cutoff || '';
+  const title = `RDG AI Impact · Sankey · ${label} · W${week}`;
+  await exportElementPdf({
+    el: document.getElementById('sankey-pdf-root'),
+    filename: `RDG-Sankey-${String(label).replace(/\s+/g, '-')}-W${week}.pdf`,
+    btn: document.getElementById('sankey-pdf-btn'),
+    title,
+  });
+}
+
 function hexToRgb(hex) {
   const h = String(hex || '#eef0fb').replace('#', '');
   return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
@@ -4685,18 +4855,23 @@ async function renderPeople() {
       </div>
       <div id="people-panel-coverage" style="display:none">
         <div class="table-card">
-          <h3>Staffing vs AI</h3>
-          <p class="people-note">Of BH inbound <b>unique calls</b> (same phone, legs ≤2 min — same as Sankey; VIP/Membership excluded) that did not end with a human — how many were lost because every RES agent was busy for the whole offer window (<b>staffing</b>: 15s main / 45s Back-from-Hostie), how many because someone was free in that window but the call still missed (<b>process</b>), and how many died on <b>AI</b>? VIP-assigned punch shifts are removed from capacity.</p>
-          <div class="hours-week-bar">
-            <label>Week</label>
-            <button type="button" class="rest-btn" id="coverage-week-prev">←</button>
-            <input type="number" id="coverage-week" min="1" max="53" value="${j.selectedWeek}">
-            <button type="button" class="rest-btn" id="coverage-week-next">→</button>
-            <button type="button" class="rest-btn" id="coverage-week-go">Apply</button>
-            <span class="hours-week-label" id="coverage-week-label">W${j.selectedWeek}</span>
+          <div class="overview-toolbar no-print" style="margin:0 0 12px;justify-content:space-between;align-items:center">
+            <h3 style="margin:0">Staffing vs AI</h3>
+            <button type="button" class="btn-export" id="coverage-pdf-btn" onclick="exportCoveragePdf()">Export PDF</button>
           </div>
-          <div class="coverage-venue-bar" id="coverage-venue-bar"></div>
-          <div id="coverage-lab-root"><div class="loading">Loading coverage…</div></div>
+          <div id="coverage-pdf-root">
+            <p class="people-note">Of BH inbound <b>unique calls</b> (same phone, legs ≤2 min — same as Sankey; VIP/Membership excluded) that did not end with a human — how many were lost because every RES agent was busy for the whole offer window (<b>staffing</b>: 15s main / 45s Back-from-Hostie), how many because someone was free in that window but the call still missed (<b>process</b>), and how many died on <b>AI</b>? VIP-assigned punch shifts are removed from capacity.</p>
+            <div class="hours-week-bar no-print">
+              <label>Week</label>
+              <button type="button" class="rest-btn" id="coverage-week-prev">←</button>
+              <input type="number" id="coverage-week" min="1" max="53" value="${j.selectedWeek}">
+              <button type="button" class="rest-btn" id="coverage-week-next">→</button>
+              <button type="button" class="rest-btn" id="coverage-week-go">Apply</button>
+              <span class="hours-week-label" id="coverage-week-label">W${j.selectedWeek}</span>
+            </div>
+            <div class="coverage-venue-bar no-print" id="coverage-venue-bar"></div>
+            <div id="coverage-lab-root"><div class="loading">Loading coverage…</div></div>
+          </div>
         </div>
       </div>
       <div id="people-panel-hours" style="display:none">
@@ -6627,7 +6802,10 @@ function renderSankey() {
 
   if (!s || s.ok === false) {
     el.innerHTML = `
-      <div class="section-head">Sankey Diagram</div>
+      <div class="overview-toolbar no-print" style="margin:0 0 12px;justify-content:space-between;align-items:center">
+        <div class="section-head" style="margin:0">Sankey Diagram</div>
+        <button type="button" class="btn-export" id="sankey-pdf-btn" disabled title="No data for this filter">Export PDF</button>
+      </div>
       <div class="sankey-controls">
         <div class="filter-group"><span class="filter-label">Location</span>
           <select id="sankey-loc" onchange="onSankeyFilterChange()">${locOpts}</select></div>
@@ -6643,30 +6821,35 @@ function renderSankey() {
   }
 
   el.innerHTML = `
-    <div class="section-head">Sankey Diagram</div>
-    <div class="sankey-controls">
+    <div class="overview-toolbar no-print" style="margin:0 0 12px;justify-content:space-between;align-items:center">
+      <div class="section-head" style="margin:0">Sankey Diagram</div>
+      <button type="button" class="btn-export" id="sankey-pdf-btn" onclick="exportSankeyPdf()">Export PDF</button>
+    </div>
+    <div class="sankey-controls no-print">
       <div class="filter-group"><span class="filter-label">Location</span>
         <select id="sankey-loc" onchange="onSankeyFilterChange()">${locOpts}</select></div>
       <div class="filter-group"><span class="filter-label">Week</span>
         <select id="sankey-week" onchange="onSankeyFilterChange()">${weekOpts}</select></div>
       <span class="sankey-data-hint">${escHtml(dataHint)}</span>
     </div>
-    <p class="loc-summary-note" style="margin:-4px 0 14px">
-      <b>${escHtml(s.restaurantLabel)}</b> · <b>W${s.week}</b> · Unique calls only (same customer phone, ≤2 min between legs = one call; outcome = <b>last</b> leg) · Did they get a <b>human</b> at the end? · <b>Click</b> for definitions
-    </p>
-    ${buildSankeyBounceCompareTable()}
-    <div class="chart-row cols-1" style="margin-bottom:16px">
-      <div class="chart-card">
-        <h3>Call flow — ${escHtml(s.restaurantLabel)} W${s.week}</h3>
-        <p>Business hours only. Left→right: All inbound → <b>MAIN</b> vs <b>Abandoned</b> → HUMAN vs <b>AI / If-No-Answer</b> → transfer / AI only / hangup reason → <b>HUMAN TOUCHED</b> (top) vs <b>HUMAN did not</b> (bottom). Labels = # · % of total.</p>
-        <div class="chart-wrap sankey-chart-wrap"><canvas id="sankey-inbound"></canvas></div>
-        <div id="sankey-def-panel" class="sankey-def-panel" aria-live="polite">
-          <p class="sankey-def-hint">Click a Sankey node or flow (or a row in the breakdown) to see what it means and which calls are included.</p>
+    <div id="sankey-pdf-root">
+      <p class="loc-summary-note" style="margin:0 0 14px">
+        <b>${escHtml(s.restaurantLabel)}</b> · <b>W${s.week}</b> · Unique calls only (same customer phone, ≤2 min between legs = one call; outcome = <b>last</b> leg) · Did they get a <b>human</b> at the end?
+      </p>
+      ${buildSankeyBounceCompareTable()}
+      <div class="chart-row cols-1" style="margin-bottom:16px">
+        <div class="chart-card">
+          <h3>Call flow — ${escHtml(s.restaurantLabel)} W${s.week}</h3>
+          <p>Business hours only. Left→right: All inbound → <b>MAIN</b> vs <b>Abandoned</b> → HUMAN vs <b>AI / If-No-Answer</b> → transfer / AI only / hangup reason → <b>HUMAN TOUCHED</b> (top) vs <b>HUMAN did not</b> (bottom). Labels = # · % of total.</p>
+          <div class="chart-wrap sankey-chart-wrap"><canvas id="sankey-inbound"></canvas></div>
+          <div id="sankey-def-panel" class="sankey-def-panel no-print" aria-live="polite">
+            <p class="sankey-def-hint">Click a Sankey node or flow (or a row in the breakdown) to see what it means and which calls are included.</p>
+          </div>
+          <div class="stat-note" style="margin-top:10px">${(s.notes || []).map(n => escHtml(n)).join(' · ')}</div>
         </div>
-        <div class="stat-note" style="margin-top:10px">${(s.notes || []).map(n => escHtml(n)).join(' · ')}</div>
       </div>
-    </div>
-    ${buildSankeyHourDetailSection()}`;
+      ${buildSankeyHourDetailSection()}
+    </div>`;
   requestAnimationFrame(() => paintSankeyChart());
 }
 
