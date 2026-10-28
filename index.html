@@ -296,8 +296,10 @@ tbody tr.total-row td{font-weight:700;color:var(--text)}
 .pdf-compact .coverage-heat th.slot-col{font-size:6px!important;padding:2px 0!important;min-width:14px!important}
 .pdf-compact .coverage-heat .heat-cell{font-size:7px!important;padding:1px!important;min-width:14px!important}
 .pdf-compact .coverage-heat th.day-col{font-size:9px!important;min-width:56px!important}
-.pdf-compact .sankey-chart-wrap{height:520px!important}
-.pdf-compact .sankey-tod-wrap{height:220px!important;margin-top:4px!important}
+.pdf-compact .sankey-chart-wrap{height:560px!important}
+.pdf-compact #sankey-pdf-root .chart-card{padding:8px 10px!important;margin:0!important}
+.pdf-compact #sankey-pdf-root .chart-row{margin:0!important}
+.pdf-compact #sankey-pdf-root h3{margin:0 0 6px!important;font-size:13px!important}
 .pdf-compact .coverage-evidence{display:none!important}
 .overview-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
 .overview-toolbar .section-head{margin:0}
@@ -6876,24 +6878,24 @@ function renderSankey() {
         <select id="sankey-week" onchange="onSankeyFilterChange()">${weekOpts}</select></div>
       <span class="sankey-data-hint">${escHtml(dataHint)}</span>
     </div>
+    <p class="loc-summary-note" style="margin:0 0 14px">
+      <b>${escHtml(s.restaurantLabel)}</b> · <b>W${s.week}</b> · Unique calls only (same customer phone, ≤2 min between legs = one call; outcome = <b>last</b> leg) · Did they get a <b>human</b> at the end?
+    </p>
+    ${buildSankeyBounceCompareTable()}
     <div id="sankey-pdf-root">
-      <p class="loc-summary-note" style="margin:0 0 14px">
-        <b>${escHtml(s.restaurantLabel)}</b> · <b>W${s.week}</b> · Unique calls only (same customer phone, ≤2 min between legs = one call; outcome = <b>last</b> leg) · Did they get a <b>human</b> at the end?
-      </p>
-      ${buildSankeyBounceCompareTable()}
       <div class="chart-row cols-1" style="margin-bottom:16px">
         <div class="chart-card">
           <h3>Call flow — ${escHtml(s.restaurantLabel)} W${s.week}</h3>
-          <p>Business hours only. Left→right: All inbound → <b>MAIN</b> vs <b>Abandoned</b> → HUMAN vs <b>AI / If-No-Answer</b> → transfer / AI only / hangup reason → <b>HUMAN TOUCHED</b> (top) vs <b>HUMAN did not</b> (bottom). Labels = # · % of total.</p>
+          <p class="no-print">Business hours only. Left→right: All inbound → <b>MAIN</b> vs <b>Abandoned</b> → HUMAN vs <b>AI / If-No-Answer</b> → transfer / AI only / hangup reason → <b>HUMAN TOUCHED</b> (top) vs <b>HUMAN did not</b> (bottom). Labels = # · % of total.</p>
           <div class="chart-wrap sankey-chart-wrap"><canvas id="sankey-inbound"></canvas></div>
           <div id="sankey-def-panel" class="sankey-def-panel no-print" aria-live="polite">
             <p class="sankey-def-hint">Click a Sankey node or flow (or a row in the breakdown) to see what it means and which calls are included.</p>
           </div>
-          <div class="stat-note" style="margin-top:10px">${(s.notes || []).map(n => escHtml(n)).join(' · ')}</div>
+          <div class="stat-note no-print" style="margin-top:10px">${(s.notes || []).map(n => escHtml(n)).join(' · ')}</div>
         </div>
       </div>
-      ${buildSankeyHourDetailSection()}
-    </div>`;
+    </div>
+    ${buildSankeyHourDetailSection()}`;
   requestAnimationFrame(() => paintSankeyChart());
 }
 
