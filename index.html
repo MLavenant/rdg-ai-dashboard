@@ -285,6 +285,19 @@ tbody tr.total-row td{font-weight:700;color:var(--text)}
 .pdf-compact .loc-summary-note,.pdf-compact .stat-note{font-size:10px!important;margin:4px 0!important}
 .pdf-compact .section-head{margin:0 0 6px!important;font-size:13px!important}
 .pdf-compact h3{font-size:12px!important;margin-bottom:4px!important}
+/* One-page PDF: tighten Staffing vs AI + Sankey capture */
+.pdf-compact .coverage-pies{gap:8px!important;margin:0 0 8px!important}
+.pdf-compact .coverage-pie-card{padding:8px 10px!important}
+.pdf-compact .coverage-pie-wrap{height:140px!important;max-width:180px!important}
+.pdf-compact .coverage-pie-center .n{font-size:16px!important}
+.pdf-compact .people-note{font-size:10px!important;margin:0 0 6px!important;line-height:1.3!important}
+.pdf-compact .coverage-dom-heat,.pdf-compact .coverage-human-heat{margin-top:8px!important}
+.pdf-compact .coverage-heat th.slot-col{font-size:6px!important;padding:2px 0!important;min-width:14px!important}
+.pdf-compact .coverage-heat .heat-cell{font-size:7px!important;padding:1px!important;min-width:14px!important}
+.pdf-compact .coverage-heat th.day-col{font-size:9px!important;min-width:56px!important}
+.pdf-compact .sankey-chart-wrap{height:520px!important}
+.pdf-compact .sankey-tod-wrap{height:220px!important;margin-top:4px!important}
+.pdf-compact .coverage-evidence{display:none!important}
 .overview-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
 .overview-toolbar .section-head{margin:0}
 .insight-banner{background:linear-gradient(135deg,rgba(61,142,248,.12),rgba(176,110,245,.10));border:1px solid rgba(61,142,248,.28);border-radius:var(--radius);padding:14px 18px;margin-bottom:18px;display:flex;gap:12px;align-items:flex-start}
@@ -2281,7 +2294,7 @@ function swapCanvasesForCapture(root) {
 }
 
 /**
- * Capture a DOM section to a multi-page landscape PDF (dark dashboard look).
+ * Capture a DOM section to a single landscape A4 page (scaled to fit).
  */
 async function exportElementPdf({ el, filename, btn, title }) {
   if (!el) {
@@ -2302,16 +2315,21 @@ async function exportElementPdf({ el, filename, btn, title }) {
     return;
   }
 
+  el.classList.add('pdf-compact');
   const restoreCanvases = swapCanvasesForCapture(el);
-  // Collapse noisy drill-downs for a cleaner PDF
-  const closedForPdf = [];
-  el.querySelectorAll('details[open]').forEach((d) => {
-    const sum = d.querySelector('summary');
+  // Hide drill-downs / long sections for a one-page fit
+  const hidden = [];
+  el.querySelectorAll('details, [data-pdf-omit]').forEach((node) => {
+    const sum = node.querySelector && node.querySelector('summary');
     const label = sum ? (sum.textContent || '') : '';
-    if (d.id === 'coverage-lost-panel' || /Lost-call/i.test(label)) {
-      d.open = false;
-      closedForPdf.push(d);
-    }
+    const omit =
+      node.hasAttribute('data-pdf-omit') ||
+      node.id === 'coverage-lost-panel' ||
+      /Lost-call/i.test(label);
+    if (!omit) return;
+    hidden.push({ node, display: node.style.display, open: node.open });
+    if (node.tagName === 'DETAILS') node.open = false;
+    node.style.display = 'none';
   });
 
   try {
@@ -2321,60 +2339,56 @@ async function exportElementPdf({ el, filename, btn, title }) {
       scale: Math.min(2, window.devicePixelRatio || 1.5),
       useCORS: true,
       logging: false,
-      ignoreElements: (node) => !!(node.classList && node.classList.contains('no-print')),
+      ignoreElements: (node) => {
+        if (!node || node.nodeType !== 1) return false;
+        if (node.hasAttribute && node.hasAttribute('data-pdf-omit')) return true;
+        if (node.classList && (node.classList.contains('no-print') || node.classList.contains('pdf-omit'))) return true;
+        return false;
+      },
     });
 
     const pdf = new JsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
     const pageW = pdf.internal.pageSize.getWidth();
     const pageH = pdf.internal.pageSize.getHeight();
-    const m = 6;
-    const contentW = pageW - m * 2;
-    const titleH = title ? 8 : 0;
-    const contentH = pageH - m * 2 - titleH;
+    const m = 5;
+    const titleH = title ? 7 : 0;
+    const maxW = pageW - m * 2;
+    const maxH = pageH - m * 2 - titleH;
 
-    const imgW = contentW;
-    const pageCanvasH = Math.max(1, Math.floor((contentH / ((canvas.height * imgW) / canvas.width)) * canvas.height));
-
-    let srcY = 0;
-    let page = 0;
-    while (srcY < canvas.height) {
-      if (page > 0) pdf.addPage();
-      pdf.setFillColor(13, 15, 24);
-      pdf.rect(0, 0, pageW, pageH, 'F');
-
-      let top = m;
-      if (page === 0 && title) {
-        pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(11);
-        pdf.setTextColor(238, 240, 251);
-        pdf.text(title, m, m + 3);
-        top = m + titleH;
-      }
-
-      const sliceH = Math.min(pageCanvasH, canvas.height - srcY);
-      const slice = document.createElement('canvas');
-      slice.width = canvas.width;
-      slice.height = sliceH;
-      const ctx = slice.getContext('2d');
-      ctx.fillStyle = '#0d0f18';
-      ctx.fillRect(0, 0, slice.width, slice.height);
-      ctx.drawImage(canvas, 0, srcY, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
-
-      const sliceMmH = (sliceH * imgW) / canvas.width;
-      pdf.addImage(slice.toDataURL('image/png'), 'PNG', m, top, imgW, sliceMmH);
-
-      srcY += sliceH;
-      page += 1;
-      if (page > 20) break;
+    // Scale entire capture to fit ONE page (contain)
+    const aspect = canvas.width / canvas.height;
+    let imgW = maxW;
+    let imgH = imgW / aspect;
+    if (imgH > maxH) {
+      imgH = maxH;
+      imgW = imgH * aspect;
     }
 
+    pdf.setFillColor(13, 15, 24);
+    pdf.rect(0, 0, pageW, pageH, 'F');
+
+    let top = m;
+    if (title) {
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(10);
+      pdf.setTextColor(238, 240, 251);
+      pdf.text(title, m, m + 3);
+      top = m + titleH;
+    }
+
+    const left = m + (maxW - imgW) / 2;
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', left, top, imgW, imgH);
     pdf.save(filename || 'RDG-export.pdf');
   } catch (e) {
     console.error(e);
     alert('PDF export failed: ' + (e.message || e));
   } finally {
+    el.classList.remove('pdf-compact');
     restoreCanvases();
-    closedForPdf.forEach((d) => { d.open = true; });
+    hidden.forEach(({ node, display, open }) => {
+      node.style.display = display || '';
+      if (node.tagName === 'DETAILS' && open) node.open = true;
+    });
     if (btn) { btn.disabled = false; btn.textContent = 'Export PDF'; }
   }
 }
@@ -5571,7 +5585,7 @@ function paintCoverageVenue(rep, venue) {
     ${paintDominantHeat('Dominant cause by day × 15‑min', venue.dominantHeat, venue.missHeat, rep.days, venue.slotColumns || [])}
     ${paintHumanPctHeat('Human answer % by day × 15‑min', venue.callHeat, venue.missHeat, rep.days, venue.slotColumns || [])}
 
-    <div class="coverage-evidence" style="margin-top:16px">
+    <div class="coverage-evidence" data-pdf-omit style="margin-top:16px">
       <details id="coverage-lost-panel">
         <summary>Lost-call detail — who was free / on a call when inbound missed human</summary>
         <p class="people-note" style="margin:8px 0">Every BH inbound journey that never reached a human (VIP/Membership excluded). <b>Call ID</b> = TalkDesk Interaction ID. <b>Main line</b> = 15s ring window; <b>Back from Hostie</b> = 45s 2nd-queue window. Free = RES punch (VIP shifts removed) and not on a TD call for ≥1s in that window. Expand a row for free agents and busy agents’ call IDs.</p>
@@ -6921,7 +6935,7 @@ function buildSankeyHourDetailSection() {
   ].join('');
 
   return `
-    <div class="table-card" style="margin-top:16px">
+    <div class="table-card" data-pdf-omit style="margin-top:16px">
       <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;margin-bottom:12px">
         <h3 style="margin:0">${escHtml(profile?.restaurantLabel || SANKEY_SEL.restaurantId)} · hour detail · W${SANKEY_SEL.week}</h3>
         <div class="filter-group" style="margin:0">
