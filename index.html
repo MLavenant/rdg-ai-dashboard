@@ -267,6 +267,8 @@ tbody tr.total-row td{font-weight:700;color:var(--text)}
 /* ── SECTION HEADING ── */
 .section-head{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin:20px 0 12px;display:flex;align-items:center;gap:8px}
 .section-head::after{content:'';flex:1;height:1px;background:var(--border)}
+.details-section-title{font-size:18px;font-weight:700;color:var(--text);margin:22px 0 12px;padding:0;letter-spacing:-.01em;line-height:1.25}
+.details-section-title:first-of-type{margin-top:10px}
 
 /* ── PERIOD SUMMARY (below charts) ── */
 .period-summary{margin-top:12px;border-top:1px solid var(--border);padding-top:12px}
@@ -3619,13 +3621,12 @@ function renderDetailsShell(opts) {
   }).join('');
 
   document.getElementById('rest-content').innerHTML = `
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
       <h2 style="font-size:20px;font-weight:700;${titleColor ? `color:${titleColor}` : 'background:linear-gradient(90deg,#3d8ef8,#b06ef5);-webkit-background-clip:text;-webkit-text-fill-color:transparent'}">${title}</h2>
       ${rest ? `<div class="golive-badge">◆ AI Live W${rest.goLive} · 2026</div>` : ''}
     </div>
-    <p class="people-note" style="margin:0 0 14px">Details: waterfall · unique BH inbound · Sankey · abandoned % · human-answer % · W${F.wkFrom}–W${F.wkTo}.</p>
 
-    <div class="section-head">1 · Reservations waterfall — 2025 vs 2026</div>
+    <h2 class="details-section-title">1 · Reservations waterfall — 2025 vs 2026</h2>
     <div class="rest-selector" style="margin:0 0 10px;gap:8px">
       <button type="button" class="wf-range-btn${DETAILS_WF_RANGE === 'week' ? ' active' : ''}" data-wf-range="week" onclick="setDetailsWfRange('week')">Week (W${D.cutoff})</button>
       <button type="button" class="wf-range-btn${DETAILS_WF_RANGE === 'ytd' ? ' active' : ''}" data-wf-range="ytd" onclick="setDetailsWfRange('ytd')">YTD (W${ANALYSIS_START_WEEK}–W${D.cutoff})</button>
@@ -3644,7 +3645,7 @@ function renderDetailsShell(opts) {
       </div>
     </div>
 
-    <div class="section-head">2 · Unique inbound calls</div>
+    <h2 class="details-section-title">2 · Unique inbound calls</h2>
     <div class="chart-row cols-1">
       <div class="chart-card">
         <h3>Inbound Calls — Weekly${restId === 'all' ? ' (all restaurants)' : ''}</h3>
@@ -3668,7 +3669,7 @@ function renderDetailsShell(opts) {
     </div>
     ${buildInboundCallsByLocationTable(r26, r25)}` : ''}
 
-    <div class="section-head">3 · Sankey</div>
+    <h2 class="details-section-title">3 · Sankey</h2>
     <div class="sankey-controls no-print" style="margin-bottom:10px">
       ${restId === 'all' ? `<div class="filter-group"><span class="filter-label">Location</span>
         <select id="details-sankey-loc" onchange="onDetailsSankeyFilterChange()">${sankeyLocOpts}</select></div>` : ''}
@@ -3677,7 +3678,7 @@ function renderDetailsShell(opts) {
     </div>
     <div id="details-sankey-root"><div class="loading">Loading Sankey…</div></div>
 
-    <div class="section-head">4 · Abandoned rate &amp; human answer %</div>
+    <h2 class="details-section-title">4 · Abandoned rate &amp; human answer %</h2>
     <div id="details-bounce-kpis" class="kpi-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:12px"></div>
     <div class="chart-row cols-2">
       <div class="chart-card">
