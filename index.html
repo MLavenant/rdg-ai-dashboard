@@ -334,6 +334,23 @@ tbody tr.total-row td{font-weight:700;color:var(--text)}
 .pdf-compact #sankey-pdf-root .chart-row{margin:0!important}
 .pdf-compact #sankey-pdf-root h3{margin:0 0 6px!important;font-size:13px!important}
 .pdf-compact .coverage-evidence{display:none!important}
+.details-pdf-page.pdf-compact .details-section-title{font-size:12px!important;margin:8px 0 4px!important}
+.details-pdf-page.pdf-compact .chart-wrap{height:120px!important}
+.details-pdf-page.pdf-compact .sankey-chart-wrap{height:200px!important}
+.details-pdf-page.pdf-compact .chart-card{padding:8px!important;margin-bottom:4px!important}
+.details-pdf-page.pdf-compact .period-summary{font-size:9px!important}
+.details-pdf-page.pdf-compact .insight-banner{padding:8px 10px!important;margin-bottom:8px!important}
+.details-pdf-page.pdf-compact .insight-text{font-size:10px!important;line-height:1.35!important}
+.details-pdf-page.pdf-compact .kpi-row{margin-bottom:6px!important}
+.details-pdf-page.pdf-compact .kpi{padding:8px!important}
+.details-pdf-page.pdf-compact .kpi-value{font-size:16px!important}
+.details-pdf-page.pdf-compact h2{font-size:14px!important;margin:0!important}
+.details-pdf-page.pdf-compact h3{font-size:11px!important;margin:0 0 2px!important}
+.details-pdf-page.pdf-compact p{font-size:9px!important;margin:0 0 4px!important}
+.details-pdf-page.pdf-compact .chart-row{margin:0 0 4px!important}
+.details-pdf-page.pdf-compact .rest-selector,
+.details-pdf-page.pdf-compact .sankey-controls,
+.details-pdf-page.pdf-compact .no-print{display:none!important}
 .overview-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
 .overview-toolbar .section-head{margin:0}
 .insight-banner{background:linear-gradient(135deg,rgba(61,142,248,.12),rgba(176,110,245,.10));border:1px solid rgba(61,142,248,.28);border-radius:var(--radius);padding:14px 18px;margin-bottom:18px;display:flex;gap:12px;align-items:flex-start}
@@ -1691,9 +1708,8 @@ function buildDetailsLastWeekBrief(r26, r25) {
   const bVar = signedPct(b26, b25);
   const ih26 = sum(lw26, 'bookingsPhoneHuman'), ai26 = sum(lw26, 'bookingsPhoneAI');
   const ih25 = sum(lw25, 'bookingsPhoneHuman');
-  const phone26 = ih26 + ai26;
-  const phone25 = ih25; // 2025 phone was In-House only
-  const phoneVar = signedPct(phone26, phone25);
+  const ai25 = sum(lw25, 'bookingsPhoneAI');
+  const signYoY = (cur, prior) => (cur == null || prior == null) ? '—' : (cur > prior ? '+' : cur < prior ? '−' : '=');
 
   const calls26 = sum(lw26, 'callsTotal'), calls25 = sum(lw25, 'callsTotal');
   const callsVar = signedPct(calls26, calls25);
@@ -1716,12 +1732,8 @@ function buildDetailsLastWeekBrief(r26, r25) {
   const bookPhrase = bVar == null
     ? 'reservations vs prior year are unclear'
     : (bVar >= 0
-      ? `total reservations are <b>up ${Math.abs(bVar).toFixed(1)}%</b> vs prior year`
-      : `total reservations are <b>down ${Math.abs(bVar).toFixed(1)}%</b> vs prior year`);
-
-  const phonePhrase = `phone bookings are <b>${ih26.toLocaleString()} In-House</b> and <b>${ai26.toLocaleString()} AI</b>`
-    + (phoneVar == null ? '' : ` (combined phone ${fmtSigned(phoneVar)} vs PY, when phone was mostly In-House)`)
-    + (ih25 > 0 ? `; In-House alone is ${ih26 - ih25 >= 0 ? '+' : ''}${(ih26 - ih25).toLocaleString()} vs PY` : '');
+      ? `total reservations are <b>up ${Math.abs(bVar).toFixed(1)}%</b> vs prior year (Phone/In-House <b>${signYoY(ih26, ih25)}</b>, Phone/AI <b>${signYoY(ai26, ai25)}</b>)`
+      : `total reservations are <b>down ${Math.abs(bVar).toFixed(1)}%</b> vs prior year (Phone/In-House <b>${signYoY(ih26, ih25)}</b>, Phone/AI <b>${signYoY(ai26, ai25)}</b>)`);
 
   const humPhrase = hum26 == null
     ? 'human answer rate is unavailable'
@@ -1739,7 +1751,7 @@ function buildDetailsLastWeekBrief(r26, r25) {
     : `In-House books converted at <b>${hConv.toFixed(1)}%</b> of unique calls`
       + (hConv25 != null ? ` vs ${hConv25.toFixed(1)}% PY` : '');
 
-  const text = `Last week (W${w}), ${callsPhrase}. ${bookPhrase}, with ${phonePhrase}. ${humPhrase}; ${abnPhrase}; ${convPhrase}.`;
+  const text = `Last week (W${w}), ${callsPhrase}. ${bookPhrase}. ${humPhrase}; ${abnPhrase}; ${convPhrase}.`;
 
   return `<div class="insight-banner" style="margin:0 0 16px"><div class="insight-mark">◆</div><div>
     <div class="insight-label">BRIEF · W${w}</div>
@@ -2718,6 +2730,131 @@ async function exportSankeyPdf() {
   });
 }
 
+async function waitForDetailsChartsReady(timeoutMs = 10000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    await new Promise((r) => setTimeout(r, 120));
+    const hasWaterfall = !!CHARTS['details-waterfall'];
+    const hasInbound = !!CHARTS['details-inbound-trend'];
+    const sankeyRoot = document.getElementById('details-sankey-root');
+    const sankeyReady = !sankeyRoot
+      || !!CHARTS['sankey-inbound']
+      || /No call-flow|not available/i.test(sankeyRoot.textContent || '');
+    if (hasWaterfall && hasInbound && sankeyReady) break;
+  }
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  // Let Chart.js / Sankey finish paint
+  await new Promise((r) => setTimeout(r, 250));
+}
+
+/**
+ * Details PDF: one landscape page per location covering sections 1–6.
+ * Respects Location filter (single site → one page; All → every restaurant).
+ */
+async function exportDetailsPdf() {
+  const btn = document.getElementById('details-pdf-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Preparing PDF…'; }
+
+  let JsPDF;
+  let html2canvas;
+  try {
+    ({ JsPDF } = await ensurePdfLibs());
+    html2canvas = await ensureHtml2Canvas();
+  } catch (e) {
+    console.error(e);
+    alert('PDF libraries failed to load. Check network/CDN, refresh, and try again.');
+    if (btn) { btn.disabled = false; btn.textContent = 'Export PDF'; }
+    return;
+  }
+
+  const prevActive = activeRest;
+  const targets = (F.location && F.location !== 'all' && RESTS.some(r => r.id === F.location))
+    ? RESTS.filter(r => r.id === F.location)
+    : RESTS.slice();
+
+  if (!targets.length) {
+    alert('No locations to export.');
+    if (btn) { btn.disabled = false; btn.textContent = 'Export PDF'; }
+    return;
+  }
+
+  // Ensure Details shell exists
+  if (!document.getElementById('rest-content')) renderByRest();
+
+  const pdf = new JsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const m = 5;
+
+  try {
+    for (let i = 0; i < targets.length; i++) {
+      const rest = targets[i];
+      if (btn) btn.textContent = `PDF ${i + 1}/${targets.length} · ${rest.label}…`;
+      activeRest = rest.id;
+      renderRestDetail(rest.id);
+      await waitForDetailsChartsReady();
+
+      const el = document.getElementById('rest-content');
+      if (!el) throw new Error('Details content missing');
+
+      el.classList.add('pdf-compact', 'details-pdf-page');
+      const restoreCanvases = swapCanvasesForCapture(el);
+      try {
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const canvas = await html2canvas(el, {
+          backgroundColor: '#0d0f18',
+          scale: Math.min(2, window.devicePixelRatio || 1.5),
+          useCORS: true,
+          logging: false,
+          ignoreElements: (node) => {
+            if (!node || node.nodeType !== 1) return false;
+            if (node.hasAttribute && node.hasAttribute('data-pdf-omit')) return true;
+            if (node.classList && (node.classList.contains('no-print') || node.classList.contains('pdf-omit'))) return true;
+            return false;
+          },
+        });
+
+        if (i > 0) pdf.addPage();
+        pdf.setFillColor(13, 15, 24);
+        pdf.rect(0, 0, pageW, pageH, 'F');
+
+        const title = `RDG AI Impact · Details · ${rest.label} · through W${D.cutoff} · §§1–6`;
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(10);
+        pdf.setTextColor(238, 240, 251);
+        pdf.text(title, m, m + 3);
+
+        const titleH = 7;
+        const maxW = pageW - m * 2;
+        const maxH = pageH - m * 2 - titleH;
+        const aspect = canvas.width / canvas.height;
+        let imgW = maxW;
+        let imgH = imgW / aspect;
+        if (imgH > maxH) {
+          imgH = maxH;
+          imgW = imgH * aspect;
+        }
+        const left = m + (maxW - imgW) / 2;
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', left, m + titleH, imgW, imgH);
+      } finally {
+        el.classList.remove('pdf-compact', 'details-pdf-page');
+        restoreCanvases();
+      }
+    }
+
+    const through = D?.cutoff || F.wkTo || '';
+    const scope = targets.length === 1 ? targets[0].label.replace(/\s+/g, '-') : 'All-Locations';
+    pdf.save(`RDG-Details-${scope}-W${through}.pdf`);
+  } catch (e) {
+    console.error(e);
+    alert('Details PDF export failed: ' + (e.message || e));
+  } finally {
+    activeRest = prevActive;
+    renderByRest();
+    if (btn) { btn.disabled = false; btn.textContent = 'Export PDF'; }
+  }
+}
+
 function hexToRgb(hex) {
   const h = String(hex || '#eef0fb').replace('#', '');
   return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
@@ -3660,7 +3797,10 @@ function renderByRest() {
   }
 
   pg.innerHTML = `
-    <div class="rest-selector" id="rest-btns"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:4px">
+      <div class="rest-selector" id="rest-btns" style="margin:0"></div>
+      <button type="button" class="btn-export" id="details-pdf-btn" onclick="exportDetailsPdf()">Export PDF</button>
+    </div>
     <div id="rest-content"></div>
   `;
   const btns = document.getElementById('rest-btns');
@@ -3754,7 +3894,7 @@ function renderDetailsShell(opts) {
     ${buildDetailsLastWeekBrief(r26, r25)}
 
     <h2 class="details-section-title">1 · Reservations waterfall — 2025 vs 2026</h2>
-    <div class="rest-selector" style="margin:0 0 10px;gap:8px">
+    <div class="rest-selector no-print" style="margin:0 0 10px;gap:8px">
       <button type="button" class="wf-range-btn${DETAILS_WF_RANGE === 'week' ? ' active' : ''}" data-wf-range="week" onclick="setDetailsWfRange('week')">Week (W${D.cutoff})</button>
       <button type="button" class="wf-range-btn${DETAILS_WF_RANGE === 'ytd' ? ' active' : ''}" data-wf-range="ytd" onclick="setDetailsWfRange('ytd')">YTD (W${ANALYSIS_START_WEEK}–W${D.cutoff})</button>
     </div>
