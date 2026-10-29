@@ -563,7 +563,6 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
     <button class="tab-btn active" data-tab="overview" onclick="showTab('overview')">Overview</button>
     <button class="tab-btn" data-tab="byrest" onclick="showTab('byrest')">Details</button>
     <button class="tab-btn" data-tab="people" onclick="showTab('people')">Call Center Dashboard</button>
-    <button class="tab-btn" data-tab="sankey" onclick="showTab('sankey')">AI Analysis</button>
     <button class="tab-btn" data-tab="reservations" onclick="showTab('reservations')">Reservations</button>
     <button class="tab-btn" data-tab="conversation" onclick="showTab('conversation')">Conversation</button>
     <button class="tab-btn" data-tab="settings" onclick="showTab('settings')">Settings</button>
@@ -618,6 +617,8 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 let D = null;          // raw /api/compare response
 let F = {};            // current filter state
 const CHARTS = {};     // chart instances keyed by canvas id
+/** Sankey + hour detail (now mounted under Details). */
+let SANKEY_SEL = { restaurantId: 'mila', week: 39 };
 if (typeof ChartDataLabels !== 'undefined') {
   Chart.register(ChartDataLabels);
   Chart.defaults.plugins.datalabels = { display: false };
@@ -716,9 +717,9 @@ function applyFilters() {
 
 function renderAll() {
   renderOverview();
+  renderSankey(); // init SANKEY_SEL defaults only
   renderByRest();
   renderPeople();
-  renderSankey();
   renderReservations();
   renderConversation();
   renderSettings();
@@ -3442,7 +3443,7 @@ async function exportReportPdf() {
 // ═══════════════════════════════════════════════════════════════
 //  BY RESTAURANT
 // ═══════════════════════════════════════════════════════════════
-let activeRest = 'mila';
+let activeRest = 'all';
 
 function renderByRest() {
   const pg = document.getElementById('page-byrest');
@@ -3479,32 +3480,55 @@ function renderByRest() {
     btns.appendChild(b);
   });
 
-  if (activeRest === 'all') renderDetailsInboundAllSites();
+  if (activeRest === 'all') renderDetailsAllSites();
   else renderRestDetail(activeRest);
 }
 
-/** Details · All Sites — inbound-only call volume (same pattern as Call Volume). */
-function renderDetailsInboundAllSites() {
-  const r26 = filteredWeeks(D.rows26);
-  const r25 = filteredWeeks(D.rows25);
-  const weeks = getWeeks();
+/** Details · shared body: waterfall → unique inbound → Sankey+hours → abandoned + human %. */
+function renderDetailsShell(opts) {
+  const { title, titleColor, restId, r26, r25, weeks, rest } = opts;
+  const locs = matchedReservationByLocation(restId === 'all' ? 'all' : restId);
+  const sankeyRestId = restId === 'all' ? (SANKEY_SEL.restaurantId || 'mila') : restId;
+  const cat = getSankeyCatalog();
+  const sankeyLocOpts = (cat?.restaurants || RESTS).map(r =>
+    `<option value="${escHtml(r.id)}" ${r.id === sankeyRestId ? 'selected' : ''}>${escHtml(r.label)}</option>`
+  ).join('');
+  const weeksWithData = new Set(cat?.weeksWithData || []);
+  const preferWeek = D.cutoff;
+  const sankeyWeek = weeksWithData.has(preferWeek) ? preferWeek : (cat?.defaultWeek || preferWeek);
+  const sankeyWeekOpts = (cat?.weeks || Array.from({ length: 52 }, (_, i) => 52 - i)).map(w => {
+    const has = weeksWithData.has(w);
+    return `<option value="${w}" ${w === sankeyWeek ? 'selected' : ''}>W${w}${has ? '' : ' — no data'}</option>`;
+  }).join('');
 
   document.getElementById('rest-content').innerHTML = `
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-      <h2 style="font-size:20px;font-weight:700;background:linear-gradient(90deg,#3d8ef8,#b06ef5);-webkit-background-clip:text;-webkit-text-fill-color:transparent">All Sites — Inbound calls only</h2>
+      <h2 style="font-size:20px;font-weight:700;${titleColor ? `color:${titleColor}` : 'background:linear-gradient(90deg,#3d8ef8,#b06ef5);-webkit-background-clip:text;-webkit-text-fill-color:transparent'}">${title}</h2>
+      ${rest ? `<div class="golive-badge">◆ AI Live W${rest.goLive} · 2026</div>` : ''}
     </div>
-    <p class="people-note" style="margin:0 0 14px">Same Call Volume layout as each restaurant, but <b>unique inbound + business hours</b> (Customer Phone ≤90s gap · In Business Hours? = TRUE · last leg inbound) across all locations · W${F.wkFrom}–W${F.wkTo}.</p>
+    <p class="people-note" style="margin:0 0 14px">Details focus: reservations waterfall · unique BH inbound · Sankey + hour detail · abandoned % · human-answer % · W${F.wkFrom}–W${F.wkTo}.</p>
 
-    <div class="section-head">Call Volume — Inbound only</div>
+    <div class="section-head">1 · Reservations waterfall — 2025 vs 2026</div>
     <div class="chart-row cols-1">
       <div class="chart-card">
-        <h3>Inbound Calls Handled — Weekly (all restaurants)</h3>
-        <p>2025 vs 2026 · unique BH inbound · sum of all locations</p>
-        <div class="chart-wrap" style="height:280px"><canvas id="details-inbound-all-trend"></canvas></div>
-        ${buildInboundCallsSummaryTable(r26, r25)}
+        <h3>${locs.length === 1
+          ? `${escHtml(locs[0].label)} · 2025 → source Δ → 2026`
+          : 'Reservation bridge · 2025 → location Δ → 2026'}</h3>
+        <p>Matched weeks only · ${locs.length === 1 ? 'source mix change vs PY' : 'location bridge vs PY'}</p>
+        <div class="chart-wrap" style="height:360px;padding-bottom:6px"><canvas id="details-waterfall"></canvas></div>
       </div>
     </div>
 
+    <div class="section-head">2 · Unique inbound calls</div>
+    <div class="chart-row cols-1">
+      <div class="chart-card">
+        <h3>Inbound Calls — Weekly${restId === 'all' ? ' (all restaurants)' : ''}</h3>
+        <p>Unique BH inbound (Customer Phone ≤90s · In Business Hours? = TRUE)${rest ? ' · vertical line = AI go-live' : ''}</p>
+        <div class="chart-wrap" style="height:280px"><canvas id="details-inbound-trend"></canvas></div>
+        ${buildInboundCallsSummaryTable(r26, r25)}
+      </div>
+    </div>
+    ${restId === 'all' ? `
     <div class="chart-row cols-1">
       <div class="chart-card">
         <h3>Inbound Calls — by restaurant 2026</h3>
@@ -3513,34 +3537,154 @@ function renderDetailsInboundAllSites() {
         <div class="chart-wrap" style="height:260px"><canvas id="details-inbound-by-rest"></canvas></div>
       </div>
     </div>
+    ${buildInboundCallsByLocationTable(r26, r25)}` : ''}
 
-    ${buildInboundCallsByLocationTable(r26, r25)}
+    <div class="section-head">3 · Sankey + hour detail</div>
+    <div class="sankey-controls no-print" style="margin-bottom:10px">
+      ${restId === 'all' ? `<div class="filter-group"><span class="filter-label">Location</span>
+        <select id="details-sankey-loc" onchange="onDetailsSankeyFilterChange()">${sankeyLocOpts}</select></div>` : ''}
+      <div class="filter-group"><span class="filter-label">Week</span>
+        <select id="details-sankey-week" onchange="onDetailsSankeyFilterChange()">${sankeyWeekOpts}</select></div>
+    </div>
+    <div id="details-sankey-root"><div class="loading">Loading Sankey…</div></div>
+
+    <div class="section-head">4 · Abandoned rate &amp; human answer %</div>
+    <div class="chart-row cols-2">
+      <div class="chart-card">
+        <h3>Abandoned Call Rate — Weekly</h3>
+        <p>Abandoned unique ÷ total unique BH · lower is better</p>
+        <div class="chart-wrap" style="height:240px"><canvas id="details-abn-trend"></canvas></div>
+        ${buildAbnSummaryTable(r26, r25)}
+      </div>
+      <div class="chart-card">
+        <h3>Human answer % — week over week</h3>
+        <p>Unique BH sessions ending with a named human ÷ total unique BH volume</p>
+        <div class="chart-wrap" style="height:240px"><canvas id="details-human-pct"></canvas></div>
+      </div>
+    </div>
   `;
 
+  SANKEY_SEL.restaurantId = sankeyRestId;
+  SANKEY_SEL.week = sankeyWeek;
+  SANKEY_SEL._init = true;
+
   requestAnimationFrame(() => {
-    const m26 = aggByWeek(r26, 'callsInbound');
-    const m25 = aggByWeek(r25, 'callsInbound');
-    mkChart('details-inbound-all-trend', 'line', {
-      labels: weeks.map(w => 'W' + w),
-      datasets: [
-        { label: '2025 inbound', data: weeks.map(w => m25[w] || 0), borderColor: '#ff9f2e', backgroundColor: 'rgba(255,159,46,.10)', tension: .3, fill: true, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4 },
-        { label: '2026 inbound', data: weeks.map(w => m26[w] || 0), borderColor: '#f43f8e', backgroundColor: 'rgba(244,63,142,.12)', tension: .3, fill: true, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4 },
-      ],
-    });
-    mkChart('details-inbound-by-rest', 'line', {
-      labels: weeks.map(w => 'W' + w),
-      datasets: RESTS.map(rest => ({
-        label: rest.label,
-        data: weeks.map(w => r26.find(x => x.restaurantId === rest.id && x.week === w)?.callsInbound || 0),
-        borderColor: rest.color,
-        tension: .3,
-        fill: false,
-        borderWidth: 2.5,
-        pointRadius: 0,
-        pointHoverRadius: 4,
-      })),
-    });
+    paintReservationWaterfall('details-waterfall', locs);
+    paintDetailsInboundTrend('details-inbound-trend', weeks, r26, r25, rest);
+    if (restId === 'all') {
+      mkChart('details-inbound-by-rest', 'line', {
+        labels: weeks.map(w => 'W' + w),
+        datasets: RESTS.map(r => ({
+          label: r.label,
+          data: weeks.map(w => r26.find(x => x.restaurantId === r.id && x.week === w)?.callsInbound || 0),
+          borderColor: r.color,
+          tension: .3, fill: false, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4,
+        })),
+      });
+    }
+    paintDetailsAbnTrend('details-abn-trend', weeks, r26, r25, rest);
+    paintDetailsHumanAnswerPct('details-human-pct', weeks, r26, r25, rest);
+    mountDetailsSankey();
   });
+}
+
+function renderDetailsAllSites() {
+  renderDetailsShell({
+    title: 'All Sites',
+    restId: 'all',
+    r26: filteredWeeks(D.rows26),
+    r25: filteredWeeks(D.rows25),
+    weeks: getWeeks(),
+  });
+}
+
+function paintDetailsInboundTrend(canvasId, weeks, r26, r25, rest) {
+  const m26 = aggByWeek(r26, 'callsInbound');
+  const m25 = aggByWeek(r25, 'callsInbound');
+  mkChart(canvasId, 'line', {
+    labels: weeks.map(w => 'W' + w),
+    datasets: [
+      { label: '2025 inbound', data: weeks.map(w => m25[w] || 0), borderColor: '#ff9f2e', backgroundColor: 'rgba(255,159,46,.10)', tension: .3, fill: true, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4 },
+      { label: '2026 inbound', data: weeks.map(w => m26[w] || 0), borderColor: rest?.color || '#f43f8e', backgroundColor: (rest?.color || '#f43f8e') + '18', tension: .3, fill: true, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4 },
+    ],
+  }, rest ? { plugins: { annotation: { annotations: goLiveAnno(rest, weeks) } } } : undefined);
+}
+
+function paintDetailsAbnTrend(canvasId, weeks, r26, r25, rest) {
+  const rate = (rs, w) => {
+    const t = aggByWeek(rs, 'callsTotal')[w] || 0;
+    const a = aggByWeek(rs, 'callsAbandoned')[w] || 0;
+    return t > 0 ? a / t * 100 : null;
+  };
+  mkChart(canvasId, 'line', {
+    labels: weeks.map(w => 'W' + w),
+    datasets: [
+      { label: '2025 Abn%', data: weeks.map(w => rate(r25, w)), borderColor: '#ff9f2e', tension: .3, fill: false, borderWidth: 2.5, spanGaps: true, pointRadius: 0, pointHoverRadius: 4 },
+      { label: '2026 Abn%', data: weeks.map(w => rate(r26, w)), borderColor: rest?.color || '#f43f8e', tension: .3, fill: false, borderWidth: 2.5, spanGaps: true, pointRadius: 0, pointHoverRadius: 4 },
+    ],
+  }, {
+    scales: { y: { ticks: { callback: v => v?.toFixed?.(1) + '%' } } },
+    plugins: rest ? { annotation: { annotations: goLiveAnno(rest, weeks) } } : undefined,
+  });
+}
+
+function paintDetailsHumanAnswerPct(canvasId, weeks, r26, r25, rest) {
+  const pct = (rs, w) => {
+    const t = aggByWeek(rs, 'callsTotal')[w] || 0;
+    const h = aggByWeek(rs, 'callsHuman')[w] || 0;
+    return t > 0 ? h / t * 100 : null;
+  };
+  mkChart(canvasId, 'line', {
+    labels: weeks.map(w => 'W' + w),
+    datasets: [
+      { label: '2025 Human %', data: weeks.map(w => pct(r25, w)), borderColor: '#ff9f2e', tension: .3, fill: false, borderWidth: 2.5, spanGaps: true, pointRadius: 0, pointHoverRadius: 4 },
+      { label: '2026 Human %', data: weeks.map(w => pct(r26, w)), borderColor: '#22d98e', tension: .3, fill: false, borderWidth: 2.5, spanGaps: true, pointRadius: 0, pointHoverRadius: 4 },
+    ],
+  }, {
+    scales: { y: { beginAtZero: true, ticks: { callback: v => v?.toFixed?.(1) + '%' } } },
+    plugins: rest ? { annotation: { annotations: goLiveAnno(rest, weeks) } } : undefined,
+  });
+}
+
+function onDetailsSankeyFilterChange() {
+  const locEl = document.getElementById('details-sankey-loc');
+  const weekEl = document.getElementById('details-sankey-week');
+  if (locEl) SANKEY_SEL.restaurantId = locEl.value;
+  if (weekEl) SANKEY_SEL.week = +weekEl.value;
+  mountDetailsSankey();
+}
+
+function mountDetailsSankey() {
+  const root = document.getElementById('details-sankey-root');
+  if (!root) return;
+  const cat = getSankeyCatalog();
+  if (!cat) {
+    root.innerHTML = `<div class="table-card"><p class="loc-summary-note" style="margin:0">Sankey data not available yet — re-export compare.</p></div>`;
+    return;
+  }
+  const s = getActiveSankey();
+  if (!s || s.ok === false) {
+    root.innerHTML = `<div class="table-card"><p class="loc-summary-note" style="margin:0">No call-flow data for <b>${escHtml(SANKEY_SEL.restaurantId)}</b> · <b>W${SANKEY_SEL.week}</b>.</p></div>`;
+    return;
+  }
+  root.innerHTML = `
+    <p class="loc-summary-note" style="margin:0 0 14px">
+      <b>${escHtml(s.restaurantLabel)}</b> · <b>W${s.week}</b> · Unique calls only (same customer phone, ≤90s between legs = one call; outcome = <b>last</b> leg)
+    </p>
+    <div id="sankey-pdf-root">
+      <div class="chart-row cols-1" style="margin-bottom:16px">
+        <div class="chart-card">
+          <h3>Call flow — ${escHtml(s.restaurantLabel)} W${s.week}</h3>
+          <p class="no-print">Business hours only. Left→right: All inbound → MAIN vs Abandoned → HUMAN vs AI / If-No-Answer → HUMAN TOUCHED vs HUMAN did not.</p>
+          <div class="chart-wrap sankey-chart-wrap"><canvas id="sankey-inbound"></canvas></div>
+          <div id="sankey-def-panel" class="sankey-def-panel no-print" aria-live="polite">
+            <p class="sankey-def-hint">Click a Sankey node or flow to see what it means.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    ${buildSankeyHourDetailSection()}`;
+  requestAnimationFrame(() => paintSankeyChart());
 }
 
 function renderAllRestComparison() {
@@ -3698,157 +3842,15 @@ function renderAllRestComparison() {
 }
 
 function renderRestDetail(restId) {
-  const rest = RESTS.find(r=>r.id===restId);
-  // Week filter only — ignore global Location dropdown (user picks restaurant via tab buttons)
-  const r26 = filteredWeeks(D.rows26).filter(r=>r.restaurantId===restId);
-  const r25 = filteredWeeks(D.rows25).filter(r=>r.restaurantId===restId);
-  const weeks = getWeeks();
-
-  document.getElementById('rest-content').innerHTML = `
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-      <h2 style="font-size:20px;font-weight:700;color:${rest.color}">${rest.label}</h2>
-      <div class="golive-badge">◆ AI Live W${rest.goLive} · 2026</div>
-    </div>
-    ${kpiStripHtml(r26, r25)}
-    ${yoyVerdictBanner(r26, r25)}
-
-    <div class="section-head">Phone reservations vs prior year · before &amp; after AI</div>
-    <div class="chart-row cols-1">
-      <div class="chart-card">
-        <h3>Phone reservations by week — ${rest.label}</h3>
-        <p>2025 Phone/In-House vs 2026 stacked Phone/In-House + Phone/AI · dashed line = AI Live W${rest.goLive}</p>
-        <div class="chart-wrap" style="height:300px"><canvas id="rc-phone-impact-${restId}"></canvas></div>
-      </div>
-    </div>
-    <div class="table-card exec-kpi-card">
-      <h3>Before / After AI — phone impact vs 2025</h3>
-      ${buildPrePostPhoneTableHtml(rest, r26, r25)}
-    </div>
-
-    <div class="section-head">Exercise — Calls + Reservations by Source (2025 vs 2026)</div>
-    <div class="chart-row cols-1">
-      <div class="chart-card">
-        <h3>Exercise — ${rest.label}</h3>
-        <p>Grouped stacks: 2025 vs 2026 reservations by source · lines = total call volume · vertical line = AI go-live</p>
-        <div class="chart-wrap" style="height:340px"><canvas id="rc-exercise-${restId}"></canvas></div>
-      </div>
-    </div>
-
-    <div class="section-head">Call Volume</div>
-    <div class="chart-row cols-1">
-      <div class="chart-card">
-        <h3>Total Calls Handled — Weekly</h3>
-        <p>Unique BH inbound (Sankey rules) · 2025 vs 2026 · vertical line = AI go-live</p>
-        <div class="chart-wrap" style="height:280px"><canvas id="rc-calls-${restId}"></canvas></div>
-        ${buildCallsSummaryTable(r26, r25)}
-      </div>
-    </div>
-
-    <div class="section-head">Call Volume — Inbound only</div>
-    <div class="chart-row cols-1">
-      <div class="chart-card">
-        <h3>Inbound Calls — Weekly</h3>
-        <p>2025 vs 2026 · unique BH inbound (Customer Phone ≤90s) · vertical line = AI go-live</p>
-        <div class="chart-wrap" style="height:280px"><canvas id="rc-inbound-${restId}"></canvas></div>
-        ${buildInboundCallsSummaryTable(r26, r25)}
-      </div>
-    </div>
-
-    <div class="section-head">Conversion Rates</div>
-    <div class="chart-row cols-2">
-      <div class="chart-card">
-        <h3>Conversion Rate — 2025 vs 2026</h3>
-        <p>Human, AI, and total phone booking rates by week</p>
-        <p class="stat-note" style="margin-bottom:8px">Human Conv % = Phone/In-House ÷ Human Calls · AI Conv % = Phone/AI ÷ AI Calls · Total Conv % = (Phone/In-House + Phone/AI) ÷ (Human + AI calls)</p>
-        <div class="legend" style="margin-bottom:8px">
-          <div class="legend-item"><div class="legend-line" style="background:#ff9f2e"></div>2025 Human</div>
-          <div class="legend-item"><div class="legend-line" style="background:#22d98e"></div>2026 Human</div>
-          <div class="legend-item"><div class="legend-line" style="background:#b06ef5"></div>2026 AI</div>
-          <div class="legend-item"><div class="legend-line" style="background:#f43f8e"></div>2026 Total</div>
-        </div>
-        <div class="chart-wrap" style="height:220px"><canvas id="rc-conv-${restId}"></canvas></div>
-        ${buildConvSummaryTable(r26, r25)}
-      </div>
-      <div class="chart-card">
-        <h3>Phone Bookings — 2025 vs 2026</h3>
-        <p>Human phone vs AI phone bookings per week</p>
-        <div class="chart-wrap" style="height:220px"><canvas id="rc-phone-${restId}"></canvas></div>
-        ${buildPhoneSummaryTable(r26, r25)}
-      </div>
-    </div>
-
-    <div class="section-head">Reservation Sources</div>
-    <div class="chart-row cols-2">
-      <div class="chart-card">
-        <h3>Bookings by Source — 2026 YTD Mix</h3>
-        <p>Percentage breakdown of reservation sources</p>
-        <div class="chart-wrap" style="height:220px"><canvas id="rc-src-pie-${restId}"></canvas></div>
-      </div>
-      <div class="chart-card">
-        <h3>Bookings by Source — Weekly Trend</h3>
-        <p>OpenTable Network, Phone/AI, Phone/InHouse, Walk-in, Web</p>
-        <div class="chart-wrap" style="height:220px"><canvas id="rc-src-trend-${restId}"></canvas></div>
-      </div>
-    </div>
-
-    <div class="section-head">AI Performance (Hostie)</div>
-    <div class="kpi-row" style="grid-template-columns:repeat(5,1fr);margin-bottom:12px" id="rc-hostie-kpis-${restId}"></div>
-    <div class="chart-row cols-2">
-      <div class="chart-card">
-        <h3>AI Call Volume &amp; Transfer Rate — Weekly</h3>
-        <p>Hostie AI conversations (bars) and transfer rate % (line) · Transferred to Host = TRUE ÷ total Hostie calls</p>
-        <div class="chart-wrap" style="height:220px"><canvas id="rc-ai-${restId}"></canvas></div>
-      </div>
-      <div class="chart-card">
-        <h3>Pre-AI vs Post-AI — Avg Weekly Metrics</h3>
-        <p>Direct before/after comparison for this location</p>
-        <div class="chart-wrap" style="height:220px"><canvas id="rc-prepost-${restId}"></canvas></div>
-      </div>
-    </div>
-
-    <div class="section-head">Abandoned Calls</div>
-    <div class="chart-row cols-1">
-      <div class="chart-card">
-        <h3>Abandoned Call Rate — Weekly</h3>
-        <p>Abandoned calls ÷ total TalkDesk calls · lower is better</p>
-        <div class="chart-wrap" style="height:220px"><canvas id="rc-abn-${restId}"></canvas></div>
-        ${buildAbnSummaryTable(r26, r25)}
-      </div>
-    </div>
-
-    <div class="section-head">Weekly Detail Table — Matches Excel "By Restaurant" Tab</div>
-    <div class="table-card">
-      <h3>${rest.label} — Week-by-Week (W${F.wkFrom}–W${F.wkTo})</h3>
-      <p style="font-size:11px;color:var(--muted);margin-bottom:10px">Human Calls = total calls answered by a real agent (excl. If-No-Answer &amp; empty) · Human Conv % = Phone/In-House ÷ Human Calls · AI Conv % = Phone/AI ÷ AI Calls · Total Conv % = (Phone/In-House + Phone/AI) ÷ (Human + AI calls)</p>
-      ${CONV_FOOTNOTE}
-      <table>
-        <thead><tr>
-          <th>Week</th><th>AI?</th>
-          <th>Total 2025</th><th>Human Calls 2025</th><th>AI Calls 2025</th>
-          <th>Total 2026</th><th>Human Calls 2026</th><th>AI Calls 2026</th>
-          <th>Books 2025</th><th>Books 2026</th><th>Phone/AI</th><th>OT Net</th>
-          <th>Human Conv % 2025</th><th>Human Conv % 2026</th><th>AI Conv % 2026</th><th>Total Conv % 2026</th>
-          <th>Calls Var%</th>
-        </tr></thead>
-        <tbody id="rc-table-${restId}"></tbody>
-      </table>
-    </div>
-  `;
-
-  requestAnimationFrame(() => {
-    buildPhoneImpactVolumeChart(`rc-phone-impact-${restId}`, weeks, r26, r25, rest);
-    buildExerciseChart(`rc-exercise-${restId}`, weeks, r26, r25, rest);
-    buildRcCalls(restId, rest, weeks, r26, r25);
-    buildRcInboundCalls(restId, rest, weeks, r26, r25);
-    buildRcAbn(restId, rest, weeks, r26, r25);
-    buildRcConv(restId, rest, weeks, r26, r25);
-    buildRcPhone(restId, rest, weeks, r26, r25);
-    buildRcSrcPie(restId, r26);
-    buildRcSrcTrend(restId, rest, weeks, r26);
-    buildRcHostieKpis(restId, rest, r26);
-    buildRcAI(restId, rest, weeks, r26);
-    buildRcPrePost(restId, rest, r26);
-    buildRcTable(restId, rest, weeks, r26, r25);
+  const rest = RESTS.find(r => r.id === restId);
+  renderDetailsShell({
+    title: rest.label,
+    titleColor: rest.color,
+    restId,
+    rest,
+    r26: filteredWeeks(D.rows26).filter(r => r.restaurantId === restId),
+    r25: filteredWeeks(D.rows25).filter(r => r.restaurantId === restId),
+    weeks: getWeeks(),
   });
 }
 
@@ -4746,7 +4748,7 @@ async function loadPeople(week) {
 }
 
 let _peopleSelectedWeek = null;
-let _peopleActivePanel = 'cc';
+let _peopleActivePanel = 'coverage';
 
 function resolvePeopleWeek() {
   const cutoff = D?.cutoff || 53;
@@ -4786,10 +4788,8 @@ async function renderPeople() {
     _peopleSelectedWeek = week;
     const j = await loadPeople(week);
     if (!j.ok) {
-      el.innerHTML = `${callCenterSummaryHtml()}
-        <div class="table-card"><p>${j.error || 'Agent report not available.'}</p>
+      el.innerHTML = `<div class="table-card"><p>${j.error || 'Agent report not available.'}</p>
         <div class="stat-note">Ensure TalkDesk CSV is in <code>data/</code> and re-export the dashboard.</div></div>`;
-      requestAnimationFrame(() => paintCallCenterSummaryCharts());
       return;
     }
 
@@ -4942,15 +4942,10 @@ async function renderPeople() {
         <span class="people-note">Source: ${j.sources?.csv || '—'} · Generated ${j.generatedAt ? new Date(j.generatedAt).toLocaleString() : '—'} · through W${D.cutoff}<span id="people-save-hint"></span></span>
       </div>
       <div class="people-subtabs" id="people-subtabs">
-        <button class="people-subtab active" data-people-panel="cc">Summary — Call Center</button>
+        <button class="people-subtab active" data-people-panel="coverage">Staffing vs AI</button>
         <button class="people-subtab" data-people-panel="ring">Summary — Ring Groups</button>
-        <button class="people-subtab" data-people-panel="type">Summary — Type of Call</button>
         <button class="people-subtab" data-people-panel="peak">Summary — Peak Times</button>
-        <button class="people-subtab" data-people-panel="hours">Staff Hours</button>
-        <button class="people-subtab" data-people-panel="coverage">Staffing vs AI</button>
       </div>
-
-      ${callCenterSummaryHtml()}
 
       <div id="people-panel-ring" style="display:none">
         <div class="table-card" style="overflow:auto">
@@ -4980,84 +4975,16 @@ async function renderPeople() {
         </div>
       </div>
 
-      <div id="people-panel-type" style="display:none">
-        <div class="kpi-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px" id="people-type-kpis"></div>
-        <div class="chart-row cols-2">
-          <div class="chart-card">
-            <h3>Type of Call — Week mix</h3>
-            <p>Disposition share for W<span id="people-type-week-label">${j.selectedWeek}</span></p>
-            <div class="chart-wrap" style="height:260px"><canvas id="people-type-pie"></canvas></div>
-          </div>
-          <div class="chart-card">
-            <h3>Type of Call — Volume</h3>
-            <p>Week vs MTD counts by disposition</p>
-            <div class="chart-wrap" style="height:260px"><canvas id="people-type-bar"></canvas></div>
-          </div>
-        </div>
-        <div class="chart-row cols-1">
-          <div class="chart-card">
-            <h3>By agent — Week disposition mix</h3>
-            <p>Top agents · stacked by type (hover for counts)</p>
-            <div class="chart-wrap" style="height:320px"><canvas id="people-type-agents"></canvas></div>
-          </div>
-        </div>
-        <div class="table-card" style="overflow:auto;margin-top:14px">
-          <h3>Summary — Type of Call (detail)</h3>
-          <p class="people-note">From TalkDesk Disposition Code · empty = NA · Goal: &lt;20% NA for data quality</p>
-          <table class="people-table">
-            <thead>
-              <tr><th style="text-align:left">Agent</th>${typeHdr}</tr>
-            </thead>
-            <tbody>
-              <tr style="font-weight:600"><td style="text-align:left">Total</td>${typeCells(j.typeOfCall.totals?.week)}</tr>
-              ${typeAgentRows}
-            </tbody>
-          </table>
-          <h3 style="margin-top:20px">P${j.fiscalPeriod || ''} · W${j.mtdFromWeek}–W${j.mtdToWeek} (period-to-date)</h3>
-          <table class="people-table">
-            <thead><tr><th>Agent</th>${typeHdr}</tr></thead>
-            <tbody>
-              <tr style="font-weight:600"><td style="text-align:left">Total</td>${typeCells(j.typeOfCall.totals?.mtd)}</tr>
-              ${(j.typeOfCall.agents||[]).map(a => `<tr class="${a.isAi?'ai-row':''}"><td style="text-align:left">${a.isAi?'AI Agent':a.agentName}</td>${typeCols.map(c=>`<td>${fmtNum(a.mtd.types?.[c])}</td>`).join('')}<td>${fmtPct(a.mtd.naPct)}</td><td>${fmtNum(a.mtd.total)}</td></tr>`).join('')}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
       <div id="people-panel-peak" style="display:none">
-        <div class="kpi-row" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px" id="people-peak-kpis"></div>
-        <div class="chart-row cols-2">
-          <div class="chart-card">
-            <h3>Volume by day — Week ${j.selectedWeek}</h3>
-            <p>Inbound (Taken), Outbound, Abandoned, Missed</p>
-            <div class="chart-wrap" style="height:280px"><canvas id="people-peak-byday"></canvas></div>
-          </div>
-          <div class="chart-card">
-            <h3>Week total mix</h3>
-            <p>Share of call types for the full week</p>
-            <div class="chart-wrap" style="height:280px"><canvas id="people-peak-weekmix"></canvas></div>
-          </div>
-        </div>
         <div class="chart-row cols-1">
           <div class="chart-card">
             <h3>Inbound, outbound &amp; missed by hour</h3>
-            <p>Taken (inbound), outbound, abandoned, and missed volume across the week</p>
-            <div class="chart-wrap" style="height:240px"><canvas id="people-peak-byhour"></canvas></div>
+            <p>Week ${j.selectedWeek} · Taken (inbound), outbound, abandoned, and missed</p>
+            <div class="chart-wrap" style="height:280px"><canvas id="people-peak-byhour"></canvas></div>
           </div>
         </div>
-        <div class="table-card peak-wrap" style="margin-top:14px">
-          <h3>Hour × day detail</h3>
-          <p class="people-note">Week ${j.selectedWeek} · Taken = inbound · Missed = missed / outbound_missed / voicemail</p>
-          <table class="peak-table">
-            <thead>
-              <tr><th class="time-col" rowspan="2">Time</th>${peakHdr}</tr>
-              <tr>${peakSub}</tr>
-            </thead>
-            <tbody>${peakRows}${peakTotalRow}</tbody>
-          </table>
-        </div>
       </div>
-      <div id="people-panel-coverage" style="display:none">
+      <div id="people-panel-coverage">
         <div class="table-card">
           <div class="overview-toolbar no-print" style="margin:0 0 12px;justify-content:space-between;align-items:center">
             <h3 style="margin:0">Staffing vs AI</h3>
@@ -5078,30 +5005,6 @@ async function renderPeople() {
           </div>
         </div>
       </div>
-      <div id="people-panel-hours" style="display:none">
-        <div class="table-card" style="overflow:visible">
-          <h3>Staff Hours — ending W${j.selectedWeek}</h3>
-          <p class="people-note">Change the week below to slide the 5-week window and refresh hours. W40+ come from ADP punch reports — <b>click a name</b> for clock in/out by day.</p>
-          <div class="hours-week-bar">
-            <label>Week</label>
-            <button type="button" class="rest-btn" id="hours-week-prev" title="Previous week">←</button>
-            <input type="number" id="hours-week" min="1" max="53" value="${j.selectedWeek}">
-            <button type="button" class="rest-btn" id="hours-week-next" title="Next week">→</button>
-            <button type="button" class="rest-btn" id="hours-week-go">Apply</button>
-            <span class="hours-week-label">Showing W${Math.max(1, j.selectedWeek - 4)}–W${j.selectedWeek} · selected <b>W${j.selectedWeek}</b></span>
-          </div>
-          <div class="hours-cal-toolbar">
-            <span class="people-note" id="hours-edit-hint"></span>
-            <span id="hours-save-hint" class="save-hint"></span>
-          </div>
-          <div id="hours-cal-root"><div class="loading">Loading hours…</div></div>
-          <div class="hours-cal-add" id="hours-cal-add" style="display:none">
-            <input type="text" id="hours-new-agent" placeholder="Add person (full name)" autocomplete="off">
-            <button class="rest-btn" id="hours-add-agent" type="button">Add person</button>
-          </div>
-        </div>
-        <div id="punch-modal-root"></div>
-      </div>
     `;
 
     // stash report for chart renderers when panels open
@@ -5114,22 +5017,6 @@ async function renderPeople() {
     document.getElementById('people-week-go')?.addEventListener('click', goPeopleWeek);
     document.getElementById('people-week')?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') { e.preventDefault(); goPeopleWeek(); }
-    });
-
-    const goHoursWeek = () => {
-      const w = +document.getElementById('hours-week').value;
-      if (w >= 1 && w <= 53) applyPeopleWeek(w, { panel: 'hours' });
-    };
-    document.getElementById('hours-week-go')?.addEventListener('click', goHoursWeek);
-    document.getElementById('hours-week')?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); goHoursWeek(); }
-    });
-    document.getElementById('hours-week-prev')?.addEventListener('click', () => {
-      applyPeopleWeek(Math.max(1, (j.selectedWeek || 1) - 1), { panel: 'hours' });
-    });
-    document.getElementById('hours-week-next')?.addEventListener('click', () => {
-      const cap = D?.cutoff || 53;
-      applyPeopleWeek(Math.min(cap, (j.selectedWeek || 1) + 1), { panel: 'hours' });
     });
 
     const goCoverageWeek = () => {
@@ -5154,25 +5041,21 @@ async function renderPeople() {
         _peopleActivePanel = panel;
         document.querySelectorAll('.people-subtab').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        ['cc','ring','type','peak','hours','coverage'].forEach(p => {
+        ['ring', 'peak', 'coverage'].forEach(p => {
           const node = document.getElementById('people-panel-' + p);
           if (node) node.style.display = p === panel ? '' : 'none';
         });
-        if (panel === 'cc') requestAnimationFrame(() => paintCallCenterSummaryCharts());
-        if (panel === 'type') requestAnimationFrame(() => renderPeopleTypeCharts(window._peopleReport));
         if (panel === 'peak') requestAnimationFrame(() => renderPeoplePeakCharts(window._peopleReport));
-        if (panel === 'hours') requestAnimationFrame(() => renderStaffHoursPanel(window._peopleReport));
         if (panel === 'coverage') requestAnimationFrame(() => renderCoverageLabPanel(window._peopleReport));
       });
     });
 
-    // Restore last sub-panel (so week changes on Staff Hours stay there)
-    const restore = _peopleActivePanel || 'cc';
+    const restore = ['coverage', 'ring', 'peak'].includes(_peopleActivePanel) ? _peopleActivePanel : 'coverage';
     const restoreBtn = document.querySelector(`.people-subtab[data-people-panel="${restore}"]`);
-    if (restoreBtn && restore !== 'cc') {
+    if (restoreBtn && restore !== 'coverage') {
       restoreBtn.click();
     } else {
-      requestAnimationFrame(() => paintCallCenterSummaryCharts());
+      requestAnimationFrame(() => renderCoverageLabPanel(window._peopleReport));
     }
 
     el.querySelectorAll('.hours-input').forEach(input => {
@@ -6267,87 +6150,19 @@ function renderPeoplePeakCharts(j) {
   const days = j.peakTimes.days || [];
   const hours = j.peakTimes.hours || [];
   const grid = j.peakTimes.grid || {};
-  const tot = j.peakTimes.totals || { taken:0, missed:0, outbound:0, abandoned:0 };
-  const grand = j.peakTimes.totalCalls || 1;
-
-  const byDay = days.map(day => {
-    let taken=0, missed=0, outbound=0, abandoned=0;
-    hours.forEach(h => {
-      const c = grid[h]?.[day] || {};
-      taken += c.taken||0; missed += c.missed||0; outbound += c.outbound||0; abandoned += c.abandoned||0;
-    });
-    return { day, taken, missed, outbound, abandoned, total: taken+missed+outbound+abandoned };
-  });
-
-  const kpi = document.getElementById('people-peak-kpis');
-  if (kpi) {
-    kpi.innerHTML = `
-      <div class="kpi"><div class="kpi-label">Week volume</div><div class="kpi-value">${grand.toLocaleString()}</div><div class="kpi-sub">All types</div></div>
-      <div class="kpi"><div class="kpi-label">Inbound</div><div class="kpi-value" style="color:var(--human)">${(tot.taken||0).toLocaleString()}</div><div class="kpi-sub">${((tot.taken||0)/grand*100).toFixed(1)}%</div></div>
-      <div class="kpi"><div class="kpi-label">Outbound</div><div class="kpi-value" style="color:#3d8ef8">${(tot.outbound||0).toLocaleString()}</div><div class="kpi-sub">${((tot.outbound||0)/grand*100).toFixed(1)}%</div></div>
-      <div class="kpi"><div class="kpi-label">Abandoned</div><div class="kpi-value" style="color:#fbbf24">${(tot.abandoned||0).toLocaleString()}</div><div class="kpi-sub">${((tot.abandoned||0)/grand*100).toFixed(1)}%</div></div>
-      <div class="kpi"><div class="kpi-label">Missed</div><div class="kpi-value" style="color:var(--red)">${(tot.missed||0).toLocaleString()}</div><div class="kpi-sub">${((tot.missed||0)/grand*100).toFixed(1)}%</div></div>`;
-  }
-
-  mkChart('people-peak-byday','bar',{
-    labels: byDay.map(d => d.day.slice(0,3)),
-    datasets:[
-      { label:'Inbound', data: byDay.map(d=>d.taken), backgroundColor: PEAK_COLORS.taken+'bb', stack:'s', borderRadius:3 },
-      { label:'Outbound', data: byDay.map(d=>d.outbound), backgroundColor: PEAK_COLORS.outbound+'bb', stack:'s', borderRadius:3 },
-      { label:'Abandoned', data: byDay.map(d=>d.abandoned), backgroundColor: PEAK_COLORS.abandoned+'bb', stack:'s', borderRadius:3 },
-      { label:'Missed', data: byDay.map(d=>d.missed), backgroundColor: PEAK_COLORS.missed+'bb', stack:'s', borderRadius:3 },
-    ]
-  },{scales:{x:{stacked:true},y:{stacked:true}},plugins:{legend:{display:true,labels:{color:'#c8cde0'}}}});
-
-  mkChart('people-peak-weekmix','doughnut',{
-    labels:['Inbound','Outbound','Abandoned','Missed'],
-    datasets:[{
-      data:[tot.taken||0, tot.outbound||0, tot.abandoned||0, tot.missed||0],
-      backgroundColor:[PEAK_COLORS.taken+'cc', PEAK_COLORS.outbound+'cc', PEAK_COLORS.abandoned+'cc', PEAK_COLORS.missed+'cc'],
-      borderColor:[PEAK_COLORS.taken, PEAK_COLORS.outbound, PEAK_COLORS.abandoned, PEAK_COLORS.missed],
-      borderWidth:1
-    }]
-  },{plugins:{legend:{display:true,position:'right',labels:{color:'#c8cde0'}},tooltip:{callbacks:{label:ctx=>{
-    const v=ctx.raw||0; return ` ${ctx.label}: ${v.toLocaleString()} (${(v/grand*100).toFixed(1)}%)`;
-  }}}},scales:{x:{display:false},y:{display:false}}});
-
-  const hourTaken = hours.map(h => days.reduce((s,d)=>s+(grid[h]?.[d]?.taken||0),0));
-  const hourOutbound = hours.map(h => days.reduce((s,d)=>s+(grid[h]?.[d]?.outbound||0),0));
-  const hourAbandoned = hours.map(h => days.reduce((s,d)=>s+(grid[h]?.[d]?.abandoned||0),0));
-  const hourMissed = hours.map(h => days.reduce((s,d)=>s+(grid[h]?.[d]?.missed||0),0));
-  mkChart('people-peak-byhour','line',{
+  const hourTaken = hours.map(h => days.reduce((s, d) => s + (grid[h]?.[d]?.taken || 0), 0));
+  const hourOutbound = hours.map(h => days.reduce((s, d) => s + (grid[h]?.[d]?.outbound || 0), 0));
+  const hourAbandoned = hours.map(h => days.reduce((s, d) => s + (grid[h]?.[d]?.abandoned || 0), 0));
+  const hourMissed = hours.map(h => days.reduce((s, d) => s + (grid[h]?.[d]?.missed || 0), 0));
+  mkChart('people-peak-byhour', 'line', {
     labels: hours,
-    datasets:[
-      {
-        label:'Inbound',
-        data: hourTaken,
-        borderColor: PEAK_COLORS.taken,
-        backgroundColor: PEAK_COLORS.taken+'22',
-        fill:false, tension:.35, borderWidth:2.5, pointRadius:2, pointHoverRadius:4
-      },
-      {
-        label:'Outbound',
-        data: hourOutbound,
-        borderColor: PEAK_COLORS.outbound,
-        backgroundColor: PEAK_COLORS.outbound+'18',
-        fill:false, tension:.35, borderWidth:2.5, pointRadius:2, pointHoverRadius:4
-      },
-      {
-        label:'Abandoned',
-        data: hourAbandoned,
-        borderColor: PEAK_COLORS.abandoned,
-        backgroundColor: PEAK_COLORS.abandoned+'18',
-        fill:false, tension:.35, borderWidth:2.5, pointRadius:2, pointHoverRadius:4
-      },
-      {
-        label:'Missed',
-        data: hourMissed,
-        borderColor: PEAK_COLORS.missed,
-        backgroundColor: PEAK_COLORS.missed+'18',
-        fill:false, tension:.35, borderWidth:2.5, pointRadius:2, pointHoverRadius:4
-      },
-    ]
-  },{plugins:{legend:{display:true,labels:{color:'#c8cde0',boxWidth:10,font:{size:10}}}}});
+    datasets: [
+      { label: 'Inbound', data: hourTaken, borderColor: PEAK_COLORS.taken, backgroundColor: PEAK_COLORS.taken + '22', fill: false, tension: .35, borderWidth: 2.5, pointRadius: 2, pointHoverRadius: 4 },
+      { label: 'Outbound', data: hourOutbound, borderColor: PEAK_COLORS.outbound, backgroundColor: PEAK_COLORS.outbound + '18', fill: false, tension: .35, borderWidth: 2.5, pointRadius: 2, pointHoverRadius: 4 },
+      { label: 'Abandoned', data: hourAbandoned, borderColor: PEAK_COLORS.abandoned, backgroundColor: PEAK_COLORS.abandoned + '18', fill: false, tension: .35, borderWidth: 2.5, pointRadius: 2, pointHoverRadius: 4 },
+      { label: 'Missed', data: hourMissed, borderColor: PEAK_COLORS.missed, backgroundColor: PEAK_COLORS.missed + '18', fill: false, tension: .35, borderWidth: 2.5, pointRadius: 2, pointHoverRadius: 4 },
+    ],
+  }, { plugins: { legend: { display: true, labels: { color: '#c8cde0', boxWidth: 10, font: { size: 10 } } } } });
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -7195,6 +7010,7 @@ async function renderSettings() {
 // ═══════════════════════════════════════════════════════════════
 function showTab(name) {
   if (name === 'report' || name === 'calls') name = name === 'calls' ? 'people' : 'overview';
+  if (name === 'sankey') name = 'byrest'; // AI Analysis folded into Details
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav .tab-btn').forEach(b => b.classList.remove('active'));
   const page = document.getElementById('page-' + name);
@@ -7202,18 +7018,17 @@ function showTab(name) {
   const btn = document.querySelector(`.nav .tab-btn[data-tab="${name}"]`);
   if (btn) btn.classList.add('active');
   try { history.replaceState(null, '', name === 'overview' ? location.pathname + location.search : '#' + name); } catch (_) {}
-  if (name === 'sankey') requestAnimationFrame(() => paintSankeyChart());
   if (name === 'people') {
     const panel = document.querySelector('.people-subtab.active')?.dataset?.peoplePanel;
-    if (panel === 'cc') requestAnimationFrame(() => paintCallCenterSummaryCharts());
+    if (panel === 'coverage') requestAnimationFrame(() => renderCoverageLabPanel(window._peopleReport));
+    if (panel === 'peak') requestAnimationFrame(() => renderPeoplePeakCharts(window._peopleReport));
   }
+  if (name === 'byrest') requestAnimationFrame(() => { if (document.getElementById('details-sankey-root')) mountDetailsSankey(); });
 }
 
 // ═══════════════════════════════════════════════════════════════
 //  SANKEY DIAGRAM TAB
 // ═══════════════════════════════════════════════════════════════
-let SANKEY_SEL = { restaurantId: 'mila', week: 39 };
-
 function getSankeyCatalog() {
   const cat = D?.callSankey;
   if (!cat || cat.ok === false) return null;
@@ -7243,11 +7058,7 @@ function getActiveSankey() {
 }
 
 function onSankeyFilterChange() {
-  const loc = document.getElementById('sankey-loc');
-  const wk = document.getElementById('sankey-week');
-  if (loc) SANKEY_SEL.restaurantId = loc.value;
-  if (wk) SANKEY_SEL.week = +wk.value;
-  renderSankey();
+  onDetailsSankeyFilterChange();
 }
 
 function buildSankeyBounceCompareTable() {
@@ -7304,17 +7115,12 @@ function buildSankeyBounceCompareTable() {
     </div>`;
 }
 
+/** AI Analysis tab removed — Sankey + hour detail mount under Details. */
 function renderSankey() {
   const el = document.getElementById('page-sankey');
-  if (!el || !D) return;
+  if (el) el.innerHTML = '';
   const cat = getSankeyCatalog();
-  if (!cat) {
-    const err = D.callSankey?.error || 're-export compare to build call-flow data';
-    el.innerHTML = `<div class="section-head">AI Analysis</div>
-      <div class="table-card"><p class="loc-summary-note" style="margin:0">Sankey data not available yet — ${escHtml(err)}.</p></div>`;
-    return;
-  }
-
+  if (!cat || !D) return;
   if (!SANKEY_SEL._init) {
     SANKEY_SEL.restaurantId = cat.defaultRestaurantId || 'mila';
     const prefer = D.cutoff;
@@ -7323,89 +7129,6 @@ function renderSankey() {
       : (cat.defaultWeek || prefer || 39);
     SANKEY_SEL._init = true;
   }
-
-  const weeksWithData = new Set(cat.weeksWithData || []);
-  const restaurants = cat.restaurants?.length
-    ? cat.restaurants
-    : (D.restaurants || []).map(r => ({ id: r.id, label: r.label }));
-  const weeks = cat.weeks?.length ? cat.weeks : Array.from({ length: 52 }, (_, i) => 52 - i);
-
-  const locOpts = restaurants.map(r =>
-    `<option value="${escHtml(r.id)}" ${r.id === SANKEY_SEL.restaurantId ? 'selected' : ''}>${escHtml(r.label)}</option>`
-  ).join('');
-  const weekOpts = weeks.map(w => {
-    const has = weeksWithData.has(w);
-    const mark = has ? '' : ' — no data';
-    return `<option value="${w}" ${w === SANKEY_SEL.week ? 'selected' : ''}${has ? '' : ''}>W${w}${mark}</option>`;
-  }).join('');
-
-  const s = getActiveSankey();
-  const dataHint = weeksWithData.size
-    ? `Data available: ${[...weeksWithData].sort((a,b)=>b-a).map(w => 'W' + w).join(', ')}`
-    : 'No weeks with data yet';
-
-  if (!s || s.ok === false) {
-    el.innerHTML = `
-      <div class="overview-toolbar no-print" style="margin:0 0 12px;justify-content:space-between;align-items:center">
-        <div class="section-head" style="margin:0">AI Analysis</div>
-        <button type="button" class="btn-export" id="sankey-pdf-btn" disabled title="No data for this filter">Export PDF</button>
-      </div>
-      <div class="sankey-controls">
-        <div class="filter-group"><span class="filter-label">Location</span>
-          <select id="sankey-loc" onchange="onSankeyFilterChange()">${locOpts}</select></div>
-        <div class="filter-group"><span class="filter-label">Week</span>
-          <select id="sankey-week" onchange="onSankeyFilterChange()">${weekOpts}</select></div>
-        <span class="sankey-data-hint">${escHtml(dataHint)}</span>
-      </div>
-      <div class="table-card"><p class="loc-summary-note" style="margin:0">
-        No call-flow data for <b>${escHtml(restaurants.find(r=>r.id===SANKEY_SEL.restaurantId)?.label || SANKEY_SEL.restaurantId)}</b> · <b>W${SANKEY_SEL.week}</b>.
-        Pick a week marked with data (${escHtml(dataHint)}).
-      </p></div>`;
-    return;
-  }
-
-  el.innerHTML = `
-    <div class="overview-toolbar no-print" style="margin:0 0 12px;justify-content:space-between;align-items:center">
-      <div class="section-head" style="margin:0">AI Analysis</div>
-      <button type="button" class="btn-export" id="sankey-pdf-btn" onclick="exportSankeyPdf()">Export PDF</button>
-    </div>
-    <div class="sankey-controls no-print">
-      <div class="filter-group"><span class="filter-label">Location</span>
-        <select id="sankey-loc" onchange="onSankeyFilterChange()">${locOpts}</select></div>
-      <div class="filter-group"><span class="filter-label">Week</span>
-        <select id="sankey-week" onchange="onSankeyFilterChange()">${weekOpts}</select></div>
-      <span class="sankey-data-hint">${escHtml(dataHint)}</span>
-    </div>
-    <p class="loc-summary-note" style="margin:0 0 14px">
-      <b>${escHtml(s.restaurantLabel)}</b> · <b>W${s.week}</b> · Unique calls only (same customer phone, ≤90s between legs = one call; outcome = <b>last</b> leg) · Did they get a <b>human</b> at the end?
-    </p>
-    ${buildSankeyOutcomeKpis(s)}
-    ${buildSankeyBounceCompareTable()}
-    <div id="sankey-pdf-root">
-      <div class="chart-row cols-1" style="margin-bottom:16px">
-        <div class="chart-card">
-          <h3>Call flow — ${escHtml(s.restaurantLabel)} W${s.week}</h3>
-          <p class="no-print">Business hours only. Left→right: All inbound → <b>MAIN</b> vs <b>Abandoned</b> → HUMAN vs <b>AI / If-No-Answer</b> → transfer / AI only / hangup reason → <b>HUMAN TOUCHED</b> (top) vs <b>HUMAN did not</b> (bottom). Labels = # · % of total.</p>
-          <div class="chart-wrap sankey-chart-wrap"><canvas id="sankey-inbound"></canvas></div>
-          <div id="sankey-def-panel" class="sankey-def-panel no-print" aria-live="polite">
-            <p class="sankey-def-hint">Click a Sankey node or flow (or a row in the breakdown) to see what it means and which calls are included.</p>
-          </div>
-          <div class="stat-note no-print" style="margin-top:10px">${(s.notes || []).map(n => escHtml(n)).join(' · ')}</div>
-        </div>
-      </div>
-    </div>
-    <div class="chart-row cols-1" style="margin-top:12px">
-      <div class="chart-card">
-        <h3>Abandoned % of unique calls — by week</h3>
-        <p>Unique BH calls whose last leg is abandoned (never reached a human) · ${escHtml(s.restaurantLabel)}</p>
-        <div class="chart-wrap" style="height:240px"><canvas id="sankey-abandoned-week"></canvas></div>
-      </div>
-    </div>
-    ${buildSankeyHourDetailSection()}`;
-  requestAnimationFrame(() => {
-    paintSankeyChart();
-    paintSankeyAbandonedWeekly(s.restaurantId);
-  });
 }
 
 function buildSankeyOutcomeKpis(s) {
