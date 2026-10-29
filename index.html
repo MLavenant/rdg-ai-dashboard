@@ -1449,6 +1449,72 @@ function buildCallsSummaryTable(r26, r25) {
   </div>`;
 }
 
+/** Same period strip as Call Volume, but TalkDesk inbound only (callsInbound). */
+function buildInboundCallsSummaryTable(r26, r25) {
+  const periods = [
+    { key:'lw', label:`Last Week (W${D.lastWeek})` },
+    { key:'mtd', label: fiscalMtdHeader(D.cutoff) },
+    { key:'ytd', label:`YTD (W${ANALYSIS_START_WEEK}–W${D.cutoff})` },
+  ];
+  const rows = periods.map(p => {
+    const s26 = periodRows(r26, p.key), s25 = periodRows(r25, p.key);
+    const t25 = sum(s25, 'callsInbound'), t26 = sum(s26, 'callsInbound');
+    const delta = t25 > 0 ? ((t26 - t25) / t25 * 100) : 0;
+    const cls = delta >= 0 ? 'heat-good' : 'heat-bad';
+    return `<tr>
+      <td class="period-label">${p.label}</td>
+      <td>${t25.toLocaleString()}</td>
+      <td><span class="heat ${cls}">${t26.toLocaleString()}</span></td>
+      <td class="${delta >= 0 ? 'up' : 'dn'}">${delta >= 0 ? '+' : ''}${delta.toFixed(1)}%</td>
+    </tr>`;
+  }).join('');
+  return `<div class="period-summary">
+    <table>
+      <thead><tr>
+        <th></th><th>Inbound 2025</th><th>Inbound 2026</th><th>YoY %</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="stat-note">Inbound only (TalkDesk Call Type = inbound) · excludes abandoned / outbound from this total</div>
+  </div>`;
+}
+
+function buildInboundCallsByLocationTable(r26, r25) {
+  const periods = [
+    { key: 'lw', label: `Last Week (W${D.lastWeek})` },
+    { key: 'mtd', label: fiscalMtdHeader(D.cutoff) },
+    { key: 'ytd', label: `YTD (W${ANALYSIS_START_WEEK}–W${D.cutoff})` },
+  ];
+  const head = periods.map(p =>
+    `<th>${p.label}<br><span style="font-weight:500;color:var(--muted)">2025</span></th><th>${p.label}<br><span style="font-weight:500;color:var(--muted)">2026</span></th><th>YoY</th>`
+  ).join('');
+  const body = RESTS.map(rest => {
+    const cells = periods.map(p => {
+      const s26 = periodRows(r26.filter(r => r.restaurantId === rest.id), p.key);
+      const s25 = periodRows(r25.filter(r => r.restaurantId === rest.id), p.key);
+      const t25 = sum(s25, 'callsInbound'), t26 = sum(s26, 'callsInbound');
+      const delta = t25 > 0 ? ((t26 - t25) / t25 * 100) : null;
+      const cls = delta == null ? '' : delta >= 0 ? 'up' : 'dn';
+      return `<td>${t25.toLocaleString()}</td><td><b>${t26.toLocaleString()}</b></td><td class="${cls}">${delta == null ? '—' : (delta >= 0 ? '+' : '') + delta.toFixed(1) + '%'}</td>`;
+    }).join('');
+    return `<tr><td><span style="color:${rest.color};font-weight:700">${rest.label}</span></td>${cells}</tr>`;
+  }).join('');
+  const tot = periods.map(p => {
+    const s26 = periodRows(r26, p.key), s25 = periodRows(r25, p.key);
+    const t25 = sum(s25, 'callsInbound'), t26 = sum(s26, 'callsInbound');
+    const delta = t25 > 0 ? ((t26 - t25) / t25 * 100) : null;
+    const cls = delta == null ? '' : delta >= 0 ? 'up' : 'dn';
+    return `<td><b>${t25.toLocaleString()}</b></td><td><b>${t26.toLocaleString()}</b></td><td class="${cls}"><b>${delta == null ? '—' : (delta >= 0 ? '+' : '') + delta.toFixed(1) + '%'}</b></td>`;
+  }).join('');
+  return `<div class="table-card" style="margin-top:12px">
+    <h3>Inbound calls vs PY — by location</h3>
+    <table>
+      <thead><tr><th>Location</th>${head}</tr></thead>
+      <tbody>${body}<tr class="total-row"><td><b>All</b></td>${tot}</tr></tbody>
+    </table>
+  </div>`;
+}
+
 function buildAbnSummaryTable(r26, r25) {
   const periods = [
     { key:'lw', label:`Last Week (W${D.lastWeek})` },
@@ -3382,8 +3448,8 @@ function renderByRest() {
   // Prefer global location filter when a single site is selected
   if (F.location && F.location !== 'all' && RESTS.some(r => r.id === F.location)) {
     activeRest = F.location;
-  } else if (!RESTS.some(r => r.id === activeRest)) {
-    activeRest = RESTS[0].id;
+  } else if (activeRest !== 'all' && !RESTS.some(r => r.id === activeRest)) {
+    activeRest = 'all';
   }
 
   pg.innerHTML = `
@@ -3391,6 +3457,17 @@ function renderByRest() {
     <div id="rest-content"></div>
   `;
   const btns = document.getElementById('rest-btns');
+
+  const allBtn = document.createElement('button');
+  allBtn.className = 'rest-btn' + (activeRest === 'all' ? ' active' : '');
+  allBtn.textContent = 'All Sites';
+  if (activeRest === 'all') {
+    allBtn.style.background = 'linear-gradient(90deg,#3d8ef8,#b06ef5)';
+    allBtn.style.borderColor = 'transparent';
+    allBtn.style.color = '#fff';
+  }
+  allBtn.onclick = () => { activeRest = 'all'; renderByRest(); };
+  btns.appendChild(allBtn);
 
   RESTS.forEach(r => {
     const b = document.createElement('button');
@@ -3401,7 +3478,68 @@ function renderByRest() {
     btns.appendChild(b);
   });
 
-  renderRestDetail(activeRest);
+  if (activeRest === 'all') renderDetailsInboundAllSites();
+  else renderRestDetail(activeRest);
+}
+
+/** Details · All Sites — inbound-only call volume (same pattern as Call Volume). */
+function renderDetailsInboundAllSites() {
+  const r26 = filteredWeeks(D.rows26);
+  const r25 = filteredWeeks(D.rows25);
+  const weeks = getWeeks();
+
+  document.getElementById('rest-content').innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+      <h2 style="font-size:20px;font-weight:700;background:linear-gradient(90deg,#3d8ef8,#b06ef5);-webkit-background-clip:text;-webkit-text-fill-color:transparent">All Sites — Inbound calls only</h2>
+    </div>
+    <p class="people-note" style="margin:0 0 14px">Same Call Volume layout as each restaurant, but <b>inbound only</b> (TalkDesk Call Type = inbound) across all locations · W${F.wkFrom}–W${F.wkTo}.</p>
+
+    <div class="section-head">Call Volume — Inbound only</div>
+    <div class="chart-row cols-1">
+      <div class="chart-card">
+        <h3>Inbound Calls Handled — Weekly (all restaurants)</h3>
+        <p>2025 vs 2026 · inbound only · sum of all locations</p>
+        <div class="chart-wrap" style="height:280px"><canvas id="details-inbound-all-trend"></canvas></div>
+        ${buildInboundCallsSummaryTable(r26, r25)}
+      </div>
+    </div>
+
+    <div class="chart-row cols-1">
+      <div class="chart-card">
+        <h3>Inbound Calls — by restaurant 2026</h3>
+        <p>Each location · inbound only</p>
+        <div class="legend">${RESTS.map(r => `<div class="legend-item"><div class="legend-line" style="background:${r.color}"></div>${r.label}</div>`).join('')}</div>
+        <div class="chart-wrap" style="height:260px"><canvas id="details-inbound-by-rest"></canvas></div>
+      </div>
+    </div>
+
+    ${buildInboundCallsByLocationTable(r26, r25)}
+  `;
+
+  requestAnimationFrame(() => {
+    const m26 = aggByWeek(r26, 'callsInbound');
+    const m25 = aggByWeek(r25, 'callsInbound');
+    mkChart('details-inbound-all-trend', 'line', {
+      labels: weeks.map(w => 'W' + w),
+      datasets: [
+        { label: '2025 inbound', data: weeks.map(w => m25[w] || 0), borderColor: '#ff9f2e', backgroundColor: 'rgba(255,159,46,.10)', tension: .3, fill: true, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4 },
+        { label: '2026 inbound', data: weeks.map(w => m26[w] || 0), borderColor: '#f43f8e', backgroundColor: 'rgba(244,63,142,.12)', tension: .3, fill: true, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4 },
+      ],
+    });
+    mkChart('details-inbound-by-rest', 'line', {
+      labels: weeks.map(w => 'W' + w),
+      datasets: RESTS.map(rest => ({
+        label: rest.label,
+        data: weeks.map(w => r26.find(x => x.restaurantId === rest.id && x.week === w)?.callsInbound || 0),
+        borderColor: rest.color,
+        tension: .3,
+        fill: false,
+        borderWidth: 2.5,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+      })),
+    });
+  });
 }
 
 function renderAllRestComparison() {
@@ -3605,6 +3743,16 @@ function renderRestDetail(restId) {
       </div>
     </div>
 
+    <div class="section-head">Call Volume — Inbound only</div>
+    <div class="chart-row cols-1">
+      <div class="chart-card">
+        <h3>Inbound Calls — Weekly</h3>
+        <p>2025 vs 2026 · TalkDesk inbound only · vertical line = AI go-live</p>
+        <div class="chart-wrap" style="height:280px"><canvas id="rc-inbound-${restId}"></canvas></div>
+        ${buildInboundCallsSummaryTable(r26, r25)}
+      </div>
+    </div>
+
     <div class="section-head">Conversion Rates</div>
     <div class="chart-row cols-2">
       <div class="chart-card">
@@ -3690,6 +3838,7 @@ function renderRestDetail(restId) {
     buildPhoneImpactVolumeChart(`rc-phone-impact-${restId}`, weeks, r26, r25, rest);
     buildExerciseChart(`rc-exercise-${restId}`, weeks, r26, r25, rest);
     buildRcCalls(restId, rest, weeks, r26, r25);
+    buildRcInboundCalls(restId, rest, weeks, r26, r25);
     buildRcAbn(restId, rest, weeks, r26, r25);
     buildRcConv(restId, rest, weeks, r26, r25);
     buildRcPhone(restId, rest, weeks, r26, r25);
@@ -3715,6 +3864,18 @@ function buildRcCalls(id, rest, weeks, r26, r25) {
       {label:'2026',data:weeks.map(w=>m26[w]||0),borderColor:rest.color,backgroundColor:rest.color+'18',tension:.3,fill:true,borderWidth:2.5,pointRadius:0,pointHoverRadius:4},
     ]
   },{plugins:{annotation:{annotations:goLiveAnno(rest,weeks)}}});
+}
+
+function buildRcInboundCalls(id, rest, weeks, r26, r25) {
+  const m26 = aggByWeek(r26, 'callsInbound');
+  const m25 = aggByWeek(r25, 'callsInbound');
+  mkChart(`rc-inbound-${id}`, 'line', {
+    labels: weeks.map(w => 'W' + w),
+    datasets: [
+      { label: '2025 inbound', data: weeks.map(w => m25[w] || 0), borderColor: '#ff9f2e', backgroundColor: 'rgba(255,159,46,.10)', tension: .3, fill: true, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4 },
+      { label: '2026 inbound', data: weeks.map(w => m26[w] || 0), borderColor: rest.color, backgroundColor: rest.color + '18', tension: .3, fill: true, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4 },
+    ],
+  }, { plugins: { annotation: { annotations: goLiveAnno(rest, weeks) } } });
 }
 
 function buildRcAbn(id, rest, weeks, r26, r25) {
