@@ -77,6 +77,10 @@ select:focus,input:focus{border-color:var(--y26)}
 .last-update{margin-left:auto;color:var(--muted);font-size:11px}
 .wf-range-btn{padding:5px 12px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);border-radius:6px;cursor:pointer;font-size:12px}
 .wf-range-btn.active{background:var(--y26);border-color:var(--y26);color:#fff;font-weight:600}
+select.wf-range-btn{appearance:auto;-webkit-appearance:menulist;min-width:118px;padding-right:8px}
+select.wf-range-btn.active{color:#fff}
+select.wf-range-btn.active option{color:#111}
+.people-week-bar select#people-week{min-width:120px;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;cursor:pointer}
 
 /* ── LAYOUT ── */
 .page{display:none;padding:16px 24px 24px;max-width:1600px;margin:0 auto;width:100%}
@@ -664,8 +668,10 @@ let F = {};            // current filter state
 const CHARTS = {};     // chart instances keyed by canvas id
 /** Sankey (mounted under Details). */
 let SANKEY_SEL = { restaurantId: 'mila', week: 39 };
-/** Details waterfall range: 'week' (last week) | 'ytd'. */
+/** Details waterfall range: 'week' (selected week) | 'ytd'. */
 let DETAILS_WF_RANGE = 'ytd';
+/** Selected single week for Details waterfall (defaults to cutoff / previous week). */
+let DETAILS_WF_WEEK = null;
 /** Canonical year colors — always use these for 2025 vs 2026 series. */
 const Y25 = '#ff9f2e';
 const Y26 = '#3d8ef8';
@@ -757,9 +763,20 @@ function populateWeekSelect(selectedWeek) {
   if (!sel || !D) return;
   const maxW = D.cutoff || ANALYSIS_START_WEEK;
   const pick = Math.min(Math.max(selectedWeek || maxW, ANALYSIS_START_WEEK), maxW);
+  // Newest first — open the list and scroll down for earlier weeks
   sel.innerHTML = Array.from({ length: maxW - ANALYSIS_START_WEEK + 1 }, (_, i) => {
-    const w = ANALYSIS_START_WEEK + i;
+    const w = maxW - i;
     const label = w === maxW ? `W${w} (previous week)` : `W${w}`;
+    return `<option value="${w}"${w === pick ? ' selected' : ''}>${label}</option>`;
+  }).join('');
+}
+
+function peopleWeekOptionsHtml(selectedWeek) {
+  const maxW = D?.cutoff || 53;
+  const pick = Math.min(Math.max(selectedWeek || maxW, 1), maxW);
+  return Array.from({ length: maxW }, (_, i) => {
+    const w = maxW - i;
+    const label = w === (D?.cutoff || maxW) ? `W${w} (previous week)` : `W${w}`;
     return `<option value="${w}"${w === pick ? ' selected' : ''}>${label}</option>`;
   }).join('');
 }
@@ -3926,10 +3943,27 @@ function renderByRest() {
   else renderRestDetail(activeRest);
 }
 
+function detailsSelectedWeek() {
+  const maxW = D?.cutoff || ANALYSIS_START_WEEK;
+  const w = DETAILS_WF_WEEK != null ? DETAILS_WF_WEEK : maxW;
+  return Math.min(maxW, Math.max(ANALYSIS_START_WEEK, w));
+}
+
+function detailsWeekOptionsHtml(selectedWeek) {
+  const maxW = D?.cutoff || ANALYSIS_START_WEEK;
+  const pick = Math.min(Math.max(selectedWeek || maxW, ANALYSIS_START_WEEK), maxW);
+  // Newest first so the open list “goes down” into earlier weeks
+  return Array.from({ length: maxW - ANALYSIS_START_WEEK + 1 }, (_, i) => {
+    const w = maxW - i;
+    const label = w === maxW ? `W${w} (previous week)` : `W${w}`;
+    return `<option value="${w}"${w === pick ? ' selected' : ''}>${label}</option>`;
+  }).join('');
+}
+
 function detailsWaterfallRange() {
   if (DETAILS_WF_RANGE === 'week') {
-    const w = D.cutoff || F.wkTo;
-    return { from: w, to: w, label: `Last week (W${w})` };
+    const w = detailsSelectedWeek();
+    return { from: w, to: w, label: `Week W${w}` };
   }
   const from = ANALYSIS_START_WEEK;
   const to = D.cutoff || F.wkTo;
@@ -3944,8 +3978,7 @@ function matchedReservationByLocationRange(restFilterId, from, to) {
   return locs;
 }
 
-function setDetailsWfRange(mode) {
-  DETAILS_WF_RANGE = mode === 'week' ? 'week' : 'ytd';
+function refreshDetailsWaterfall() {
   const restId = activeRest === 'all' ? 'all' : activeRest;
   const range = detailsWaterfallRange();
   const locs = matchedReservationByLocationRange(restId, range.from, range.to);
@@ -3963,6 +3996,23 @@ function setDetailsWfRange(mode) {
       : 'Reservation bridge · 2025 → location Δ → 2026';
   }
   paintReservationWaterfall('details-waterfall', locs);
+}
+
+function setDetailsWfRange(mode) {
+  DETAILS_WF_RANGE = mode === 'week' ? 'week' : 'ytd';
+  if (DETAILS_WF_RANGE === 'week' && DETAILS_WF_WEEK == null) {
+    DETAILS_WF_WEEK = detailsSelectedWeek();
+  }
+  refreshDetailsWaterfall();
+}
+
+function onDetailsWfWeekChange() {
+  const sel = document.getElementById('details-wf-week');
+  const maxW = D?.cutoff || ANALYSIS_START_WEEK;
+  const w = Math.min(maxW, Math.max(ANALYSIS_START_WEEK, +(sel?.value) || maxW));
+  DETAILS_WF_WEEK = w;
+  DETAILS_WF_RANGE = 'week';
+  refreshDetailsWaterfall();
 }
 
 /** Details · shared body: waterfall → unique inbound → Sankey → abandoned + human %. */
@@ -3991,8 +4041,9 @@ function renderDetailsShell(opts) {
     ${buildDetailsLastWeekBrief(r26, r25)}
 
     <h2 class="details-section-title">1 · Reservations waterfall — 2025 vs 2026</h2>
-    <div class="rest-selector no-print" style="margin:0 0 10px;gap:8px">
-      <button type="button" class="wf-range-btn${DETAILS_WF_RANGE === 'week' ? ' active' : ''}" data-wf-range="week" onclick="setDetailsWfRange('week')">Week (W${D.cutoff})</button>
+    <div class="rest-selector no-print" style="margin:0 0 10px;gap:8px;align-items:center">
+      <select id="details-wf-week" class="wf-range-btn${DETAILS_WF_RANGE === 'week' ? ' active' : ''}" data-wf-range="week"
+        title="Pick a week" onfocus="setDetailsWfRange('week')" onchange="onDetailsWfWeekChange()">${detailsWeekOptionsHtml(detailsSelectedWeek())}</select>
       <button type="button" class="wf-range-btn${DETAILS_WF_RANGE === 'ytd' ? ' active' : ''}" data-wf-range="ytd" onclick="setDetailsWfRange('ytd')">YTD (W${ANALYSIS_START_WEEK}–W${D.cutoff})</button>
     </div>
     <div class="chart-row cols-1">
@@ -5555,8 +5606,7 @@ async function renderPeople() {
       ${insightBanner(`Agent ops + location call KPIs. Week <b>W${j.selectedWeek}</b> · Fiscal <b>P${j.fiscalPeriod || fiscalPeriodForWeek(j.selectedWeek).period}</b> PTD = <b>W${j.mtdFromWeek}–W${j.mtdToWeek}</b> (${j.fiscalPeriodLength || fiscalPeriodForWeek(j.selectedWeek).length}-wk period through W${j.fiscalPeriodToWeek || fiscalPeriodForWeek(j.selectedWeek).toWeek}). ${_peopleReadOnly ? '<b>Worked Hours</b> are view-only (Hours API not configured).' : '<b>Worked Hours</b> are editable here — changes sync for everyone.'}`)}
       <div class="people-week-bar">
         <label>Report week</label>
-        <input type="number" id="people-week" min="1" max="53" value="${j.selectedWeek}">
-        <button class="rest-btn" id="people-week-go" style="padding:6px 12px">Apply</button>
+        <select id="people-week" onchange="applyPeopleWeek(this.value)">${peopleWeekOptionsHtml(j.selectedWeek)}</select>
         <span class="people-note">Source: ${j.sources?.csv || '—'} · Generated ${j.generatedAt ? new Date(j.generatedAt).toLocaleString() : '—'} · through W${D.cutoff}<span id="people-save-hint"></span></span>
       </div>
       <div class="people-subtabs" id="people-subtabs">
@@ -5632,15 +5682,6 @@ async function renderPeople() {
 
     // stash report for chart renderers when panels open
     window._peopleReport = j;
-
-    const goPeopleWeek = () => {
-      const w = +document.getElementById('people-week').value;
-      if (w >= 1 && w <= 53) applyPeopleWeek(w);
-    };
-    document.getElementById('people-week-go')?.addEventListener('click', goPeopleWeek);
-    document.getElementById('people-week')?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); goPeopleWeek(); }
-    });
 
     const goCoverageWeek = () => {
       const w = +document.getElementById('coverage-week').value;
