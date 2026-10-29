@@ -32,31 +32,43 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-s
 
 /* ── APP SHELL (left sidebar) ── */
 .sidebar{
-  width:220px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);
-  display:flex;flex-direction:column;padding:16px 12px;position:sticky;top:0;height:100vh;z-index:120;
-  transition:width .2s ease,padding .2s ease,margin .2s ease;
+  width:268px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;padding:18px 14px;position:sticky;top:0;height:100vh;z-index:120;
+  transition:width .2s ease,padding .2s ease,margin .2s ease,opacity .15s ease;
 }
-.sidebar.collapsed{width:0;padding:0;margin:0;border:0;overflow:hidden}
-.sidebar-brand{font-weight:700;font-size:14px;color:var(--text);padding:4px 10px 16px;white-space:nowrap}
+.sidebar.collapsed{width:0;padding:0;margin:0;border:0;overflow:hidden;opacity:0;pointer-events:none}
+.sidebar-top{display:flex;align-items:center;gap:10px;padding:2px 4px 20px}
+.sidebar-brand{font-weight:700;font-size:15px;color:var(--text);white-space:nowrap;line-height:1.25}
 .sidebar-brand span{color:var(--ai);margin-right:6px}
-.sidebar-tabs{display:flex;flex-direction:column;gap:4px;flex:1}
+.sidebar-tabs{display:flex;flex-direction:column;gap:10px;flex:1}
+.sidebar-foot{margin-top:auto;padding-top:16px;border-top:1px solid var(--border)}
 .tab-btn{
-  width:100%;text-align:left;padding:10px 12px;border:none;background:none;color:var(--muted);
-  cursor:pointer;font-size:13px;border-radius:8px;transition:.15s;white-space:nowrap;
+  width:100%;text-align:left;padding:14px 14px;border:none;background:none;color:var(--muted);
+  cursor:pointer;font-size:14px;border-radius:10px;transition:.15s;white-space:nowrap;letter-spacing:.01em;
 }
 .tab-btn:hover{background:var(--surface2);color:var(--text)}
 .tab-btn.active{background:var(--surface2);color:var(--y26);font-weight:600}
 .sidebar-toggle{
-  position:fixed;top:12px;left:12px;z-index:130;width:36px;height:36px;border-radius:8px;
+  flex-shrink:0;width:36px;height:36px;border-radius:8px;
   border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;font-size:16px;
 }
-body:not(.nav-collapsed) .sidebar-toggle{left:232px}
+.sidebar-toggle.floating{
+  position:fixed;top:12px;left:12px;z-index:130;display:none;
+}
+body.nav-collapsed .sidebar-toggle.floating{display:inline-flex;align-items:center;justify-content:center}
 .app-main{flex:1;min-width:0;display:flex;flex-direction:column}
 .nav-brand{display:none}
+.page-title-bar{
+  display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  padding:16px 24px 0;max-width:1600px;margin:0 auto;width:100%;
+}
+body.nav-collapsed .page-title-bar{padding-left:56px}
+.page-title{font-size:18px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text);margin:0}
+.page-title-sub{font-size:12px;color:var(--muted);margin:0}
 
 /* ── FILTERS ── */
-.filters{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 24px 10px 56px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-body:not(.nav-collapsed) .filters{padding-left:24px}
+.filters{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+body.nav-collapsed .filters{padding-left:56px}
 .filter-group{display:flex;align-items:center;gap:8px}
 .filter-label{color:var(--muted);font-size:12px;font-weight:500;white-space:nowrap}
 select,input[type=number]{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:6px;font-size:13px;outline:none}
@@ -67,8 +79,9 @@ select:focus,input:focus{border-color:var(--y26)}
 .wf-range-btn.active{background:var(--y26);border-color:var(--y26);color:#fff;font-weight:600}
 
 /* ── LAYOUT ── */
-.page{display:none;padding:20px 24px;max-width:1600px;margin:0 auto;width:100%}
+.page{display:none;padding:16px 24px 24px;max-width:1600px;margin:0 auto;width:100%}
 .page.active{display:block}
+body.nav-collapsed .page{padding-left:56px}
 
 /* ── KPI CARDS ── */
 .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px}
@@ -574,17 +587,27 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 </head>
 <body>
 
-<button type="button" class="sidebar-toggle" id="sidebar-toggle" title="Show / hide menu" aria-label="Toggle menu">☰</button>
+<button type="button" class="sidebar-toggle floating" id="sidebar-toggle-open" title="Show menu" aria-label="Show menu">☰</button>
 <aside class="sidebar" id="app-sidebar">
-  <div class="sidebar-brand"><span>◆</span>RDG AI Impact</div>
+  <div class="sidebar-top">
+    <button type="button" class="sidebar-toggle" id="sidebar-toggle" title="Hide menu" aria-label="Hide menu">☰</button>
+    <div class="sidebar-brand"><span>◆</span>RDG AI Impact</div>
+  </div>
   <div class="sidebar-tabs">
     <button class="tab-btn active" data-tab="overview" onclick="showTab('overview')">Overview</button>
     <button class="tab-btn" data-tab="byrest" onclick="showTab('byrest')">Details</button>
     <button class="tab-btn" data-tab="people" onclick="showTab('people')">Call Center Dashboard</button>
   </div>
+  <div class="sidebar-foot">
+    <button class="tab-btn" data-tab="settings" onclick="showTab('settings')">Settings</button>
+  </div>
 </aside>
 
 <div class="app-main">
+<div class="page-title-bar">
+  <h1 class="page-title" id="page-title">Overview</h1>
+  <p class="page-title-sub" id="page-title-sub"></p>
+</div>
 <!-- FILTERS -->
 <div class="filters">
   <div class="filter-group">
@@ -600,27 +623,16 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
   </div>
   <div class="filter-sep"></div>
   <div class="filter-group">
-    <span class="filter-label">Week</span>
-    <input type="number" id="f-wk-from" min="11" max="52" value="11" style="width:60px" onchange="applyFilters()"/>
-    <span class="filter-label">→</span>
-    <input type="number" id="f-wk-to" min="1" max="52" value="28" style="width:60px" onchange="applyFilters()"/>
+    <span class="filter-label">Through week</span>
+    <select id="f-week" onchange="applyFilters()" style="min-width:88px"></select>
   </div>
-  <div class="filter-sep"></div>
-  <div class="filter-group">
-    <span class="filter-label">Compare</span>
-    <select id="f-year" onchange="applyFilters()">
-      <option value="both">2025 vs 2026</option>
-      <option value="2026">2026 only</option>
-      <option value="2025">2025 only</option>
-    </select>
-  </div>
-  <div class="last-update" id="last-update">Loading…</div>
 </div>
 
 <!-- PAGES -->
 <div id="page-overview" class="page active"><div class="loading">Loading data…</div></div>
 <div id="page-byrest"   class="page"><div class="loading">Loading data…</div></div>
 <div id="page-people"   class="page"><div class="loading">Loading call center data…</div></div>
+<div id="page-settings" class="page"><div class="loading">Loading…</div></div>
 <div id="page-sankey"   class="page" style="display:none"></div>
 </div><!-- /.app-main -->
 
@@ -716,13 +728,30 @@ async function loadCompare() {
   return r2.json();
 }
 
+/** Latest complete data week (previous week vs “this week in progress”). */
+function defaultThroughWeek() {
+  return D?.cutoff || ANALYSIS_START_WEEK;
+}
+
+function populateWeekSelect(selectedWeek) {
+  const sel = document.getElementById('f-week');
+  if (!sel || !D) return;
+  const maxW = D.cutoff || ANALYSIS_START_WEEK;
+  const pick = Math.min(Math.max(selectedWeek || maxW, ANALYSIS_START_WEEK), maxW);
+  sel.innerHTML = Array.from({ length: maxW - ANALYSIS_START_WEEK + 1 }, (_, i) => {
+    const w = ANALYSIS_START_WEEK + i;
+    const label = w === maxW ? `W${w} (previous week)` : `W${w}`;
+    return `<option value="${w}"${w === pick ? ' selected' : ''}>${label}</option>`;
+  }).join('');
+}
+
 async function init() {
   try {
     D = await loadCompare();
-    document.getElementById('f-wk-from').value = ANALYSIS_START_WEEK;
-    document.getElementById('f-wk-to').value = D.cutoff;
-    document.getElementById('last-update').textContent = `Updated W${D.cutoff} · ${fiscalMtdHeader(D.cutoff)} · Analysis from W${ANALYSIS_START_WEEK}`;
-    F = { location:'all', wkFrom:ANALYSIS_START_WEEK, wkTo:D.cutoff, year:'both' };
+    const through = defaultThroughWeek();
+    populateWeekSelect(through);
+    F = { location: 'all', wkFrom: ANALYSIS_START_WEEK, wkTo: through, year: 'both' };
+    updatePageTitle('overview');
     renderAll();
   } catch(e) {
     document.querySelectorAll('.page').forEach(p => p.innerHTML = `<div class="error">Error loading data: ${e.message}</div>`);
@@ -731,10 +760,39 @@ async function init() {
 
 function applyFilters() {
   F.location = document.getElementById('f-location').value;
-  F.wkFrom   = Math.max(ANALYSIS_START_WEEK, +document.getElementById('f-wk-from').value || ANALYSIS_START_WEEK);
-  F.wkTo     = +document.getElementById('f-wk-to').value || D.cutoff;
-  F.year     = document.getElementById('f-year').value;
+  const maxW = D?.cutoff || ANALYSIS_START_WEEK;
+  const through = Math.min(maxW, Math.max(ANALYSIS_START_WEEK, +document.getElementById('f-week')?.value || maxW));
+  F.wkFrom = ANALYSIS_START_WEEK;
+  F.wkTo = through;
+  F.year = 'both'; // always 2025 vs 2026
   renderAll();
+}
+
+function callCenterSubtabLabel(panel) {
+  if (panel === 'ring') return 'Ring Groups';
+  if (panel === 'peak') return 'Peak Times';
+  return 'Staffing vs AI';
+}
+
+function updatePageTitle(tab, peoplePanel) {
+  const titleEl = document.getElementById('page-title');
+  const subEl = document.getElementById('page-title-sub');
+  if (!titleEl) return;
+  const cutoff = D?.cutoff;
+  const from = F.wkFrom || ANALYSIS_START_WEEK;
+  const to = F.wkTo || cutoff;
+  const range = cutoff != null ? `Data W${from}–W${to} · previous week W${cutoff}` : '';
+  if (tab === 'people') {
+    const sub = callCenterSubtabLabel(peoplePanel || _peopleActivePanel || 'coverage');
+    titleEl.textContent = `Call Center Dashboard : ${sub}`;
+  } else if (tab === 'byrest') {
+    titleEl.textContent = 'Details';
+  } else if (tab === 'settings') {
+    titleEl.textContent = 'Settings';
+  } else {
+    titleEl.textContent = 'Overview';
+  }
+  if (subEl) subEl.textContent = range;
 }
 
 function renderAll() {
@@ -742,6 +800,9 @@ function renderAll() {
   renderSankey(); // init SANKEY_SEL defaults only
   renderByRest();
   renderPeople();
+  renderSettings();
+  const active = document.querySelector('.sidebar .tab-btn.active')?.dataset?.tab || 'overview';
+  updatePageTitle(active);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2089,10 +2150,7 @@ function renderOverview() {
   const paint = () => {
     root.innerHTML = `
   <div class="overview-toolbar no-print">
-    <div>
-      <div class="section-head" style="margin-top:0">Executive overview · vs prior year</div>
-      <p class="loc-summary-note" style="margin:4px 0 0">YTD W${ANALYSIS_START_WEEK}–W${D.cutoff} · data through <b>W${D.cutoff}</b></p>
-    </div>
+    <div></div>
     <button type="button" class="btn-export" id="overview-pdf-btn" onclick="exportOverviewPdf()">Export PDF</button>
   </div>
 
@@ -4910,9 +4968,11 @@ function applyPeopleWeek(week, opts = {}) {
   if (inp) inp.value = String(w);
   const hoursInp = document.getElementById('hours-week');
   if (hoursInp) hoursInp.value = String(w);
-  if (document.getElementById('f-wk-to')) {
-    document.getElementById('f-wk-to').value = w;
-    F.wkTo = w;
+  const weekSel = document.getElementById('f-week');
+  if (weekSel && D) {
+    populateWeekSelect(w);
+    F.wkFrom = ANALYSIS_START_WEEK;
+    F.wkTo = Math.min(D.cutoff || w, Math.max(ANALYSIS_START_WEEK, w));
   }
   renderPeople();
 }
@@ -5183,6 +5243,7 @@ async function renderPeople() {
           const node = document.getElementById('people-panel-' + p);
           if (node) node.style.display = p === panel ? '' : 'none';
         });
+        updatePageTitle('people', panel);
         if (panel === 'peak') requestAnimationFrame(() => renderPeoplePeakCharts(window._peopleReport));
         if (panel === 'coverage') requestAnimationFrame(() => renderCoverageLabPanel(window._peopleReport));
       });
@@ -7148,7 +7209,7 @@ async function renderSettings() {
 // ═══════════════════════════════════════════════════════════════
 function showTab(name) {
   if (name === 'report' || name === 'calls') name = name === 'calls' ? 'people' : 'overview';
-  if (name === 'sankey' || name === 'reservations' || name === 'conversation' || name === 'settings') name = 'byrest';
+  if (name === 'sankey' || name === 'reservations' || name === 'conversation') name = 'byrest';
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.sidebar .tab-btn').forEach(b => b.classList.remove('active'));
   const page = document.getElementById('page-' + name);
@@ -7156,12 +7217,15 @@ function showTab(name) {
   const btn = document.querySelector(`.sidebar .tab-btn[data-tab="${name}"]`);
   if (btn) btn.classList.add('active');
   try { history.replaceState(null, '', name === 'overview' ? location.pathname + location.search : '#' + name); } catch (_) {}
+  updatePageTitle(name);
   if (name === 'people') {
-    const panel = document.querySelector('.people-subtab.active')?.dataset?.peoplePanel;
+    const panel = document.querySelector('.people-subtab.active')?.dataset?.peoplePanel || _peopleActivePanel || 'coverage';
+    updatePageTitle('people', panel);
     if (panel === 'coverage') requestAnimationFrame(() => renderCoverageLabPanel(window._peopleReport));
     if (panel === 'peak') requestAnimationFrame(() => renderPeoplePeakCharts(window._peopleReport));
   }
   if (name === 'byrest') requestAnimationFrame(() => { if (document.getElementById('details-sankey-root')) mountDetailsSankey(); });
+  if (name === 'settings') renderSettings();
 }
 
 function toggleSidebar() {
@@ -7651,9 +7715,11 @@ function paintSankeyChart() {
 // ─── START ───────────────────────────────────────────────────
 init().then(() => {
   const hash = (location.hash || '').replace('#', '');
-  const allowed = ['overview', 'byrest', 'people'];
+  const allowed = ['overview', 'byrest', 'people', 'settings'];
   if (hash && allowed.includes(hash) && document.getElementById('page-' + hash)) showTab(hash);
+  else updatePageTitle('overview');
   document.getElementById('sidebar-toggle')?.addEventListener('click', toggleSidebar);
+  document.getElementById('sidebar-toggle-open')?.addEventListener('click', toggleSidebar);
   try {
     if (localStorage.getItem('rdg-nav-collapsed') === '1') {
       document.getElementById('app-sidebar')?.classList.add('collapsed');
