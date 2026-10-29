@@ -1731,6 +1731,9 @@ function overviewPeriodMetrics(restId, period) {
   const calls = sum(r26, 'callsTotal');
   const calls25 = sum(r25, 'callsTotal');
   const callsYoY = signedPct(calls, calls25);
+  const inbound = sum(r26, 'callsInbound');
+  const inbound25 = sum(r25, 'callsInbound');
+  const inboundYoY = signedPct(inbound, inbound25);
   const phoneBooked = phoneBooks(r26);
   const phoneBooked25 = phoneBooks(r25);
   const phoneBookedYoY = signedPct(phoneBooked, phoneBooked25);
@@ -1741,7 +1744,9 @@ function overviewPeriodMetrics(restId, period) {
   const aiConv = sum(r26, 'callsAI') > 0 ? aiConvRateAgg(r26) : null;
   const aiConv25 = sum(r25, 'callsAI') > 0 ? aiConvRateAgg(r25) : null;
   return {
-    calls, calls25, callsYoY, phoneBooked, phoneBooked25, phoneBookedYoY,
+    calls, calls25, callsYoY,
+    inbound, inbound25, inboundYoY,
+    phoneBooked, phoneBooked25, phoneBookedYoY,
     transfer, aiOnlyPct, humanConv, humanConv25, aiConv, aiConv25,
   };
 }
@@ -1774,6 +1779,7 @@ function overviewPeriodCells(m, periodKey = 'lw') {
     : `<b>—</b>`;
   return `
     <td class="${cls}"><div class="metric-stack"><b>${fmt(m.calls)}</b>${overviewPyVolumeLine(m.calls25, m.callsYoY)}</div></td>
+    <td class="${bloc}"><div class="metric-stack"><b>${fmt(m.inbound)}</b>${overviewPyVolumeLine(m.inbound25, m.inboundYoY)}</div></td>
     <td class="${bloc}"><div class="metric-stack"><b>${fmt(m.phoneBooked)}</b>${overviewPyVolumeLine(m.phoneBooked25, m.phoneBookedYoY)}</div></td>
     <td class="${bloc}">${trHtml}</td>
     <td class="${bloc}">${aiOnlyHtml}</td>
@@ -1801,12 +1807,17 @@ function buildOverviewUnifiedTableHtml() {
     const r25 = locSummaryScope(D.rows25, p).filter(r => ids.has(r.restaurantId));
     const calls = sum(r26, 'callsTotal');
     const calls25 = sum(r25, 'callsTotal');
+    const inbound = sum(r26, 'callsInbound');
+    const inbound25 = sum(r25, 'callsInbound');
     const phoneBooked = phoneBooks(r26);
     const phoneBooked25 = phoneBooks(r25);
     return overviewPeriodCells({
       calls,
       calls25,
       callsYoY: signedPct(calls, calls25),
+      inbound,
+      inbound25,
+      inboundYoY: signedPct(inbound, inbound25),
       phoneBooked,
       phoneBooked25,
       phoneBookedYoY: signedPct(phoneBooked, phoneBooked25),
@@ -1821,20 +1832,20 @@ function buildOverviewUnifiedTableHtml() {
 
   const subHeads = (bloc) => {
     const start = bloc !== 'bloc-lw' ? ' bloc-start' : '';
-    return `<th class="${bloc}${start}">Calls vs PY</th><th class="${bloc}">Phone booked vs PY</th><th class="${bloc}">Transfer %</th><th class="${bloc}">AI-only % of calls</th><th class="${bloc}">Human Conv vs PY</th><th class="${bloc}">AI Conv vs PY</th>`;
+    return `<th class="${bloc}${start}">Calls vs PY</th><th class="${bloc}">Inbound vs PY</th><th class="${bloc}">Phone booked vs PY</th><th class="${bloc}">Transfer %</th><th class="${bloc}">AI-only % of calls</th><th class="${bloc}">Human Conv vs PY</th><th class="${bloc}">AI Conv vs PY</th>`;
   };
 
   return `<div class="table-card overview-scorecard">
     <h3>Locations · Last week · Period (4-4-5) · YTD · vs PY</h3>
-    <p class="report-blurb">This scorecard compares each restaurant to the same weeks last year (vs PY) across three windows — last week, current fiscal period-to-date (4-4-5), and year-to-date. Each Calls / Phone booked / Conv cell shows 2026, the PY numerical value, and the YoY delta.</p>
-    <p class="loc-summary-note">Calls &amp; Phone booked: 2026 + PY volume + YoY · Transfer % = Hostie transferred ÷ Hostie AI calls · AI-only % of calls = (Hostie phoneCalls − transferred) ÷ total calls · Human / AI Conv: 2026 vs PY · Last week W${D.cutoff} · ${fiscalMtdHeader(D.cutoff)} (4-4-5) · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
+    <p class="report-blurb">This scorecard compares each restaurant to the same weeks last year (vs PY) across three windows — last week, current fiscal period-to-date (4-4-5), and year-to-date. Each Calls / Inbound / Phone booked / Conv cell shows 2026, the PY numerical value, and the YoY delta.</p>
+    <p class="loc-summary-note">Calls = all TalkDesk volume · <b>Inbound</b> = inbound only vs PY · Phone booked: 2026 + PY + YoY · Transfer % = Hostie transferred ÷ Hostie AI calls · AI-only % of calls = (Hostie phoneCalls − transferred) ÷ total calls · Human / AI Conv: 2026 vs PY · Last week W${D.cutoff} · ${fiscalMtdHeader(D.cutoff)} (4-4-5) · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
     <table class="exec-kpi-table">
       <thead>
         <tr class="group-row">
           <th rowspan="2" style="vertical-align:bottom;text-align:left">Location</th>
-          <th colspan="6" class="group-lw">Last week · W${D.cutoff} · vs PY</th>
-          <th colspan="6" class="group-mtd">${fiscalMtdHeader(D.cutoff)} · vs PY</th>
-          <th colspan="6" class="group-ytd">YTD · W${ANALYSIS_START_WEEK}–W${D.cutoff} · vs PY</th>
+          <th colspan="7" class="group-lw">Last week · W${D.cutoff} · vs PY</th>
+          <th colspan="7" class="group-mtd">${fiscalMtdHeader(D.cutoff)} · vs PY</th>
+          <th colspan="7" class="group-ytd">YTD · W${ANALYSIS_START_WEEK}–W${D.cutoff} · vs PY</th>
         </tr>
         <tr class="sub-row">
           ${subHeads('bloc-lw')}
@@ -2735,7 +2746,7 @@ async function exportOverviewPdf() {
     pdf.setTextColor(200, 205, 224);
     y = pdfWrapText(
       pdf,
-      'Scorecard vs PY: each Calls / Phone booked / Conv cell shows 2026, the PY numerical value, and YoY across last week, fiscal period-to-date (4-4-5), and YTD.',
+      'Scorecard vs PY: each Calls / Inbound / Phone booked / Conv cell shows 2026, the PY numerical value, and YoY across last week, fiscal period-to-date (4-4-5), and YTD.',
       m, y, contentW, 3.2
     );
     y += 2;
@@ -2750,8 +2761,8 @@ async function exportOverviewPdf() {
     pdf.setDrawColor(37, 45, 74);
     pdf.roundedRect(m, tableTop, contentW, tableH, 2, 2, 'FD');
 
-    const locW = 22;
-    const colsPerPeriod = 6;
+    const locW = 20;
+    const colsPerPeriod = 7;
     const periodW = (contentW - locW - tableInnerPad * 2) / 3;
     const subW = periodW / colsPerPeriod;
     const tableLeft = m + tableInnerPad;
@@ -2760,7 +2771,7 @@ async function exportOverviewPdf() {
       { label: fiscalMtdHeader(D.cutoff), color: [34, 217, 142] },
       { label: `YTD · W${ANALYSIS_START_WEEK}–W${D.cutoff}`, color: [176, 110, 245] },
     ];
-    const subLabels = ['Calls vs PY', 'Booked vs PY', 'Xfer%', 'AI-only%', 'H Conv vs PY', 'AI Conv vs PY'];
+    const subLabels = ['Calls vs PY', 'Inbound vs PY', 'Booked vs PY', 'Xfer%', 'AI-only%', 'H Conv vs PY', 'AI Conv vs PY'];
 
     let hx = tableLeft + locW;
     pdf.setFont('helvetica', 'bold');
@@ -2810,6 +2821,7 @@ async function exportOverviewPdf() {
       row.metrics.forEach((metric) => {
         const cells = [
           { main: fmt(metric.calls), sub: pdfPyVolumeSub(metric.calls25, metric.callsYoY), yoy: metric.callsYoY },
+          { main: fmt(metric.inbound), sub: pdfPyVolumeSub(metric.inbound25, metric.inboundYoY), yoy: metric.inboundYoY },
           { main: fmt(metric.phoneBooked), sub: pdfPyVolumeSub(metric.phoneBooked25, metric.phoneBookedYoY), yoy: metric.phoneBookedYoY },
           { main: metric.transfer != null ? pdfPlainConv(metric.transfer) : '—', sub: '', yoy: null, mutedSub: true },
           { main: metric.aiOnlyPct != null ? pdfPlainConv(metric.aiOnlyPct) : '—', sub: '', yoy: null, mutedSub: true },
@@ -2839,7 +2851,7 @@ async function exportOverviewPdf() {
     pdf.setFontSize(6);
     pdf.setTextColor(136, 144, 184);
     pdf.text(
-      'vs PY = prior-year + YoY · Transfer = Hostie xfer ÷ Hostie AI · AI-only % = (phoneCalls − xfer) ÷ total calls · Human/AI Conv as labeled',
+      'vs PY = prior-year + YoY · Inbound = inbound calls only · Transfer = Hostie xfer ÷ Hostie AI · AI-only % = (phoneCalls − xfer) ÷ total calls · Human/AI Conv as labeled',
       m, Math.min(y, pageH - 4)
     );
 
@@ -6338,11 +6350,24 @@ function paintWaterfallBridge(canvasId, steps) {
       borderRadius: 4,
     }],
   }, {
+    layout: { padding: { bottom: 8 } },
     scales: {
+      x: {
+        grid: { color: 'rgba(42,48,80,.35)' },
+        ticks: {
+          color: '#e8ecff',
+          font: { size: 12, weight: '600' },
+          maxRotation: 0,
+          minRotation: 0,
+          autoSkip: false,
+          padding: 10,
+        },
+      },
       y: {
         min: undefined,
         ticks: {
-          color: '#7b82a6',
+          color: '#c5cbe6',
+          font: { size: 11 },
           callback: (v) => Number(v).toLocaleString(),
         },
       },
@@ -6352,7 +6377,7 @@ function paintWaterfallBridge(canvasId, steps) {
       datalabels: {
         display: true,
         color: '#eef0fb',
-        font: { size: 10, weight: '600' },
+        font: { size: 11, weight: '700' },
         formatter: (val, ctx) => {
           const i = ctx.dataIndex;
           const n = tipDelta[i];
@@ -6460,7 +6485,7 @@ function renderResAllSites() {
         <p>${locs.length === 1
           ? 'Source mix change vs PY (OT Network, Phone/In-House, Phone/AI, Your Network, Walk-in) · matched weeks only · not full-year 2025'
           : 'Select one restaurant for source break · multi = location bridge · matched weeks W' + F.wkFrom + '–W' + F.wkTo + ' only (not full-year 2025)'}</p>
-        <div class="chart-wrap" style="height:320px"><canvas id="res-waterfall"></canvas></div>
+        <div class="chart-wrap" style="height:360px;padding-bottom:6px"><canvas id="res-waterfall"></canvas></div>
       </div>
     </div>
     ${locs.length === 1 ? `
