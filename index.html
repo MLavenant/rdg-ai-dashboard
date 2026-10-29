@@ -1446,7 +1446,7 @@ function buildCallsSummaryTable(r26, r25) {
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <div class="stat-note">Unique inbound · business hours only (In Business Hours? = TRUE) · same Customer Phone ≤2 min gap = 1 call · MAIN→If-No-Answer→Back-from-Hostie counts once · last leg = human/AI · VIP/Membership excluded</div>
+    <div class="stat-note">Unique inbound · business hours only (In Business Hours? = TRUE) · same Customer Phone ≤90s gap = 1 call · MAIN→If-No-Answer→Back-from-Hostie counts once · last leg = human/AI · VIP/Membership excluded</div>
   </div>`;
 }
 
@@ -1476,7 +1476,7 @@ function buildInboundCallsSummaryTable(r26, r25) {
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <div class="stat-note">Unique inbound last-leg sessions · business hours only · Customer Phone ≤2 min gap = 1 call · excludes abandoned-ending sessions, after-hours, outbound, VIP/Membership</div>
+    <div class="stat-note">Unique inbound last-leg sessions · business hours only · Customer Phone ≤90s gap = 1 call · excludes abandoned-ending sessions, after-hours, outbound, VIP/Membership</div>
   </div>`;
 }
 
@@ -1905,7 +1905,7 @@ function buildOverviewUnifiedTableHtml() {
   return `<div class="table-card overview-scorecard">
     <h3>Locations · Last week · Period (4-4-5) · YTD · vs PY</h3>
     <p class="report-blurb">This scorecard compares each restaurant to the same weeks last year (vs PY) across three windows — last week, current fiscal period-to-date (4-4-5), and year-to-date. Each Calls / Inbound / Phone booked / Conv cell shows 2026, the PY numerical value, and the YoY delta.</p>
-    <p class="loc-summary-note">Calls / Inbound = <b>unique BH inbound</b> (In Business Hours? = TRUE · Customer Phone ≤2 min gap · last leg; VIP/Membership out) vs PY · Phone booked: 2026 + PY + YoY · Transfer % = Hostie transferred ÷ Hostie AI calls · AI-only % of calls = (Hostie phoneCalls − transferred) ÷ total calls · Human / AI Conv: 2026 vs PY · Last week W${D.cutoff} · ${fiscalMtdHeader(D.cutoff)} (4-4-5) · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
+    <p class="loc-summary-note">Calls / Inbound = <b>unique BH inbound</b> (In Business Hours? = TRUE · Customer Phone ≤90s gap · last leg; VIP/Membership out) vs PY · Phone booked: 2026 + PY + YoY · Transfer % = Hostie transferred ÷ Hostie AI calls · AI-only % of calls = (Hostie phoneCalls − transferred) ÷ total calls · Human / AI Conv: 2026 vs PY · Last week W${D.cutoff} · ${fiscalMtdHeader(D.cutoff)} (4-4-5) · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
     <table class="exec-kpi-table">
       <thead>
         <tr class="group-row">
@@ -2918,7 +2918,7 @@ async function exportOverviewPdf() {
     pdf.setFontSize(6);
     pdf.setTextColor(136, 144, 184);
     pdf.text(
-      'vs PY = prior-year + YoY · Calls/Inbound = unique BH inbound (phone ≤2 min) · Transfer = Hostie xfer ÷ Hostie AI · AI-only % = (phoneCalls − xfer) ÷ total calls · Human/AI Conv as labeled',
+      'vs PY = prior-year + YoY · Calls/Inbound = unique BH inbound (phone ≤90s) · Transfer = Hostie xfer ÷ Hostie AI · AI-only % = (phoneCalls − xfer) ÷ total calls · Human/AI Conv as labeled',
       m, Math.min(y, pageH - 4)
     );
 
@@ -3493,7 +3493,7 @@ function renderDetailsInboundAllSites() {
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
       <h2 style="font-size:20px;font-weight:700;background:linear-gradient(90deg,#3d8ef8,#b06ef5);-webkit-background-clip:text;-webkit-text-fill-color:transparent">All Sites — Inbound calls only</h2>
     </div>
-    <p class="people-note" style="margin:0 0 14px">Same Call Volume layout as each restaurant, but <b>unique inbound + business hours</b> (Customer Phone ≤2 min gap · In Business Hours? = TRUE · last leg inbound) across all locations · W${F.wkFrom}–W${F.wkTo}.</p>
+    <p class="people-note" style="margin:0 0 14px">Same Call Volume layout as each restaurant, but <b>unique inbound + business hours</b> (Customer Phone ≤90s gap · In Business Hours? = TRUE · last leg inbound) across all locations · W${F.wkFrom}–W${F.wkTo}.</p>
 
     <div class="section-head">Call Volume — Inbound only</div>
     <div class="chart-row cols-1">
@@ -3748,7 +3748,7 @@ function renderRestDetail(restId) {
     <div class="chart-row cols-1">
       <div class="chart-card">
         <h3>Inbound Calls — Weekly</h3>
-        <p>2025 vs 2026 · unique BH inbound (Customer Phone ≤2 min) · vertical line = AI go-live</p>
+        <p>2025 vs 2026 · unique BH inbound (Customer Phone ≤90s) · vertical line = AI go-live</p>
         <div class="chart-wrap" style="height:280px"><canvas id="rc-inbound-${restId}"></canvas></div>
         ${buildInboundCallsSummaryTable(r26, r25)}
       </div>
@@ -5064,7 +5064,7 @@ async function renderPeople() {
             <button type="button" class="btn-export" id="coverage-pdf-btn" onclick="exportCoveragePdf()">Export PDF</button>
           </div>
           <div id="coverage-pdf-root">
-            <p class="people-note">Of BH inbound <b>unique calls</b> (same phone, legs ≤2 min — same as Sankey; VIP/Membership excluded) that did not end with a human — classified as <b>Staffing</b>, <b>Process</b>, or <b>AI</b> using the definitions below. VIP-assigned punch shifts are removed from capacity.</p>
+            <p class="people-note">Of BH inbound <b>unique calls</b> (same phone, legs ≤90s — same as Sankey; VIP/Membership excluded) that did not end with a human — classified as <b>Staffing</b>, <b>Process</b>, or <b>AI</b> using the definitions below. VIP-assigned punch shifts are removed from capacity.</p>
             <div class="hours-week-bar no-print">
               <label>Week</label>
               <button type="button" class="rest-btn" id="coverage-week-prev">←</button>
@@ -5517,7 +5517,7 @@ function paintDominantHeat(title, dominantMatrix, countMatrix, days, columns) {
       + escAttr((d.date || '').slice(5)) + '</div></th>' + cells + '</tr>';
   }).join('');
   return '<div class="coverage-dom-heat" style="margin-top:12px"><h3 style="margin:0 0 4px;font-size:14px">' + title + '</h3>'
-    + '<p class="people-note" style="margin:0 0 6px">Color = dominant cause · number = unique lost calls in that 15‑min (same phone ≤2 min = one call, like Sankey).</p>'
+    + '<p class="people-note" style="margin:0 0 6px">Color = dominant cause · number = unique lost calls in that 15‑min (same phone ≤90s = one call, like Sankey).</p>'
     + '<div class="coverage-heat-wrap"><table class="coverage-heat"><thead><tr>' + head
     + '</tr></thead><tbody>' + body + '</tbody></table></div>'
     + '<div class="coverage-legend">'
@@ -7377,7 +7377,7 @@ function renderSankey() {
       <span class="sankey-data-hint">${escHtml(dataHint)}</span>
     </div>
     <p class="loc-summary-note" style="margin:0 0 14px">
-      <b>${escHtml(s.restaurantLabel)}</b> · <b>W${s.week}</b> · Unique calls only (same customer phone, ≤2 min between legs = one call; outcome = <b>last</b> leg) · Did they get a <b>human</b> at the end?
+      <b>${escHtml(s.restaurantLabel)}</b> · <b>W${s.week}</b> · Unique calls only (same customer phone, ≤90s between legs = one call; outcome = <b>last</b> leg) · Did they get a <b>human</b> at the end?
     </p>
     ${buildSankeyOutcomeKpis(s)}
     ${buildSankeyBounceCompareTable()}
