@@ -1625,6 +1625,101 @@ function buildAbnSummaryTable(r26, r25) {
   </div>`;
 }
 
+/** Phone/In-House ÷ unique BH inbound (Details §5). */
+function humanConvOfInboundAgg(rows) {
+  const books = sum(rows, 'bookingsPhoneHuman');
+  const inbound = sum(rows, 'callsInbound');
+  return inbound > 0 ? convPctRaw(books / inbound * 100) : null;
+}
+/** Phone/AI ÷ unique BH inbound (Details §6). */
+function aiConvOfInboundAgg(rows) {
+  const books = sum(rows, 'bookingsPhoneAI');
+  const inbound = sum(rows, 'callsInbound');
+  return inbound > 0 ? convPctRaw(books / inbound * 100) : null;
+}
+function humanAnswerPctAgg(rows) {
+  const tot = sum(rows, 'callsTotal');
+  const h = sum(rows, 'callsHuman');
+  return tot > 0 ? h / tot * 100 : null;
+}
+function trailingWeeksRows(rows, endWeek, n) {
+  const from = Math.max(1, endWeek - n + 1);
+  return rows.filter(r => r.week >= from && r.week <= endWeek);
+}
+
+function buildConvOfInboundSummaryTable(r26, r25, kind) {
+  const isHuman = kind === 'human';
+  const label = isHuman ? 'Human Conv %' : 'AI Conv %';
+  const note = isHuman
+    ? 'Human Conv % = Phone/In-House bookings ÷ unique BH inbound calls'
+    : 'AI Conv % = Phone/AI bookings ÷ unique BH inbound calls';
+  const rateFn = isHuman ? humanConvOfInboundAgg : aiConvOfInboundAgg;
+  const periods = [
+    { key: 'lw', label: `Last Week (W${D.lastWeek})` },
+    { key: 'mtd', label: fiscalMtdHeader(D.cutoff) },
+    { key: 'ytd', label: `YTD (W${ANALYSIS_START_WEEK}–W${D.cutoff})` },
+  ];
+  const rows = periods.map(p => {
+    const s26 = periodRows(r26, p.key), s25 = periodRows(r25, p.key);
+    const v25 = rateFn(s25), v26 = rateFn(s26);
+    return `<tr>
+      <td class="period-label">${p.label}</td>
+      <td>${heatConv(v25)}</td>
+      <td>${heatYoY(v26, v25, true)}</td>
+    </tr>`;
+  }).join('');
+  return `<div class="period-summary">
+    <table>
+      <thead><tr>
+        <th></th><th>${label} 2025</th><th>${label} 2026</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="stat-note">${note}</div>
+  </div>`;
+}
+
+/** One-sentence last-week walkthrough for Details. */
+function buildDetailsLastWeekBrief(r26, r25) {
+  const w = D.lastWeek || D.cutoff;
+  const lw26 = r26.filter(r => r.week === w);
+  const lw25 = r25.filter(r => r.week === w);
+  const trail26 = trailingWeeksRows(r26, w, 3);
+
+  const b26 = sum(lw26, 'bookingsTotal'), b25 = sum(lw25, 'bookingsTotal');
+  const bVar = signedPct(b26, b25);
+  const ih26 = sum(lw26, 'bookingsPhoneHuman'), ai26 = sum(lw26, 'bookingsPhoneAI');
+  const ih25 = sum(lw25, 'bookingsPhoneHuman');
+  const phoneGap = ih26 - ai26;
+
+  const in26 = sum(lw26, 'callsInbound'), in25 = sum(lw25, 'callsInbound');
+  const inVar = signedPct(in26, in25);
+
+  const hum26 = humanAnswerPctAgg(lw26);
+  const hum25 = humanAnswerPctAgg(lw25);
+  const hum3 = humanAnswerPctAgg(trail26);
+
+  const abn26 = abnRate(lw26);
+  const hConv = humanConvOfInboundAgg(lw26);
+
+  const resTxt = bVar == null ? 'reservations vs PY unclear' : `reservations <b>${fmtSigned(bVar)}</b> vs PY`;
+  const phoneTxt = `Phone/In-House <b>${ih26.toLocaleString()}</b> · Phone/AI <b>${ai26.toLocaleString()}</b>`
+    + (ih25 > 0 ? ` (In-House ${ih26 >= ih25 ? '+' : ''}${(ih26 - ih25).toLocaleString()} vs PY)` : '');
+  const callsTxt = inVar == null ? 'inbound unclear'
+    : `${inVar >= 0 ? 'more' : 'fewer'} unique inbound (<b>${fmtSigned(inVar)}</b> vs PY)`;
+  const humTxt = hum26 == null ? 'human answer n/a'
+    : `human answer <b>${hum26.toFixed(1)}%</b>`
+      + (hum25 != null ? ` vs PY ${hum25.toFixed(1)}%` : '')
+      + (hum3 != null ? ` / 3-wk avg ${hum3.toFixed(1)}%` : '');
+  const abnTxt = abn26 == null ? 'abandoned n/a' : `abandoned <b>${abn26.toFixed(1)}%</b>`;
+  const convTxt = hConv == null ? 'human conversion n/a' : `human conversion <b>${hConv.toFixed(1)}%</b> of inbound`;
+
+  return `<div class="insight-banner" style="margin:0 0 16px"><div class="insight-mark">◆</div><div>
+    <div class="insight-label">Last week walkthrough · W${w}</div>
+    <div class="insight-text">${resTxt}; ${phoneTxt}; ${callsTxt}; ${humTxt}; ${abnTxt}; ${convTxt}.</div>
+  </div></div>`;
+}
+
 function buildPhoneSummaryTable(r26, r25) {
   const periods = [
     { key:'lw', label:`Last Week (W${D.lastWeek})` },
@@ -3625,6 +3720,7 @@ function renderDetailsShell(opts) {
       <h2 style="font-size:20px;font-weight:700;${titleColor ? `color:${titleColor}` : 'background:linear-gradient(90deg,#3d8ef8,#b06ef5);-webkit-background-clip:text;-webkit-text-fill-color:transparent'}">${title}</h2>
       ${rest ? `<div class="golive-badge">◆ AI Live W${rest.goLive} · 2026</div>` : ''}
     </div>
+    ${buildDetailsLastWeekBrief(r26, r25)}
 
     <h2 class="details-section-title">1 · Reservations waterfall — 2025 vs 2026</h2>
     <div class="rest-selector" style="margin:0 0 10px;gap:8px">
@@ -3701,6 +3797,34 @@ function renderDetailsShell(opts) {
         <div class="chart-wrap" style="height:240px"><canvas id="details-human-pct"></canvas></div>
       </div>
     </div>
+
+    <h2 class="details-section-title">5 · Human conversion</h2>
+    <div class="chart-row cols-1">
+      <div class="chart-card">
+        <h3>Human Conversion — Weekly</h3>
+        <p>Phone/In-House bookings ÷ unique BH inbound · higher is better</p>
+        <div class="legend" style="margin-bottom:8px">
+          <div class="legend-item"><div class="legend-line" style="background:${Y25}"></div>2025</div>
+          <div class="legend-item"><div class="legend-line" style="background:${Y26}"></div>2026</div>
+        </div>
+        <div class="chart-wrap" style="height:240px"><canvas id="details-human-conv"></canvas></div>
+        ${buildConvOfInboundSummaryTable(r26, r25, 'human')}
+      </div>
+    </div>
+
+    <h2 class="details-section-title">6 · AI conversion</h2>
+    <div class="chart-row cols-1">
+      <div class="chart-card">
+        <h3>AI Conversion — Weekly</h3>
+        <p>Phone/AI bookings ÷ unique BH inbound · higher is better</p>
+        <div class="legend" style="margin-bottom:8px">
+          <div class="legend-item"><div class="legend-line" style="background:${Y25}"></div>2025</div>
+          <div class="legend-item"><div class="legend-line" style="background:${Y26}"></div>2026</div>
+        </div>
+        <div class="chart-wrap" style="height:240px"><canvas id="details-ai-conv"></canvas></div>
+        ${buildConvOfInboundSummaryTable(r26, r25, 'ai')}
+      </div>
+    </div>
   `;
 
   SANKEY_SEL.restaurantId = sankeyRestId;
@@ -3723,6 +3847,8 @@ function renderDetailsShell(opts) {
     }
     paintDetailsAbnTrend('details-abn-trend', weeks, r26, r25, rest);
     paintDetailsHumanAnswerPct('details-human-pct', weeks, r26, r25, rest);
+    paintDetailsConvOfInboundTrend('details-human-conv', weeks, r26, r25, rest, 'human');
+    paintDetailsConvOfInboundTrend('details-ai-conv', weeks, r26, r25, rest, 'ai');
     mountDetailsSankey();
     paintDetailsBounceKpis(sankeyRestId, sankeyWeek);
   });
@@ -3790,6 +3916,29 @@ function paintDetailsHumanAnswerPct(canvasId, weeks, r26, r25, rest) {
     ],
   }, {
     scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => v?.toFixed?.(1) + '%' } } },
+    plugins: {
+      legend: YEAR_LEGEND,
+      ...(rest ? { annotation: { annotations: goLiveAnno(rest, weeks) } } : {}),
+    },
+  });
+}
+
+function paintDetailsConvOfInboundTrend(canvasId, weeks, r26, r25, rest, kind) {
+  const bookKey = kind === 'human' ? 'bookingsPhoneHuman' : 'bookingsPhoneAI';
+  const label = kind === 'human' ? 'Human Conv %' : 'AI Conv %';
+  const pct = (rs, w) => {
+    const inbound = aggByWeek(rs, 'callsInbound')[w] || 0;
+    const books = aggByWeek(rs, bookKey)[w] || 0;
+    return inbound > 0 ? convPctRaw(books / inbound * 100) : null;
+  };
+  mkChart(canvasId, 'line', {
+    labels: weeks.map(w => 'W' + w),
+    datasets: [
+      { label: `2025 ${label}`, data: weeks.map(w => pct(r25, w)), borderColor: Y25, tension: .3, fill: false, borderWidth: 2.5, spanGaps: true, pointRadius: 0, pointHoverRadius: 4 },
+      { label: `2026 ${label}`, data: weeks.map(w => pct(r26, w)), borderColor: Y26, tension: .3, fill: false, borderWidth: 2.5, spanGaps: true, pointRadius: 0, pointHoverRadius: 4 },
+    ],
+  }, {
+    scales: { y: { beginAtZero: true, ticks: { callback: v => v?.toFixed?.(1) + '%' } } },
     plugins: {
       legend: YEAR_LEGEND,
       ...(rest ? { annotation: { annotations: goLiveAnno(rest, weeks) } } : {}),
