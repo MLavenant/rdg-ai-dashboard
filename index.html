@@ -6180,6 +6180,29 @@ function renderPeoplePeakCharts(j) {
 //  RESERVATIONS TAB
 // ═══════════════════════════════════════════════════════════════
 let activeResRest = 'all';
+/** Locations included in the reservations waterfall (multi-select). */
+let resWfIds = null;
+function getResWfIds() {
+  if (!resWfIds) resWfIds = new Set(RESTS.map(r => r.id));
+  return resWfIds;
+}
+function toggleResWfId(id) {
+  const set = getResWfIds();
+  if (set.has(id)) {
+    if (set.size > 1) set.delete(id);
+  } else set.add(id);
+  renderReservations();
+}
+function selectResWfOnly(id) {
+  resWfIds = new Set([id]);
+  activeResRest = id;
+  renderReservations();
+}
+function selectResWfAll() {
+  resWfIds = new Set(RESTS.map(r => r.id));
+  activeResRest = 'all';
+  renderReservations();
+}
 
 function renderReservations() {
   const pg = document.getElementById('page-reservations');
@@ -6194,7 +6217,7 @@ function renderReservations() {
   allBtn.style.background = activeResRest==='all' ? 'linear-gradient(90deg,#3d8ef8,#b06ef5)' : '';
   allBtn.style.borderColor = activeResRest==='all' ? 'transparent' : '';
   allBtn.style.color = activeResRest==='all' ? '#fff' : '';
-  allBtn.onclick = () => { activeResRest='all'; renderReservations(); };
+  allBtn.onclick = () => selectResWfAll();
   btns.appendChild(allBtn);
 
   RESTS.forEach(r => {
@@ -6202,7 +6225,7 @@ function renderReservations() {
     b.className = 'rest-btn' + (r.id===activeResRest?' active':'');
     if (r.id===activeResRest) { b.style.background=r.color; b.style.borderColor='transparent'; b.style.color='#fff'; }
     b.textContent = r.label;
-    b.onclick = () => { activeResRest=r.id; renderReservations(); };
+    b.onclick = () => selectResWfOnly(r.id);
     btns.appendChild(b);
   });
 
@@ -6342,7 +6365,9 @@ function renderResAllSites() {
   const r26 = filteredWeeks(D.rows26);
   const r25 = filteredWeeks(D.rows25);
   const weeks = getWeeks();
-  const locs = matchedReservationByLocation('all');
+  const allLocs = matchedReservationByLocation('all');
+  const wfSet = getResWfIds();
+  const locs = allLocs.filter(l => wfSet.has(l.id));
   const b26 = locs.reduce((s, l) => s + l.b26, 0);
   const b25 = locs.reduce((s, l) => s + l.b25, 0);
   const ph26 = sum(r26, 'bookingsPhoneHuman'), ph25 = sum(r25, 'bookingsPhoneHuman');
@@ -6357,6 +6382,11 @@ function renderResAllSites() {
     : delta < 0
       ? `Losing reservations vs PY: <b class="dn">${delta.toLocaleString()}</b> (${bVar}%) on matched weeks.`
       : `Flat vs PY on matched weeks.`;
+  const wfChips = RESTS.map(r => {
+    const on = wfSet.has(r.id);
+    return `<button type="button" class="rest-btn${on ? ' active' : ''}" style="${on ? `background:${r.color};border-color:transparent;color:#fff` : ''}"
+      onclick="toggleResWfId('${r.id}')">${r.label}</button>`;
+  }).join('');
 
   document.getElementById('res-content').innerHTML = `
     ${insightBanner(`<b>Reservations vs prior year</b> · ${verdict} ${losers.length ? `Down at ${losers.map(l => l.label).join(', ')}.` : ''} ${winners.length ? `Up at ${winners.map(l => l.label).join(', ')}.` : ''}`)}
@@ -6370,10 +6400,13 @@ function renderResAllSites() {
     </div>
 
     <div class="section-head">Where are we vs PY — waterfall by location</div>
+    <div class="rest-selector" style="margin:0 0 10px">${wfChips}
+      <button type="button" class="rest-btn" onclick="selectResWfAll()">All in waterfall</button>
+    </div>
     <div class="chart-row cols-1">
       <div class="chart-card">
         <h3>Reservation bridge · 2025 → location Δ → 2026</h3>
-        <p>Green = winning vs PY · pink = losing · only weeks present in <b>both</b> years per location</p>
+        <p>Toggle restaurants above · green = winning vs PY · pink = losing · matched weeks only</p>
         <div class="chart-wrap" style="height:320px"><canvas id="res-waterfall"></canvas></div>
       </div>
     </div>
@@ -6602,6 +6635,15 @@ function renderResDetail(restId) {
       <div class="kpi"><div class="kpi-label">OT Network</div><div class="kpi-value" style="color:#3d8ef8">${fmt(ot26)}</div><div class="kpi-sub">${b26>0?(ot26/b26*100).toFixed(1):0}% of total</div></div>
     </div>
 
+    <div class="section-head">Where vs PY — waterfall</div>
+    <div class="chart-row cols-1">
+      <div class="chart-card">
+        <h3>${escHtml(rest.label)} · 2025 → Δ → 2026</h3>
+        <p>Matched weeks only · green win / pink loss</p>
+        <div class="chart-wrap" style="height:260px"><canvas id="res-waterfall"></canvas></div>
+      </div>
+    </div>
+
     <div class="section-head">Reservation Trends</div>
     <div class="chart-row cols-1">
       <div class="chart-card">
@@ -6633,6 +6675,7 @@ function renderResDetail(restId) {
   `;
 
   requestAnimationFrame(() => {
+    paintReservationWaterfall('res-waterfall', [matched]);
     const m26=aggByWeek(r26,'bookingsTotal'), m25=aggByWeek(r25,'bookingsTotal');
     mkChart('res-d-trend','line',{
       labels:weeks.map(w=>'W'+w),
@@ -7052,6 +7095,7 @@ function renderSankey() {
     <p class="loc-summary-note" style="margin:0 0 14px">
       <b>${escHtml(s.restaurantLabel)}</b> · <b>W${s.week}</b> · Unique calls only (same customer phone, ≤2 min between legs = one call; outcome = <b>last</b> leg) · Did they get a <b>human</b> at the end?
     </p>
+    ${buildSankeyOutcomeKpis(s)}
     ${buildSankeyBounceCompareTable()}
     <div id="sankey-pdf-root">
       <div class="chart-row cols-1" style="margin-bottom:16px">
@@ -7066,8 +7110,77 @@ function renderSankey() {
         </div>
       </div>
     </div>
+    <div class="chart-row cols-1" style="margin-top:12px">
+      <div class="chart-card">
+        <h3>Abandoned % of unique calls — by week</h3>
+        <p>Unique BH calls whose last leg is abandoned (never reached a human) · ${escHtml(s.restaurantLabel)}</p>
+        <div class="chart-wrap" style="height:240px"><canvas id="sankey-abandoned-week"></canvas></div>
+      </div>
+    </div>
     ${buildSankeyHourDetailSection()}`;
-  requestAnimationFrame(() => paintSankeyChart());
+  requestAnimationFrame(() => {
+    paintSankeyChart();
+    paintSankeyAbandonedWeekly(s.restaurantId);
+  });
+}
+
+function buildSankeyOutcomeKpis(s) {
+  const bo = s.backFromHostieOutcomes || {};
+  const abnPct = s.abandonedUniquePct != null
+    ? s.abandonedUniquePct
+    : (s.totalVolume > 0 ? Math.round(((s.totals?.abandoned || 0) / s.totalVolume) * 1000) / 10 : 0);
+  const sessions = Number(bo.sessions) || 0;
+  return `
+    <div class="section-head" style="margin-top:4px">Back from Hostie · what happens when they ask for an agent</div>
+    <p class="people-note" style="margin:0 0 10px">After MAIN miss → AI, guest requests a person → <b>Back from Hostie</b>. Outcomes below include abandoned after that return (not only last-leg Back inbound).</p>
+    <div class="kpi-row" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px">
+      <div class="kpi"><div class="kpi-label">Back sessions</div><div class="kpi-value">${sessions.toLocaleString()}</div><div class="kpi-sub">Unique calls with Back path</div></div>
+      <div class="kpi"><div class="kpi-label">→ Human</div><div class="kpi-value up">${bo.humanPct != null ? bo.humanPct + '%' : '—'}</div><div class="kpi-sub">${Number(bo.human || 0).toLocaleString()} answered</div></div>
+      <div class="kpi"><div class="kpi-label">→ Still If-No-Answer</div><div class="kpi-value" style="color:#fb923c">${bo.ifNoAnswerPct != null ? bo.ifNoAnswerPct + '%' : '—'}</div><div class="kpi-sub">${Number(bo.ifNoAnswer || 0).toLocaleString()} looped again</div></div>
+      <div class="kpi"><div class="kpi-label">→ Abandoned</div><div class="kpi-value dn">${bo.abandonedPct != null ? bo.abandonedPct + '%' : '—'}</div><div class="kpi-sub">${Number(bo.abandoned || 0).toLocaleString()} hung up after Back</div></div>
+      <div class="kpi"><div class="kpi-label">Abandoned (all unique)</div><div class="kpi-value dn">${abnPct}%</div><div class="kpi-sub">${Number(s.totals?.abandoned || 0).toLocaleString()} / ${Number(s.totalVolume || 0).toLocaleString()} · never human</div></div>
+    </div>`;
+}
+
+function paintSankeyAbandonedWeekly(restaurantId) {
+  const cat = getSankeyCatalog();
+  if (!cat?.charts) return;
+  const weeks = (cat.weeksWithData || cat.weeks || []).slice().sort((a, b) => a - b);
+  const pcts = weeks.map(w => {
+    const ch = cat.charts[`${restaurantId}:${w}`];
+    if (!ch || !ch.totalVolume) return null;
+    if (ch.abandonedUniquePct != null) return ch.abandonedUniquePct;
+    return Math.round(((ch.totals?.abandoned || 0) / ch.totalVolume) * 1000) / 10;
+  });
+  mkChart('sankey-abandoned-week', 'line', {
+    labels: weeks.map(w => 'W' + w),
+    datasets: [{
+      label: 'Abandoned %',
+      data: pcts,
+      borderColor: '#f87171',
+      backgroundColor: 'rgba(248,113,113,.12)',
+      tension: 0.3,
+      fill: true,
+      borderWidth: 2.5,
+      pointRadius: 3,
+      spanGaps: true,
+    }],
+  }, {
+    scales: {
+      y: {
+        min: 0,
+        max: 100,
+        ticks: { callback: (v) => v + '%' },
+      },
+    },
+    plugins: {
+      tooltip: {
+        callbacks: {
+          label: (ctx) => ` Abandoned: ${ctx.parsed.y}% of unique BH calls`,
+        },
+      },
+    },
+  });
 }
 
 function fmtSankeyDuration(ms) {
