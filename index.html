@@ -790,6 +790,7 @@ function applyFilters() {
 function callCenterSubtabLabel(panel) {
   if (panel === 'ring') return 'Ring Groups';
   if (panel === 'peak') return 'Peak Times';
+  if (panel === 'agents') return 'Agents';
   return 'Staffing vs AI';
 }
 
@@ -1710,6 +1711,8 @@ function buildDetailsLastWeekBrief(r26, r25) {
   const ih25 = sum(lw25, 'bookingsPhoneHuman');
   const ai25 = sum(lw25, 'bookingsPhoneAI');
   const signYoY = (cur, prior) => (cur == null || prior == null) ? '—' : (cur > prior ? '+' : cur < prior ? '−' : '=');
+  const phoneLeg = (label, cur, prior) =>
+    `${label} <b>${(cur || 0).toLocaleString()}</b> vs ${(prior || 0).toLocaleString()} PY (<b>${signYoY(cur, prior)}</b>)`;
 
   const calls26 = sum(lw26, 'callsTotal'), calls25 = sum(lw25, 'callsTotal');
   const callsVar = signedPct(calls26, calls25);
@@ -1732,8 +1735,8 @@ function buildDetailsLastWeekBrief(r26, r25) {
   const bookPhrase = bVar == null
     ? 'reservations vs prior year are unclear'
     : (bVar >= 0
-      ? `total reservations are <b>up ${Math.abs(bVar).toFixed(1)}%</b> vs prior year (Phone/In-House <b>${signYoY(ih26, ih25)}</b>, Phone/AI <b>${signYoY(ai26, ai25)}</b>)`
-      : `total reservations are <b>down ${Math.abs(bVar).toFixed(1)}%</b> vs prior year (Phone/In-House <b>${signYoY(ih26, ih25)}</b>, Phone/AI <b>${signYoY(ai26, ai25)}</b>)`);
+      ? `total reservations are <b>up ${Math.abs(bVar).toFixed(1)}%</b> vs prior year (${phoneLeg('Phone/In-House', ih26, ih25)}, ${phoneLeg('Phone/AI', ai26, ai25)})`
+      : `total reservations are <b>down ${Math.abs(bVar).toFixed(1)}%</b> vs prior year (${phoneLeg('Phone/In-House', ih26, ih25)}, ${phoneLeg('Phone/AI', ai26, ai25)})`);
 
   const humPhrase = hum26 == null
     ? 'human answer rate is unavailable'
@@ -2376,6 +2379,20 @@ function aggregateAgentProdWindow(fromWeek, toWeek) {
   const calls25 = sumF('calls25');
   const bookings26 = sumF('bookings26');
   const bookings25 = sumF('bookings25');
+  const uniqueInbound26 = sumF('uniqueInbound26') || sumF('callsTotal26') || 0;
+  const uniqueInbound25 = sumF('uniqueInbound25') || 0;
+  // Fallback: if export predates workload fields, derive unique from compare rows
+  let u26 = uniqueInbound26, u25 = uniqueInbound25;
+  if (!u26 && D?.rows26) {
+    u26 = (D.rows26 || []).filter(r => r.week >= fromWeek && r.week <= toWeek)
+      .reduce((s, r) => s + (Number(r.callsTotal) || 0), 0);
+    u25 = (D.rows25 || []).filter(r => r.week >= fromWeek && r.week <= toWeek)
+      .reduce((s, r) => s + (Number(r.callsTotal) || 0), 0);
+  }
+  const outbound26 = sumF('outbound26');
+  const outbound25 = sumF('outbound25');
+  const workload26 = sumF('workload26') || (u26 + outbound26);
+  const workload25 = sumF('workload25') || (u25 + outbound25);
   const agents26 = avgAgents('agents26');
   const agents25 = avgAgents('agents25');
   const hoursWeeks = weeksWithWorkedHours(fromWeek, toWeek, 2026);
@@ -2402,18 +2419,98 @@ function aggregateAgentProdWindow(fromWeek, toWeek) {
     calls25,
     bookings26,
     bookings25,
+    uniqueInbound26: u26,
+    uniqueInbound25: u25,
+    outbound26,
+    outbound25,
+    workload26,
+    workload25,
     hours26: hoursExact,
     hoursWeeks,
     callsForHours,
     callsPerHour26,
     callsPerAgent26: per(calls26, agents26),
     callsPerAgent25: per(calls25, agents25),
+    workloadPerAgent26: per(workload26, agents26),
+    workloadPerAgent25: per(workload25, agents25),
     bookingsPerAgent26: per(bookings26, agents26),
     bookingsPerAgent25: per(bookings25, agents25),
     callsYoY: signedPct(calls26, calls25),
     callsPerYoY: signedPct(per(calls26, agents26), per(calls25, agents25)),
+    workloadYoY: signedPct(workload26, workload25),
+    workloadPerYoY: signedPct(per(workload26, agents26), per(workload25, agents25)),
     bookingsPerYoY: signedPct(per(bookings26, agents26), per(bookings25, agents25)),
   };
+}
+
+function buildAgentsSummaryHtml(selectedWeek) {
+  const lw = selectedWeek || D.cutoff;
+  const mtdFrom = fiscalPtdFrom(lw);
+  const ytdFrom = ANALYSIS_START_WEEK;
+  const last = aggregateAgentProdWindow(lw, lw);
+  const mtd = aggregateAgentProdWindow(mtdFrom, lw);
+  const ytd = aggregateAgentProdWindow(ytdFrom, lw);
+
+  const card = (title, sub, pack) => {
+    if (!pack) {
+      return `<div class="ov-cc-card"><h3>${title}</h3><p class="ov-cc-sub">${sub}</p><p class="loc-summary-note">No agent productivity data for this window.</p></div>`;
+    }
+    const agLabel = pack.fromWeek === pack.toWeek ? '0' : '1';
+    return `<div class="ov-cc-card">
+      <h3>${title}</h3>
+      <p class="ov-cc-sub">${sub}</p>
+      <div class="ov-cc-metrics">
+        ${ovCcMetricHtml('Calls / agent', pack.workloadPerAgent26, pack.workloadPerAgent25, pack.workloadPerYoY, { decimals: 1 })}
+        ${ovCcMetricHtml('Unique inbound', pack.uniqueInbound26, pack.uniqueInbound25, signedPct(pack.uniqueInbound26, pack.uniqueInbound25), { int: true })}
+        ${ovCcMetricHtml('Outbound', pack.outbound26, pack.outbound25, signedPct(pack.outbound26, pack.outbound25), { int: true })}
+        ${ovCcMetricHtml('Workload (in+out)', pack.workload26, pack.workload25, pack.workloadYoY, { int: true })}
+      </div>
+      <div class="ov-cc-agents">Active agents: <b>${pack.agents26 ? pack.agents26.toFixed(+agLabel) : '—'}</b>
+        <span style="opacity:.7">(PY ${pack.agents25 ? pack.agents25.toFixed(+agLabel) : '—'})</span>
+        · Calls/agent = (unique BH inbound + outbound) ÷ active agents</div>
+    </div>`;
+  };
+
+  const series = D?.agentProductivity?.series || [];
+  const lastN = series.filter(p => p.week >= Math.max(ytdFrom, lw - 9) && p.week <= lw);
+  const trendNote = lastN.length
+    ? `<p class="people-note" style="margin:12px 0 0">Weekly calls/agent (unique inbound + outbound) · last ${lastN.length} weeks vs PY</p>
+       <div class="chart-wrap" style="height:260px;margin-top:8px"><canvas id="agents-cpa-trend"></canvas></div>`
+    : '';
+
+  return `<div class="table-card">
+    <h3>Summary — Agents</h3>
+    <p class="people-note">Average calls per active human agent vs prior year. Workload = <b>unique BH inbound</b> (same as Sankey / Details) <b>+ outbound</b> TalkDesk legs.</p>
+    <div class="ov-cc-summary" style="margin-top:12px">
+      ${card(`Last week · W${lw}`, '2026 vs prior year (same week)', last)}
+      ${card(`MTD · ${fiscalMtdHeader(lw)}`, '2026 vs prior year (same weeks)', mtd)}
+      ${card(`YTD · W${ytdFrom}–W${lw}`, '2026 vs prior year (same weeks)', ytd)}
+    </div>
+    ${trendNote}
+  </div>`;
+}
+
+function paintAgentsCpaTrend(selectedWeek) {
+  const canvas = document.getElementById('agents-cpa-trend');
+  if (!canvas || !D?.agentProductivity?.series) return;
+  const lw = selectedWeek || D.cutoff;
+  const from = Math.max(ANALYSIS_START_WEEK, lw - 9);
+  const pts = D.agentProductivity.series.filter(p => p.week >= from && p.week <= lw);
+  if (!pts.length) return;
+  const per = (p, year) => {
+    if (year === 26) return p.workloadPerAgent26 ?? (p.agents26 > 0 ? (p.workload26 ?? ((p.uniqueInbound26 || 0) + (p.outbound26 || 0))) / p.agents26 : null);
+    return p.workloadPerAgent25 ?? (p.agents25 > 0 ? (p.workload25 ?? ((p.uniqueInbound25 || 0) + (p.outbound25 || 0))) / p.agents25 : null);
+  };
+  mkChart('agents-cpa-trend', 'line', {
+    labels: pts.map(p => 'W' + p.week),
+    datasets: [
+      { label: '2025 calls/agent', data: pts.map(p => per(p, 25)), borderColor: Y25, tension: .3, fill: false, borderWidth: 2.5, spanGaps: true, pointRadius: 3, pointHoverRadius: 5 },
+      { label: '2026 calls/agent', data: pts.map(p => per(p, 26)), borderColor: Y26, tension: .3, fill: false, borderWidth: 2.5, spanGaps: true, pointRadius: 3, pointHoverRadius: 5 },
+    ],
+  }, {
+    scales: { y: { beginAtZero: true, ticks: { callback: v => Number(v).toFixed(0) } } },
+    plugins: { legend: YEAR_LEGEND },
+  });
 }
 
 function ovCcDeltaHtml(yoy) {
@@ -5464,8 +5561,13 @@ async function renderPeople() {
       </div>
       <div class="people-subtabs" id="people-subtabs">
         <button class="people-subtab active" data-people-panel="coverage">Staffing vs AI</button>
+        <button class="people-subtab" data-people-panel="agents">Summary — Agents</button>
         <button class="people-subtab" data-people-panel="ring">Summary — Ring Groups</button>
         <button class="people-subtab" data-people-panel="peak">Summary — Peak Times</button>
+      </div>
+
+      <div id="people-panel-agents" style="display:none">
+        ${buildAgentsSummaryHtml(j.selectedWeek)}
       </div>
 
       <div id="people-panel-ring" style="display:none">
@@ -5562,17 +5664,18 @@ async function renderPeople() {
         _peopleActivePanel = panel;
         document.querySelectorAll('.people-subtab').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        ['ring', 'peak', 'coverage'].forEach(p => {
+        ['ring', 'peak', 'coverage', 'agents'].forEach(p => {
           const node = document.getElementById('people-panel-' + p);
           if (node) node.style.display = p === panel ? '' : 'none';
         });
         updatePageTitle('people', panel);
         if (panel === 'peak') requestAnimationFrame(() => renderPeoplePeakCharts(window._peopleReport));
         if (panel === 'coverage') requestAnimationFrame(() => renderCoverageLabPanel(window._peopleReport));
+        if (panel === 'agents') requestAnimationFrame(() => paintAgentsCpaTrend(window._peopleReport?.selectedWeek));
       });
     });
 
-    const restore = ['coverage', 'ring', 'peak'].includes(_peopleActivePanel) ? _peopleActivePanel : 'coverage';
+    const restore = ['coverage', 'ring', 'peak', 'agents'].includes(_peopleActivePanel) ? _peopleActivePanel : 'coverage';
     const restoreBtn = document.querySelector(`.people-subtab[data-people-panel="${restore}"]`);
     if (restoreBtn && restore !== 'coverage') {
       restoreBtn.click();
