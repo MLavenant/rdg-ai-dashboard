@@ -1690,7 +1690,6 @@ function buildDetailsLastWeekBrief(r26, r25) {
   const bVar = signedPct(b26, b25);
   const ih26 = sum(lw26, 'bookingsPhoneHuman'), ai26 = sum(lw26, 'bookingsPhoneAI');
   const ih25 = sum(lw25, 'bookingsPhoneHuman');
-  const phoneGap = ih26 - ai26;
 
   const in26 = sum(lw26, 'callsInbound'), in25 = sum(lw25, 'callsInbound');
   const inVar = signedPct(in26, in25);
