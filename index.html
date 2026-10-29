@@ -28,28 +28,46 @@
   --radius:10px;--shadow:0 2px 12px rgba(0,0,0,.5);
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;font-size:14px;min-height:100vh}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;font-size:14px;min-height:100vh;display:flex}
 
-/* ── NAV ── */
-.nav{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;gap:32px;height:52px;position:sticky;top:0;z-index:100}
-.nav-brand{font-weight:700;font-size:15px;color:var(--text);white-space:nowrap}
-.nav-brand span{color:var(--ai);margin-right:6px}
-.tabs{display:flex;gap:2px;margin-left:auto}
-.tab-btn{padding:6px 16px;border:none;background:none;color:var(--muted);cursor:pointer;font-size:13px;border-radius:6px;transition:.15s}
+/* ── APP SHELL (left sidebar) ── */
+.sidebar{
+  width:220px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;padding:16px 12px;position:sticky;top:0;height:100vh;z-index:120;
+  transition:width .2s ease,padding .2s ease,margin .2s ease;
+}
+.sidebar.collapsed{width:0;padding:0;margin:0;border:0;overflow:hidden}
+.sidebar-brand{font-weight:700;font-size:14px;color:var(--text);padding:4px 10px 16px;white-space:nowrap}
+.sidebar-brand span{color:var(--ai);margin-right:6px}
+.sidebar-tabs{display:flex;flex-direction:column;gap:4px;flex:1}
+.tab-btn{
+  width:100%;text-align:left;padding:10px 12px;border:none;background:none;color:var(--muted);
+  cursor:pointer;font-size:13px;border-radius:8px;transition:.15s;white-space:nowrap;
+}
 .tab-btn:hover{background:var(--surface2);color:var(--text)}
 .tab-btn.active{background:var(--surface2);color:var(--y26);font-weight:600}
+.sidebar-toggle{
+  position:fixed;top:12px;left:12px;z-index:130;width:36px;height:36px;border-radius:8px;
+  border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;font-size:16px;
+}
+body:not(.nav-collapsed) .sidebar-toggle{left:232px}
+.app-main{flex:1;min-width:0;display:flex;flex-direction:column}
+.nav-brand{display:none}
 
 /* ── FILTERS ── */
-.filters{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.filters{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 24px 10px 56px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+body:not(.nav-collapsed) .filters{padding-left:24px}
 .filter-group{display:flex;align-items:center;gap:8px}
 .filter-label{color:var(--muted);font-size:12px;font-weight:500;white-space:nowrap}
 select,input[type=number]{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:6px;font-size:13px;outline:none}
 select:focus,input:focus{border-color:var(--y26)}
 .filter-sep{width:1px;height:20px;background:var(--border)}
 .last-update{margin-left:auto;color:var(--muted);font-size:11px}
+.wf-range-btn{padding:5px 12px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);border-radius:6px;cursor:pointer;font-size:12px}
+.wf-range-btn.active{background:var(--y26);border-color:var(--y26);color:#fff;font-weight:600}
 
 /* ── LAYOUT ── */
-.page{display:none;padding:20px 24px;max-width:1600px;margin:0 auto}
+.page{display:none;padding:20px 24px;max-width:1600px;margin:0 auto;width:100%}
 .page.active{display:block}
 
 /* ── KPI CARDS ── */
@@ -556,19 +574,17 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 </head>
 <body>
 
-<!-- NAV -->
-<nav class="nav">
-  <div class="nav-brand"><span>◆</span>RDG AI Impact Dashboard</div>
-  <div class="tabs">
+<button type="button" class="sidebar-toggle" id="sidebar-toggle" title="Show / hide menu" aria-label="Toggle menu">☰</button>
+<aside class="sidebar" id="app-sidebar">
+  <div class="sidebar-brand"><span>◆</span>RDG AI Impact</div>
+  <div class="sidebar-tabs">
     <button class="tab-btn active" data-tab="overview" onclick="showTab('overview')">Overview</button>
     <button class="tab-btn" data-tab="byrest" onclick="showTab('byrest')">Details</button>
     <button class="tab-btn" data-tab="people" onclick="showTab('people')">Call Center Dashboard</button>
-    <button class="tab-btn" data-tab="reservations" onclick="showTab('reservations')">Reservations</button>
-    <button class="tab-btn" data-tab="conversation" onclick="showTab('conversation')">Conversation</button>
-    <button class="tab-btn" data-tab="settings" onclick="showTab('settings')">Settings</button>
   </div>
-</nav>
+</aside>
 
+<div class="app-main">
 <!-- FILTERS -->
 <div class="filters">
   <div class="filter-group">
@@ -605,10 +621,8 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 <div id="page-overview" class="page active"><div class="loading">Loading data…</div></div>
 <div id="page-byrest"   class="page"><div class="loading">Loading data…</div></div>
 <div id="page-people"   class="page"><div class="loading">Loading call center data…</div></div>
-<div id="page-sankey"   class="page"><div class="loading">Loading Sankey…</div></div>
-<div id="page-reservations" class="page"><div class="loading">Loading data…</div></div>
-<div id="page-conversation" class="page"><div class="loading">Loading data…</div></div>
-<div id="page-settings" class="page"><div class="loading">Loading data…</div></div>
+<div id="page-sankey"   class="page" style="display:none"></div>
+</div><!-- /.app-main -->
 
 <script>
 // ═══════════════════════════════════════════════════════════════
@@ -617,8 +631,16 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 let D = null;          // raw /api/compare response
 let F = {};            // current filter state
 const CHARTS = {};     // chart instances keyed by canvas id
-/** Sankey + hour detail (now mounted under Details). */
+/** Sankey (mounted under Details). */
 let SANKEY_SEL = { restaurantId: 'mila', week: 39 };
+/** Details waterfall range: 'week' (last week) | 'ytd'. */
+let DETAILS_WF_RANGE = 'ytd';
+/** Canonical year colors — always use these for 2025 vs 2026 series. */
+const Y25 = '#ff9f2e';
+const Y26 = '#3d8ef8';
+const Y25_FILL = 'rgba(255,159,46,.10)';
+const Y26_FILL = 'rgba(61,142,248,.12)';
+const YEAR_LEGEND = { display: true, labels: { color: '#c8cde0', boxWidth: 10, font: { size: 11 } } };
 if (typeof ChartDataLabels !== 'undefined') {
   Chart.register(ChartDataLabels);
   Chart.defaults.plugins.datalabels = { display: false };
@@ -720,9 +742,6 @@ function renderAll() {
   renderSankey(); // init SANKEY_SEL defaults only
   renderByRest();
   renderPeople();
-  renderReservations();
-  renderConversation();
-  renderSettings();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -3484,10 +3503,50 @@ function renderByRest() {
   else renderRestDetail(activeRest);
 }
 
-/** Details · shared body: waterfall → unique inbound → Sankey+hours → abandoned + human %. */
+function detailsWaterfallRange() {
+  if (DETAILS_WF_RANGE === 'week') {
+    const w = D.cutoff || F.wkTo;
+    return { from: w, to: w, label: `Last week (W${w})` };
+  }
+  const from = ANALYSIS_START_WEEK;
+  const to = D.cutoff || F.wkTo;
+  return { from, to, label: `YTD (W${from}–W${to})` };
+}
+
+function matchedReservationByLocationRange(restFilterId, from, to) {
+  const savedFrom = F.wkFrom, savedTo = F.wkTo;
+  F.wkFrom = from; F.wkTo = to;
+  const locs = matchedReservationByLocation(restFilterId);
+  F.wkFrom = savedFrom; F.wkTo = savedTo;
+  return locs;
+}
+
+function setDetailsWfRange(mode) {
+  DETAILS_WF_RANGE = mode === 'week' ? 'week' : 'ytd';
+  const restId = activeRest === 'all' ? 'all' : activeRest;
+  const range = detailsWaterfallRange();
+  const locs = matchedReservationByLocationRange(restId, range.from, range.to);
+  document.querySelectorAll('.wf-range-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.wfRange === DETAILS_WF_RANGE);
+  });
+  const sub = document.getElementById('details-waterfall-sub');
+  if (sub) {
+    sub.textContent = `${range.label} · matched weeks only · ${locs.length === 1 ? 'source mix change vs PY' : 'location bridge vs PY'}`;
+  }
+  const h3 = document.getElementById('details-waterfall-title');
+  if (h3) {
+    h3.textContent = locs.length === 1
+      ? `${locs[0].label} · 2025 → source Δ → 2026`
+      : 'Reservation bridge · 2025 → location Δ → 2026';
+  }
+  paintReservationWaterfall('details-waterfall', locs);
+}
+
+/** Details · shared body: waterfall → unique inbound → Sankey → abandoned + human %. */
 function renderDetailsShell(opts) {
   const { title, titleColor, restId, r26, r25, weeks, rest } = opts;
-  const locs = matchedReservationByLocation(restId === 'all' ? 'all' : restId);
+  const wfRange = detailsWaterfallRange();
+  const locs = matchedReservationByLocationRange(restId === 'all' ? 'all' : restId, wfRange.from, wfRange.to);
   const sankeyRestId = restId === 'all' ? (SANKEY_SEL.restaurantId || 'mila') : restId;
   const cat = getSankeyCatalog();
   const sankeyLocOpts = (cat?.restaurants || RESTS).map(r =>
@@ -3506,15 +3565,23 @@ function renderDetailsShell(opts) {
       <h2 style="font-size:20px;font-weight:700;${titleColor ? `color:${titleColor}` : 'background:linear-gradient(90deg,#3d8ef8,#b06ef5);-webkit-background-clip:text;-webkit-text-fill-color:transparent'}">${title}</h2>
       ${rest ? `<div class="golive-badge">◆ AI Live W${rest.goLive} · 2026</div>` : ''}
     </div>
-    <p class="people-note" style="margin:0 0 14px">Details focus: reservations waterfall · unique BH inbound · Sankey + hour detail · abandoned % · human-answer % · W${F.wkFrom}–W${F.wkTo}.</p>
+    <p class="people-note" style="margin:0 0 14px">Details: waterfall · unique BH inbound · Sankey · abandoned % · human-answer % · W${F.wkFrom}–W${F.wkTo}.</p>
 
     <div class="section-head">1 · Reservations waterfall — 2025 vs 2026</div>
+    <div class="rest-selector" style="margin:0 0 10px;gap:8px">
+      <button type="button" class="wf-range-btn${DETAILS_WF_RANGE === 'week' ? ' active' : ''}" data-wf-range="week" onclick="setDetailsWfRange('week')">Week (W${D.cutoff})</button>
+      <button type="button" class="wf-range-btn${DETAILS_WF_RANGE === 'ytd' ? ' active' : ''}" data-wf-range="ytd" onclick="setDetailsWfRange('ytd')">YTD (W${ANALYSIS_START_WEEK}–W${D.cutoff})</button>
+    </div>
     <div class="chart-row cols-1">
       <div class="chart-card">
-        <h3>${locs.length === 1
+        <h3 id="details-waterfall-title">${locs.length === 1
           ? `${escHtml(locs[0].label)} · 2025 → source Δ → 2026`
           : 'Reservation bridge · 2025 → location Δ → 2026'}</h3>
-        <p>Matched weeks only · ${locs.length === 1 ? 'source mix change vs PY' : 'location bridge vs PY'}</p>
+        <p id="details-waterfall-sub">${wfRange.label} · matched weeks only · ${locs.length === 1 ? 'source mix change vs PY' : 'location bridge vs PY'}</p>
+        <div class="legend" style="margin-bottom:8px">
+          <div class="legend-item"><div class="legend-line" style="background:${Y25}"></div>2025</div>
+          <div class="legend-item"><div class="legend-line" style="background:${Y26}"></div>2026</div>
+        </div>
         <div class="chart-wrap" style="height:360px;padding-bottom:6px"><canvas id="details-waterfall"></canvas></div>
       </div>
     </div>
@@ -3524,6 +3591,10 @@ function renderDetailsShell(opts) {
       <div class="chart-card">
         <h3>Inbound Calls — Weekly${restId === 'all' ? ' (all restaurants)' : ''}</h3>
         <p>Unique BH inbound (Customer Phone ≤90s · In Business Hours? = TRUE)${rest ? ' · vertical line = AI go-live' : ''}</p>
+        <div class="legend" style="margin-bottom:8px">
+          <div class="legend-item"><div class="legend-line" style="background:${Y25}"></div>2025</div>
+          <div class="legend-item"><div class="legend-line" style="background:${Y26}"></div>2026</div>
+        </div>
         <div class="chart-wrap" style="height:280px"><canvas id="details-inbound-trend"></canvas></div>
         ${buildInboundCallsSummaryTable(r26, r25)}
       </div>
@@ -3539,7 +3610,7 @@ function renderDetailsShell(opts) {
     </div>
     ${buildInboundCallsByLocationTable(r26, r25)}` : ''}
 
-    <div class="section-head">3 · Sankey + hour detail</div>
+    <div class="section-head">3 · Sankey</div>
     <div class="sankey-controls no-print" style="margin-bottom:10px">
       ${restId === 'all' ? `<div class="filter-group"><span class="filter-label">Location</span>
         <select id="details-sankey-loc" onchange="onDetailsSankeyFilterChange()">${sankeyLocOpts}</select></div>` : ''}
@@ -3549,16 +3620,25 @@ function renderDetailsShell(opts) {
     <div id="details-sankey-root"><div class="loading">Loading Sankey…</div></div>
 
     <div class="section-head">4 · Abandoned rate &amp; human answer %</div>
+    <div id="details-bounce-kpis" class="kpi-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:12px"></div>
     <div class="chart-row cols-2">
       <div class="chart-card">
         <h3>Abandoned Call Rate — Weekly</h3>
         <p>Abandoned unique ÷ total unique BH · lower is better</p>
+        <div class="legend" style="margin-bottom:8px">
+          <div class="legend-item"><div class="legend-line" style="background:${Y25}"></div>2025</div>
+          <div class="legend-item"><div class="legend-line" style="background:${Y26}"></div>2026</div>
+        </div>
         <div class="chart-wrap" style="height:240px"><canvas id="details-abn-trend"></canvas></div>
         ${buildAbnSummaryTable(r26, r25)}
       </div>
       <div class="chart-card">
         <h3>Human answer % — week over week</h3>
-        <p>Unique BH sessions ending with a named human ÷ total unique BH volume</p>
+        <p>Unique BH sessions ending with a named human ÷ total unique BH · Not-human % = 100% − Human %</p>
+        <div class="legend" style="margin-bottom:8px">
+          <div class="legend-item"><div class="legend-line" style="background:${Y25}"></div>2025 Human %</div>
+          <div class="legend-item"><div class="legend-line" style="background:${Y26}"></div>2026 Human %</div>
+        </div>
         <div class="chart-wrap" style="height:240px"><canvas id="details-human-pct"></canvas></div>
       </div>
     </div>
@@ -3580,11 +3660,12 @@ function renderDetailsShell(opts) {
           borderColor: r.color,
           tension: .3, fill: false, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4,
         })),
-      });
+      }, { plugins: { legend: YEAR_LEGEND } });
     }
     paintDetailsAbnTrend('details-abn-trend', weeks, r26, r25, rest);
     paintDetailsHumanAnswerPct('details-human-pct', weeks, r26, r25, rest);
     mountDetailsSankey();
+    paintDetailsBounceKpis(sankeyRestId, sankeyWeek);
   });
 }
 
@@ -3604,10 +3685,15 @@ function paintDetailsInboundTrend(canvasId, weeks, r26, r25, rest) {
   mkChart(canvasId, 'line', {
     labels: weeks.map(w => 'W' + w),
     datasets: [
-      { label: '2025 inbound', data: weeks.map(w => m25[w] || 0), borderColor: '#ff9f2e', backgroundColor: 'rgba(255,159,46,.10)', tension: .3, fill: true, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4 },
-      { label: '2026 inbound', data: weeks.map(w => m26[w] || 0), borderColor: rest?.color || '#f43f8e', backgroundColor: (rest?.color || '#f43f8e') + '18', tension: .3, fill: true, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4 },
+      { label: '2025', data: weeks.map(w => m25[w] || 0), borderColor: Y25, backgroundColor: Y25_FILL, tension: .3, fill: true, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4 },
+      { label: '2026', data: weeks.map(w => m26[w] || 0), borderColor: Y26, backgroundColor: Y26_FILL, tension: .3, fill: true, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4 },
     ],
-  }, rest ? { plugins: { annotation: { annotations: goLiveAnno(rest, weeks) } } } : undefined);
+  }, {
+    plugins: {
+      legend: YEAR_LEGEND,
+      ...(rest ? { annotation: { annotations: goLiveAnno(rest, weeks) } } : {}),
+    },
+  });
 }
 
 function paintDetailsAbnTrend(canvasId, weeks, r26, r25, rest) {
@@ -3619,12 +3705,15 @@ function paintDetailsAbnTrend(canvasId, weeks, r26, r25, rest) {
   mkChart(canvasId, 'line', {
     labels: weeks.map(w => 'W' + w),
     datasets: [
-      { label: '2025 Abn%', data: weeks.map(w => rate(r25, w)), borderColor: '#ff9f2e', tension: .3, fill: false, borderWidth: 2.5, spanGaps: true, pointRadius: 0, pointHoverRadius: 4 },
-      { label: '2026 Abn%', data: weeks.map(w => rate(r26, w)), borderColor: rest?.color || '#f43f8e', tension: .3, fill: false, borderWidth: 2.5, spanGaps: true, pointRadius: 0, pointHoverRadius: 4 },
+      { label: '2025', data: weeks.map(w => rate(r25, w)), borderColor: Y25, tension: .3, fill: false, borderWidth: 2.5, spanGaps: true, pointRadius: 0, pointHoverRadius: 4 },
+      { label: '2026', data: weeks.map(w => rate(r26, w)), borderColor: Y26, tension: .3, fill: false, borderWidth: 2.5, spanGaps: true, pointRadius: 0, pointHoverRadius: 4 },
     ],
   }, {
     scales: { y: { ticks: { callback: v => v?.toFixed?.(1) + '%' } } },
-    plugins: rest ? { annotation: { annotations: goLiveAnno(rest, weeks) } } : undefined,
+    plugins: {
+      legend: YEAR_LEGEND,
+      ...(rest ? { annotation: { annotations: goLiveAnno(rest, weeks) } } : {}),
+    },
   });
 }
 
@@ -3637,13 +3726,59 @@ function paintDetailsHumanAnswerPct(canvasId, weeks, r26, r25, rest) {
   mkChart(canvasId, 'line', {
     labels: weeks.map(w => 'W' + w),
     datasets: [
-      { label: '2025 Human %', data: weeks.map(w => pct(r25, w)), borderColor: '#ff9f2e', tension: .3, fill: false, borderWidth: 2.5, spanGaps: true, pointRadius: 0, pointHoverRadius: 4 },
-      { label: '2026 Human %', data: weeks.map(w => pct(r26, w)), borderColor: '#22d98e', tension: .3, fill: false, borderWidth: 2.5, spanGaps: true, pointRadius: 0, pointHoverRadius: 4 },
+      { label: '2025 Human %', data: weeks.map(w => pct(r25, w)), borderColor: Y25, tension: .3, fill: false, borderWidth: 2.5, spanGaps: true, pointRadius: 0, pointHoverRadius: 4 },
+      { label: '2026 Human %', data: weeks.map(w => pct(r26, w)), borderColor: Y26, tension: .3, fill: false, borderWidth: 2.5, spanGaps: true, pointRadius: 0, pointHoverRadius: 4 },
     ],
   }, {
-    scales: { y: { beginAtZero: true, ticks: { callback: v => v?.toFixed?.(1) + '%' } } },
-    plugins: rest ? { annotation: { annotations: goLiveAnno(rest, weeks) } } : undefined,
+    scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => v?.toFixed?.(1) + '%' } } },
+    plugins: {
+      legend: YEAR_LEGEND,
+      ...(rest ? { annotation: { annotations: goLiveAnno(rest, weeks) } } : {}),
+    },
   });
+}
+
+/** Back-from-Hostie abandoned % + avg bounce until human (direct human = 0). */
+function paintDetailsBounceKpis(restaurantId, week) {
+  const el = document.getElementById('details-bounce-kpis');
+  if (!el) return;
+  const cat = getSankeyCatalog();
+  const s = cat?.charts?.[`${restaurantId}:${week}`];
+  if (!s || s.ok === false) {
+    el.innerHTML = `<div class="kpi"><div class="kpi-label">Back → abandoned</div><div class="kpi-value">—</div><div class="kpi-sub">Pick a Sankey week with data</div></div>
+      <div class="kpi"><div class="kpi-label">Avg bounce → human</div><div class="kpi-value">—</div><div class="kpi-sub">Among unique calls that reached a human</div></div>
+      <div class="kpi"><div class="kpi-label">Not-human %</div><div class="kpi-value">—</div><div class="kpi-sub">= 100% − Human answer %</div></div>`;
+    return;
+  }
+  const bo = s.backFromHostieOutcomes || {};
+  const backSessions = Number(bo.sessions) || 0;
+  const backAbnPct = bo.abandonedPct != null ? bo.abandonedPct : null;
+  const ht = Number(s.humanTouched) || 0;
+  const b = s.backFromHostieUntilHuman || {};
+  const bouncedN = Number(b.sessions) || 0;
+  const bouncedAvg = Number(b.avgBounces) || 0;
+  // Include direct humans as 0 bounce so average is across ALL human-answered unique calls.
+  const avgBounceAllHuman = ht > 0
+    ? Math.round(((bouncedN * bouncedAvg) / ht) * 100) / 100
+    : null;
+  const humanPct = s.humanTouchedPct != null ? s.humanTouchedPct : (s.totalVolume > 0 ? Math.round(ht / s.totalVolume * 1000) / 10 : null);
+  const notHumanPct = humanPct != null ? Math.round((100 - humanPct) * 10) / 10 : null;
+  el.innerHTML = `
+    <div class="kpi" style="border-top:3px solid #fb923c">
+      <div class="kpi-label">Back from Hostie → abandoned</div>
+      <div class="kpi-value" style="color:#fb923c">${backAbnPct != null ? backAbnPct + '%' : '—'}</div>
+      <div class="kpi-sub">${Number(bo.abandoned || 0).toLocaleString()} of ${backSessions.toLocaleString()} Back sessions · W${week}</div>
+    </div>
+    <div class="kpi" style="border-top:3px solid ${Y26}">
+      <div class="kpi-label">Avg bounce before human</div>
+      <div class="kpi-value" style="color:${Y26}">${avgBounceAllHuman != null ? avgBounceAllHuman.toFixed(2) : '—'}</div>
+      <div class="kpi-sub">Among ${ht.toLocaleString()} human-answered unique calls · 0 = direct human (no AI) · W${week}</div>
+    </div>
+    <div class="kpi" style="border-top:3px solid var(--red)">
+      <div class="kpi-label">Not-human % (inverse)</div>
+      <div class="kpi-value" style="color:var(--red)">${notHumanPct != null ? notHumanPct + '%' : '—'}</div>
+      <div class="kpi-sub">Exactly 100% − Human ${humanPct != null ? humanPct + '%' : '—'} · same unique BH set</div>
+    </div>`;
 }
 
 function onDetailsSankeyFilterChange() {
@@ -3665,6 +3800,7 @@ function mountDetailsSankey() {
   const s = getActiveSankey();
   if (!s || s.ok === false) {
     root.innerHTML = `<div class="table-card"><p class="loc-summary-note" style="margin:0">No call-flow data for <b>${escHtml(SANKEY_SEL.restaurantId)}</b> · <b>W${SANKEY_SEL.week}</b>.</p></div>`;
+    paintDetailsBounceKpis(SANKEY_SEL.restaurantId, SANKEY_SEL.week);
     return;
   }
   root.innerHTML = `
@@ -3682,9 +3818,11 @@ function mountDetailsSankey() {
           </div>
         </div>
       </div>
-    </div>
-    ${buildSankeyHourDetailSection()}`;
-  requestAnimationFrame(() => paintSankeyChart());
+    </div>`;
+  requestAnimationFrame(() => {
+    paintSankeyChart();
+    paintDetailsBounceKpis(SANKEY_SEL.restaurantId, SANKEY_SEL.week);
+  });
 }
 
 function renderAllRestComparison() {
@@ -6383,30 +6521,30 @@ function paintReservationWaterfall(canvasId, locs) {
   if (!locs?.length) return;
   if (locs.length === 1 && locs[0].sources?.length) {
     const loc = locs[0];
-    const steps = [
-      { label: '2025 (PY)', value: loc.b25, kind: 'total', color: 'rgba(255,159,46,.85)' },
-      ...loc.sources.map(s => ({
-        label: s.label,
-        value: s.delta,
-        kind: 'delta',
-        color: s.delta >= 0 ? s.color : 'rgba(244,63,142,.85)',
-      })),
-      { label: '2026', value: loc.b26, kind: 'total', color: 'rgba(61,142,248,.9)' },
-    ];
-    paintWaterfallBridge(canvasId, steps);
-    return;
+  const steps = [
+    { label: '2025 (PY)', value: loc.b25, kind: 'total', color: Y25 },
+    ...loc.sources.map(s => ({
+      label: s.label,
+      value: s.delta,
+      kind: 'delta',
+      color: s.delta >= 0 ? s.color : 'rgba(244,63,142,.85)',
+    })),
+    { label: '2026', value: loc.b26, kind: 'total', color: Y26 },
+  ];
+  paintWaterfallBridge(canvasId, steps);
+  return;
   }
   const total25 = locs.reduce((s, l) => s + l.b25, 0);
   const total26 = locs.reduce((s, l) => s + l.b26, 0);
   const steps = [
-    { label: '2025 (PY)', value: total25, kind: 'total', color: 'rgba(255,159,46,.85)' },
+    { label: '2025 (PY)', value: total25, kind: 'total', color: Y25 },
     ...locs.map(l => ({
       label: l.label,
       value: l.delta,
       kind: 'delta',
       color: l.delta >= 0 ? 'rgba(34,217,142,.85)' : 'rgba(244,63,142,.85)',
     })),
-    { label: '2026', value: total26, kind: 'total', color: 'rgba(61,142,248,.9)' },
+    { label: '2026', value: total26, kind: 'total', color: Y26 },
   ];
   paintWaterfallBridge(canvasId, steps);
 }
@@ -7010,12 +7148,12 @@ async function renderSettings() {
 // ═══════════════════════════════════════════════════════════════
 function showTab(name) {
   if (name === 'report' || name === 'calls') name = name === 'calls' ? 'people' : 'overview';
-  if (name === 'sankey') name = 'byrest'; // AI Analysis folded into Details
+  if (name === 'sankey' || name === 'reservations' || name === 'conversation' || name === 'settings') name = 'byrest';
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav .tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.sidebar .tab-btn').forEach(b => b.classList.remove('active'));
   const page = document.getElementById('page-' + name);
   if (page) page.classList.add('active');
-  const btn = document.querySelector(`.nav .tab-btn[data-tab="${name}"]`);
+  const btn = document.querySelector(`.sidebar .tab-btn[data-tab="${name}"]`);
   if (btn) btn.classList.add('active');
   try { history.replaceState(null, '', name === 'overview' ? location.pathname + location.search : '#' + name); } catch (_) {}
   if (name === 'people') {
@@ -7024,6 +7162,14 @@ function showTab(name) {
     if (panel === 'peak') requestAnimationFrame(() => renderPeoplePeakCharts(window._peopleReport));
   }
   if (name === 'byrest') requestAnimationFrame(() => { if (document.getElementById('details-sankey-root')) mountDetailsSankey(); });
+}
+
+function toggleSidebar() {
+  const sb = document.getElementById('app-sidebar');
+  if (!sb) return;
+  const collapsed = sb.classList.toggle('collapsed');
+  document.body.classList.toggle('nav-collapsed', collapsed);
+  try { localStorage.setItem('rdg-nav-collapsed', collapsed ? '1' : '0'); } catch (_) {}
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -7505,7 +7651,15 @@ function paintSankeyChart() {
 // ─── START ───────────────────────────────────────────────────
 init().then(() => {
   const hash = (location.hash || '').replace('#', '');
-  if (hash && document.getElementById('page-' + hash)) showTab(hash);
+  const allowed = ['overview', 'byrest', 'people'];
+  if (hash && allowed.includes(hash) && document.getElementById('page-' + hash)) showTab(hash);
+  document.getElementById('sidebar-toggle')?.addEventListener('click', toggleSidebar);
+  try {
+    if (localStorage.getItem('rdg-nav-collapsed') === '1') {
+      document.getElementById('app-sidebar')?.classList.add('collapsed');
+      document.body.classList.add('nav-collapsed');
+    }
+  } catch (_) {}
 });
 </script>
 </body>
