@@ -1449,7 +1449,7 @@ function buildCallsSummaryTable(r26, r25) {
   </div>`;
 }
 
-/** Same period strip as Call Volume, but TalkDesk inbound only (callsInbound). */
+/** Same period strip as Call Volume, but TalkDesk inbound + business hours only (callsInbound). */
 function buildInboundCallsSummaryTable(r26, r25) {
   const periods = [
     { key:'lw', label:`Last Week (W${D.lastWeek})` },
@@ -1475,7 +1475,7 @@ function buildInboundCallsSummaryTable(r26, r25) {
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <div class="stat-note">Inbound only (TalkDesk Call Type = inbound) · excludes abandoned / outbound from this total</div>
+    <div class="stat-note">Inbound + business hours only (Call Type = inbound · In Business Hours? = TRUE) · excludes after-hours, abandoned, outbound</div>
   </div>`;
 }
 
@@ -1904,7 +1904,7 @@ function buildOverviewUnifiedTableHtml() {
   return `<div class="table-card overview-scorecard">
     <h3>Locations · Last week · Period (4-4-5) · YTD · vs PY</h3>
     <p class="report-blurb">This scorecard compares each restaurant to the same weeks last year (vs PY) across three windows — last week, current fiscal period-to-date (4-4-5), and year-to-date. Each Calls / Inbound / Phone booked / Conv cell shows 2026, the PY numerical value, and the YoY delta.</p>
-    <p class="loc-summary-note">Calls = all TalkDesk volume · <b>Inbound</b> = inbound only vs PY · Phone booked: 2026 + PY + YoY · Transfer % = Hostie transferred ÷ Hostie AI calls · AI-only % of calls = (Hostie phoneCalls − transferred) ÷ total calls · Human / AI Conv: 2026 vs PY · Last week W${D.cutoff} · ${fiscalMtdHeader(D.cutoff)} (4-4-5) · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
+    <p class="loc-summary-note">Calls = all TalkDesk volume · <b>Inbound</b> = inbound + business hours only (In Business Hours? = TRUE) vs PY · Phone booked: 2026 + PY + YoY · Transfer % = Hostie transferred ÷ Hostie AI calls · AI-only % of calls = (Hostie phoneCalls − transferred) ÷ total calls · Human / AI Conv: 2026 vs PY · Last week W${D.cutoff} · ${fiscalMtdHeader(D.cutoff)} (4-4-5) · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
     <table class="exec-kpi-table">
       <thead>
         <tr class="group-row">
@@ -2917,7 +2917,7 @@ async function exportOverviewPdf() {
     pdf.setFontSize(6);
     pdf.setTextColor(136, 144, 184);
     pdf.text(
-      'vs PY = prior-year + YoY · Inbound = inbound calls only · Transfer = Hostie xfer ÷ Hostie AI · AI-only % = (phoneCalls − xfer) ÷ total calls · Human/AI Conv as labeled',
+      'vs PY = prior-year + YoY · Inbound = inbound + business hours (TRUE) · Transfer = Hostie xfer ÷ Hostie AI · AI-only % = (phoneCalls − xfer) ÷ total calls · Human/AI Conv as labeled',
       m, Math.min(y, pageH - 4)
     );
 
@@ -3492,13 +3492,13 @@ function renderDetailsInboundAllSites() {
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
       <h2 style="font-size:20px;font-weight:700;background:linear-gradient(90deg,#3d8ef8,#b06ef5);-webkit-background-clip:text;-webkit-text-fill-color:transparent">All Sites — Inbound calls only</h2>
     </div>
-    <p class="people-note" style="margin:0 0 14px">Same Call Volume layout as each restaurant, but <b>inbound only</b> (TalkDesk Call Type = inbound) across all locations · W${F.wkFrom}–W${F.wkTo}.</p>
+    <p class="people-note" style="margin:0 0 14px">Same Call Volume layout as each restaurant, but <b>inbound + business hours only</b> (Call Type = inbound · In Business Hours? = TRUE) across all locations · W${F.wkFrom}–W${F.wkTo}.</p>
 
     <div class="section-head">Call Volume — Inbound only</div>
     <div class="chart-row cols-1">
       <div class="chart-card">
         <h3>Inbound Calls Handled — Weekly (all restaurants)</h3>
-        <p>2025 vs 2026 · inbound only · sum of all locations</p>
+        <p>2025 vs 2026 · inbound + business hours only · sum of all locations</p>
         <div class="chart-wrap" style="height:280px"><canvas id="details-inbound-all-trend"></canvas></div>
         ${buildInboundCallsSummaryTable(r26, r25)}
       </div>
@@ -3507,7 +3507,7 @@ function renderDetailsInboundAllSites() {
     <div class="chart-row cols-1">
       <div class="chart-card">
         <h3>Inbound Calls — by restaurant 2026</h3>
-        <p>Each location · inbound only</p>
+        <p>Each location · inbound + business hours only</p>
         <div class="legend">${RESTS.map(r => `<div class="legend-item"><div class="legend-line" style="background:${r.color}"></div>${r.label}</div>`).join('')}</div>
         <div class="chart-wrap" style="height:260px"><canvas id="details-inbound-by-rest"></canvas></div>
       </div>
@@ -3747,7 +3747,7 @@ function renderRestDetail(restId) {
     <div class="chart-row cols-1">
       <div class="chart-card">
         <h3>Inbound Calls — Weekly</h3>
-        <p>2025 vs 2026 · TalkDesk inbound only · vertical line = AI go-live</p>
+        <p>2025 vs 2026 · inbound + business hours only (In Business Hours? = TRUE) · vertical line = AI go-live</p>
         <div class="chart-wrap" style="height:280px"><canvas id="rc-inbound-${restId}"></canvas></div>
         ${buildInboundCallsSummaryTable(r26, r25)}
       </div>
