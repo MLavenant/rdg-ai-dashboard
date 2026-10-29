@@ -1533,7 +1533,7 @@ function buildCallsSummaryTable(r26, r25) {
   </div>`;
 }
 
-/** Same period strip as Call Volume, but unique BH inbound last-leg sessions (callsInbound). */
+/** Unique BH volume (callsTotal = inbound last-leg + abandoned) — same as Sankey total. */
 function buildInboundCallsSummaryTable(r26, r25) {
   const periods = [
     { key:'lw', label:`Last Week (W${D.lastWeek})` },
@@ -1542,7 +1542,7 @@ function buildInboundCallsSummaryTable(r26, r25) {
   ];
   const rows = periods.map(p => {
     const s26 = periodRows(r26, p.key), s25 = periodRows(r25, p.key);
-    const t25 = sum(s25, 'callsInbound'), t26 = sum(s26, 'callsInbound');
+    const t25 = sum(s25, 'callsTotal'), t26 = sum(s26, 'callsTotal');
     const delta = t25 > 0 ? ((t26 - t25) / t25 * 100) : 0;
     const cls = delta >= 0 ? 'heat-good' : 'heat-bad';
     return `<tr>
@@ -1555,11 +1555,11 @@ function buildInboundCallsSummaryTable(r26, r25) {
   return `<div class="period-summary">
     <table>
       <thead><tr>
-        <th></th><th>Inbound 2025</th><th>Inbound 2026</th><th>YoY %</th>
+        <th></th><th>Unique calls 2025</th><th>Unique calls 2026</th><th>YoY %</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <div class="stat-note">Unique inbound last-leg sessions · business hours only · Customer Phone ≤90s gap = 1 call · excludes abandoned-ending sessions, after-hours, outbound, VIP/Membership</div>
+    <div class="stat-note">Unique BH calls = inbound + abandoned last-leg sessions (same as Sankey total) · Customer Phone ≤90s gap = 1 call · excludes after-hours, outbound, VIP/Membership</div>
   </div>`;
 }
 
@@ -1576,7 +1576,7 @@ function buildInboundCallsByLocationTable(r26, r25) {
     const cells = periods.map(p => {
       const s26 = periodRows(r26.filter(r => r.restaurantId === rest.id), p.key);
       const s25 = periodRows(r25.filter(r => r.restaurantId === rest.id), p.key);
-      const t25 = sum(s25, 'callsInbound'), t26 = sum(s26, 'callsInbound');
+      const t25 = sum(s25, 'callsTotal'), t26 = sum(s26, 'callsTotal');
       const delta = t25 > 0 ? ((t26 - t25) / t25 * 100) : null;
       const cls = delta == null ? '' : delta >= 0 ? 'up' : 'dn';
       return `<td>${t25.toLocaleString()}</td><td><b>${t26.toLocaleString()}</b></td><td class="${cls}">${delta == null ? '—' : (delta >= 0 ? '+' : '') + delta.toFixed(1) + '%'}</td>`;
@@ -1585,17 +1585,18 @@ function buildInboundCallsByLocationTable(r26, r25) {
   }).join('');
   const tot = periods.map(p => {
     const s26 = periodRows(r26, p.key), s25 = periodRows(r25, p.key);
-    const t25 = sum(s25, 'callsInbound'), t26 = sum(s26, 'callsInbound');
+    const t25 = sum(s25, 'callsTotal'), t26 = sum(s26, 'callsTotal');
     const delta = t25 > 0 ? ((t26 - t25) / t25 * 100) : null;
     const cls = delta == null ? '' : delta >= 0 ? 'up' : 'dn';
     return `<td><b>${t25.toLocaleString()}</b></td><td><b>${t26.toLocaleString()}</b></td><td class="${cls}"><b>${delta == null ? '—' : (delta >= 0 ? '+' : '') + delta.toFixed(1) + '%'}</b></td>`;
   }).join('');
   return `<div class="table-card" style="margin-top:12px">
-    <h3>Inbound calls vs PY — by location</h3>
+    <h3>Unique calls vs PY — by location</h3>
     <table>
       <thead><tr><th>Location</th>${head}</tr></thead>
       <tbody>${body}<tr class="total-row"><td><b>All</b></td>${tot}</tr></tbody>
     </table>
+    <div class="stat-note">Same unique BH volume as Sankey (inbound + abandoned).</div>
   </div>`;
 }
 
@@ -1621,21 +1622,21 @@ function buildAbnSummaryTable(r26, r25) {
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <div class="stat-note">Abandoned % = abandoned calls ÷ total TalkDesk calls (inbound + abandoned + outbound)</div>
+    <div class="stat-note">Abandoned % = unique BH abandoned ÷ unique BH calls (inbound + abandoned · same as Sankey)</div>
   </div>`;
 }
 
-/** Phone/In-House ÷ unique BH inbound (Details §5). */
+/** Phone/In-House ÷ unique BH volume (inbound + abandoned; same as Sankey T). */
 function humanConvOfInboundAgg(rows) {
   const books = sum(rows, 'bookingsPhoneHuman');
-  const inbound = sum(rows, 'callsInbound');
-  return inbound > 0 ? convPctRaw(books / inbound * 100) : null;
+  const vol = sum(rows, 'callsTotal');
+  return vol > 0 ? convPctRaw(books / vol * 100) : null;
 }
-/** Phone/AI ÷ unique BH inbound (Details §6). */
+/** Phone/AI ÷ unique BH volume (inbound + abandoned; same as Sankey T). */
 function aiConvOfInboundAgg(rows) {
   const books = sum(rows, 'bookingsPhoneAI');
-  const inbound = sum(rows, 'callsInbound');
-  return inbound > 0 ? convPctRaw(books / inbound * 100) : null;
+  const vol = sum(rows, 'callsTotal');
+  return vol > 0 ? convPctRaw(books / vol * 100) : null;
 }
 function humanAnswerPctAgg(rows) {
   const tot = sum(rows, 'callsTotal');
@@ -1651,8 +1652,8 @@ function buildConvOfInboundSummaryTable(r26, r25, kind) {
   const isHuman = kind === 'human';
   const label = isHuman ? 'Human Conv %' : 'AI Conv %';
   const note = isHuman
-    ? 'Human Conv % = Phone/In-House bookings ÷ unique BH inbound calls'
-    : 'AI Conv % = Phone/AI bookings ÷ unique BH inbound calls';
+    ? 'Human Conv % = Phone/In-House ÷ unique BH calls (inbound + abandoned · same as Sankey)'
+    : 'AI Conv % = Phone/AI ÷ unique BH calls (inbound + abandoned · same as Sankey)';
   const rateFn = isHuman ? humanConvOfInboundAgg : aiConvOfInboundAgg;
   const periods = [
     { key: 'lw', label: `Last Week (W${D.lastWeek})` },
@@ -1679,7 +1680,7 @@ function buildConvOfInboundSummaryTable(r26, r25, kind) {
   </div>`;
 }
 
-/** One-sentence last-week walkthrough for Details. */
+/** CEO BRIEF — last-week picture for Details (unique BH volume = Sankey total). */
 function buildDetailsLastWeekBrief(r26, r25) {
   const w = D.lastWeek || D.cutoff;
   const lw26 = r26.filter(r => r.week === w);
@@ -1690,32 +1691,59 @@ function buildDetailsLastWeekBrief(r26, r25) {
   const bVar = signedPct(b26, b25);
   const ih26 = sum(lw26, 'bookingsPhoneHuman'), ai26 = sum(lw26, 'bookingsPhoneAI');
   const ih25 = sum(lw25, 'bookingsPhoneHuman');
+  const phone26 = ih26 + ai26;
+  const phone25 = ih25; // 2025 phone was In-House only
+  const phoneVar = signedPct(phone26, phone25);
 
-  const in26 = sum(lw26, 'callsInbound'), in25 = sum(lw25, 'callsInbound');
-  const inVar = signedPct(in26, in25);
+  const calls26 = sum(lw26, 'callsTotal'), calls25 = sum(lw25, 'callsTotal');
+  const callsVar = signedPct(calls26, calls25);
 
   const hum26 = humanAnswerPctAgg(lw26);
   const hum25 = humanAnswerPctAgg(lw25);
   const hum3 = humanAnswerPctAgg(trail26);
 
   const abn26 = abnRate(lw26);
+  const abn25 = abnRate(lw25);
   const hConv = humanConvOfInboundAgg(lw26);
+  const hConv25 = humanConvOfInboundAgg(lw25);
 
-  const resTxt = bVar == null ? 'reservations vs PY unclear' : `reservations <b>${fmtSigned(bVar)}</b> vs PY`;
-  const phoneTxt = `Phone/In-House <b>${ih26.toLocaleString()}</b> · Phone/AI <b>${ai26.toLocaleString()}</b>`
-    + (ih25 > 0 ? ` (In-House ${ih26 >= ih25 ? '+' : ''}${(ih26 - ih25).toLocaleString()} vs PY)` : '');
-  const callsTxt = inVar == null ? 'inbound unclear'
-    : `${inVar >= 0 ? 'more' : 'fewer'} unique inbound (<b>${fmtSigned(inVar)}</b> vs PY)`;
-  const humTxt = hum26 == null ? 'human answer n/a'
-    : `human answer <b>${hum26.toFixed(1)}%</b>`
-      + (hum25 != null ? ` vs PY ${hum25.toFixed(1)}%` : '')
-      + (hum3 != null ? ` / 3-wk avg ${hum3.toFixed(1)}%` : '');
-  const abnTxt = abn26 == null ? 'abandoned n/a' : `abandoned <b>${abn26.toFixed(1)}%</b>`;
-  const convTxt = hConv == null ? 'human conversion n/a' : `human conversion <b>${hConv.toFixed(1)}%</b> of inbound`;
+  const callsPhrase = callsVar == null
+    ? 'call volume vs prior year is unclear'
+    : (callsVar >= 0
+      ? `we took <b>more</b> unique calls than prior year (<b>${fmtSigned(callsVar)}</b>, ${calls26.toLocaleString()} vs ${calls25.toLocaleString()})`
+      : `we took <b>fewer</b> unique calls than prior year (<b>${fmtSigned(callsVar)}</b>, ${calls26.toLocaleString()} vs ${calls25.toLocaleString()})`);
+
+  const bookPhrase = bVar == null
+    ? 'reservations vs prior year are unclear'
+    : (bVar >= 0
+      ? `total reservations are <b>up ${Math.abs(bVar).toFixed(1)}%</b> vs prior year`
+      : `total reservations are <b>down ${Math.abs(bVar).toFixed(1)}%</b> vs prior year`);
+
+  const phonePhrase = `phone bookings are <b>${ih26.toLocaleString()} In-House</b> and <b>${ai26.toLocaleString()} AI</b>`
+    + (phoneVar == null ? '' : ` (combined phone ${fmtSigned(phoneVar)} vs PY, when phone was mostly In-House)`)
+    + (ih25 > 0 ? `; In-House alone is ${ih26 - ih25 >= 0 ? '+' : ''}${(ih26 - ih25).toLocaleString()} vs PY` : '');
+
+  const humPhrase = hum26 == null
+    ? 'human answer rate is unavailable'
+    : `<b>${hum26.toFixed(1)}%</b> of unique calls reached a human`
+      + (hum25 != null ? ` vs ${hum25.toFixed(1)}% prior year` : '')
+      + (hum3 != null ? ` (3-week avg ${hum3.toFixed(1)}%)` : '');
+
+  const abnPhrase = abn26 == null
+    ? 'abandon rate unavailable'
+    : `abandon rate sat at <b>${abn26.toFixed(1)}%</b>`
+      + (abn25 != null ? ` vs ${abn25.toFixed(1)}% PY` : '');
+
+  const convPhrase = hConv == null
+    ? 'human conversion unavailable'
+    : `In-House books converted at <b>${hConv.toFixed(1)}%</b> of unique calls`
+      + (hConv25 != null ? ` vs ${hConv25.toFixed(1)}% PY` : '');
+
+  const text = `Last week (W${w}), ${callsPhrase}. ${bookPhrase}, with ${phonePhrase}. ${humPhrase}; ${abnPhrase}; ${convPhrase}.`;
 
   return `<div class="insight-banner" style="margin:0 0 16px"><div class="insight-mark">◆</div><div>
-    <div class="insight-label">Last week walkthrough · W${w}</div>
-    <div class="insight-text">${resTxt}; ${phoneTxt}; ${callsTxt}; ${humTxt}; ${abnTxt}; ${convTxt}.</div>
+    <div class="insight-label">BRIEF · W${w}</div>
+    <div class="insight-text">${text}</div>
   </div></div>`;
 }
 
@@ -1975,9 +2003,10 @@ function overviewPeriodMetrics(restId, period) {
   const calls = sum(r26, 'callsTotal');
   const calls25 = sum(r25, 'callsTotal');
   const callsYoY = signedPct(calls, calls25);
-  const inbound = sum(r26, 'callsInbound');
-  const inbound25 = sum(r25, 'callsInbound');
-  const inboundYoY = signedPct(inbound, inbound25);
+  // Inbound column = unique BH volume (inbound + abandoned), same as Sankey / callsTotal
+  const inbound = calls;
+  const inbound25 = calls25;
+  const inboundYoY = callsYoY;
   const phoneBooked = phoneBooks(r26);
   const phoneBooked25 = phoneBooks(r25);
   const phoneBookedYoY = signedPct(phoneBooked, phoneBooked25);
@@ -2051,17 +2080,16 @@ function buildOverviewUnifiedTableHtml() {
     const r25 = locSummaryScope(D.rows25, p).filter(r => ids.has(r.restaurantId));
     const calls = sum(r26, 'callsTotal');
     const calls25 = sum(r25, 'callsTotal');
-    const inbound = sum(r26, 'callsInbound');
-    const inbound25 = sum(r25, 'callsInbound');
+    const callsYoY = signedPct(calls, calls25);
     const phoneBooked = phoneBooks(r26);
     const phoneBooked25 = phoneBooks(r25);
     return overviewPeriodCells({
       calls,
       calls25,
-      callsYoY: signedPct(calls, calls25),
-      inbound,
-      inbound25,
-      inboundYoY: signedPct(inbound, inbound25),
+      callsYoY,
+      inbound: calls,
+      inbound25: calls25,
+      inboundYoY: callsYoY,
       phoneBooked,
       phoneBooked25,
       phoneBookedYoY: signedPct(phoneBooked, phoneBooked25),
@@ -2082,7 +2110,7 @@ function buildOverviewUnifiedTableHtml() {
   return `<div class="table-card overview-scorecard">
     <h3>Locations · Last week · Period (4-4-5) · YTD · vs PY</h3>
     <p class="report-blurb">This scorecard compares each restaurant to the same weeks last year (vs PY) across three windows — last week, current fiscal period-to-date (4-4-5), and year-to-date. Each Calls / Inbound / Phone booked / Conv cell shows 2026, the PY numerical value, and the YoY delta.</p>
-    <p class="loc-summary-note">Calls / Inbound = <b>unique BH inbound</b> (In Business Hours? = TRUE · Customer Phone ≤90s gap · last leg; VIP/Membership out) vs PY · Phone booked: 2026 + PY + YoY · Transfer % = Hostie transferred ÷ Hostie AI calls · AI-only % of calls = (Hostie phoneCalls − transferred) ÷ total calls · Human / AI Conv: 2026 vs PY · Last week W${D.cutoff} · ${fiscalMtdHeader(D.cutoff)} (4-4-5) · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
+    <p class="loc-summary-note">Calls / Inbound = <b>unique BH volume</b> (inbound + abandoned · same as Sankey · In Business Hours? = TRUE · Customer Phone ≤90s gap; VIP/Membership out) vs PY · Phone booked: 2026 + PY + YoY · Transfer % = Hostie transferred ÷ Hostie AI calls · AI-only % of calls = (Hostie phoneCalls − transferred) ÷ total calls · Human / AI Conv: 2026 vs PY · Last week W${D.cutoff} · ${fiscalMtdHeader(D.cutoff)} (4-4-5) · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
     <table class="exec-kpi-table">
       <thead>
         <tr class="group-row">
@@ -2809,10 +2837,14 @@ function collectOverviewScorecardRows() {
     const calls25 = sum(r25, 'callsTotal');
     const phoneBooked = phoneBooks(r26);
     const phoneBooked25 = phoneBooks(r25);
+    const callsYoY = signedPct(calls, calls25);
     return {
       calls,
       calls25,
-      callsYoY: signedPct(calls, calls25),
+      callsYoY,
+      inbound: calls,
+      inbound25: calls25,
+      inboundYoY: callsYoY,
       phoneBooked,
       phoneBooked25,
       phoneBookedYoY: signedPct(phoneBooked, phoneBooked25),
@@ -3743,8 +3775,8 @@ function renderDetailsShell(opts) {
     <h2 class="details-section-title">2 · Unique inbound calls</h2>
     <div class="chart-row cols-1">
       <div class="chart-card">
-        <h3>Inbound Calls — Weekly${restId === 'all' ? ' (all restaurants)' : ''}</h3>
-        <p>Unique BH inbound (Customer Phone ≤90s · In Business Hours? = TRUE)${rest ? ' · vertical line = AI go-live' : ''}</p>
+        <h3>Unique Calls — Weekly${restId === 'all' ? ' (all restaurants)' : ''}</h3>
+        <p>Unique BH volume = inbound + abandoned (same as Sankey · Customer Phone ≤90s · In Business Hours? = TRUE)${rest ? ' · vertical line = AI go-live' : ''}</p>
         <div class="legend" style="margin-bottom:8px">
           <div class="legend-item"><div class="legend-line" style="background:${Y25}"></div>2025</div>
           <div class="legend-item"><div class="legend-line" style="background:${Y26}"></div>2026</div>
@@ -3756,8 +3788,8 @@ function renderDetailsShell(opts) {
     ${restId === 'all' ? `
     <div class="chart-row cols-1">
       <div class="chart-card">
-        <h3>Inbound Calls — by restaurant 2026</h3>
-        <p>Each location · unique BH inbound</p>
+        <h3>Unique Calls — by restaurant 2026</h3>
+        <p>Each location · unique BH volume (inbound + abandoned)</p>
         <div class="legend">${RESTS.map(r => `<div class="legend-item"><div class="legend-line" style="background:${r.color}"></div>${r.label}</div>`).join('')}</div>
         <div class="chart-wrap" style="height:260px"><canvas id="details-inbound-by-rest"></canvas></div>
       </div>
@@ -3801,7 +3833,7 @@ function renderDetailsShell(opts) {
     <div class="chart-row cols-1">
       <div class="chart-card">
         <h3>Human Conversion — Weekly</h3>
-        <p>Phone/In-House bookings ÷ unique BH inbound · higher is better</p>
+        <p>Phone/In-House ÷ unique BH calls (inbound + abandoned · same as Sankey) · higher is better</p>
         <div class="legend" style="margin-bottom:8px">
           <div class="legend-item"><div class="legend-line" style="background:${Y25}"></div>2025</div>
           <div class="legend-item"><div class="legend-line" style="background:${Y26}"></div>2026</div>
@@ -3815,7 +3847,7 @@ function renderDetailsShell(opts) {
     <div class="chart-row cols-1">
       <div class="chart-card">
         <h3>AI Conversion — Weekly</h3>
-        <p>Phone/AI bookings ÷ unique BH inbound · higher is better</p>
+        <p>Phone/AI ÷ unique BH calls (inbound + abandoned · same as Sankey) · higher is better</p>
         <div class="legend" style="margin-bottom:8px">
           <div class="legend-item"><div class="legend-line" style="background:${Y25}"></div>2025</div>
           <div class="legend-item"><div class="legend-line" style="background:${Y26}"></div>2026</div>
@@ -3838,7 +3870,7 @@ function renderDetailsShell(opts) {
         labels: weeks.map(w => 'W' + w),
         datasets: RESTS.map(r => ({
           label: r.label,
-          data: weeks.map(w => r26.find(x => x.restaurantId === r.id && x.week === w)?.callsInbound || 0),
+          data: weeks.map(w => r26.find(x => x.restaurantId === r.id && x.week === w)?.callsTotal || 0),
           borderColor: r.color,
           tension: .3, fill: false, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4,
         })),
@@ -3864,8 +3896,9 @@ function renderDetailsAllSites() {
 }
 
 function paintDetailsInboundTrend(canvasId, weeks, r26, r25, rest) {
-  const m26 = aggByWeek(r26, 'callsInbound');
-  const m25 = aggByWeek(r25, 'callsInbound');
+  // callsTotal = unique BH (inbound + abandoned) — matches Sankey totalVolume
+  const m26 = aggByWeek(r26, 'callsTotal');
+  const m25 = aggByWeek(r25, 'callsTotal');
   mkChart(canvasId, 'line', {
     labels: weeks.map(w => 'W' + w),
     datasets: [
@@ -3926,9 +3959,9 @@ function paintDetailsConvOfInboundTrend(canvasId, weeks, r26, r25, rest, kind) {
   const bookKey = kind === 'human' ? 'bookingsPhoneHuman' : 'bookingsPhoneAI';
   const label = kind === 'human' ? 'Human Conv %' : 'AI Conv %';
   const pct = (rs, w) => {
-    const inbound = aggByWeek(rs, 'callsInbound')[w] || 0;
+    const vol = aggByWeek(rs, 'callsTotal')[w] || 0;
     const books = aggByWeek(rs, bookKey)[w] || 0;
-    return inbound > 0 ? convPctRaw(books / inbound * 100) : null;
+    return vol > 0 ? convPctRaw(books / vol * 100) : null;
   };
   mkChart(canvasId, 'line', {
     labels: weeks.map(w => 'W' + w),
@@ -4215,13 +4248,14 @@ function buildRcCalls(id, rest, weeks, r26, r25) {
 }
 
 function buildRcInboundCalls(id, rest, weeks, r26, r25) {
-  const m26 = aggByWeek(r26, 'callsInbound');
-  const m25 = aggByWeek(r25, 'callsInbound');
+  // Unique BH volume (inbound + abandoned) — same denominator as Sankey
+  const m26 = aggByWeek(r26, 'callsTotal');
+  const m25 = aggByWeek(r25, 'callsTotal');
   mkChart(`rc-inbound-${id}`, 'line', {
     labels: weeks.map(w => 'W' + w),
     datasets: [
-      { label: '2025 inbound', data: weeks.map(w => m25[w] || 0), borderColor: '#ff9f2e', backgroundColor: 'rgba(255,159,46,.10)', tension: .3, fill: true, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4 },
-      { label: '2026 inbound', data: weeks.map(w => m26[w] || 0), borderColor: rest.color, backgroundColor: rest.color + '18', tension: .3, fill: true, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4 },
+      { label: '2025 unique', data: weeks.map(w => m25[w] || 0), borderColor: '#ff9f2e', backgroundColor: 'rgba(255,159,46,.10)', tension: .3, fill: true, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4 },
+      { label: '2026 unique', data: weeks.map(w => m26[w] || 0), borderColor: rest.color, backgroundColor: rest.color + '18', tension: .3, fill: true, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4 },
     ],
   }, { plugins: { annotation: { annotations: goLiveAnno(rest, weeks) } } });
 }
