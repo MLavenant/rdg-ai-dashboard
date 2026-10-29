@@ -6233,6 +6233,14 @@ function renderReservations() {
   else renderResDetail(activeResRest);
 }
 
+const RES_SOURCE_KEYS = [
+  { key: 'bookingsOTNetwork', label: 'OT Network', color: 'rgba(61,142,248,.9)' },
+  { key: 'bookingsPhoneHuman', label: 'Phone/In-House', color: 'rgba(34,217,142,.9)' },
+  { key: 'bookingsPhoneAI', label: 'Phone/AI', color: 'rgba(176,110,245,.9)' },
+  { key: 'bookingsYourNetwork', label: 'Your Network', color: 'rgba(244,63,142,.85)' },
+  { key: 'bookingsWalkIn', label: 'Walk-in', color: 'rgba(255,159,46,.85)' },
+];
+
 /** Per-location reservation totals on weeks that exist in BOTH 2025 and 2026 (apples-to-apples). */
 function matchedReservationByLocation(restFilterId) {
   const from = F.wkFrom, to = F.wkTo;
@@ -6246,15 +6254,21 @@ function matchedReservationByLocation(restFilterId) {
     const map25 = new Map();
     rows26.forEach(r => {
       if (r.restaurantId !== rest.id || r.week < from || r.week > to) return;
-      map26.set(r.week, Number(r.bookingsTotal) || 0);
+      map26.set(r.week, r);
     });
     rows25.forEach(r => {
       if (r.restaurantId !== rest.id || r.week < from || r.week > to) return;
-      map25.set(r.week, Number(r.bookingsTotal) || 0);
+      map25.set(r.week, r);
     });
     const matchedWeeks = [...map26.keys()].filter(w => map25.has(w)).sort((a, b) => a - b);
-    const b26 = matchedWeeks.reduce((s, w) => s + (map26.get(w) || 0), 0);
-    const b25 = matchedWeeks.reduce((s, w) => s + (map25.get(w) || 0), 0);
+    const sumField = (map, field) => matchedWeeks.reduce((s, w) => s + (Number(map.get(w)?.[field]) || 0), 0);
+    const b26 = sumField(map26, 'bookingsTotal');
+    const b25 = sumField(map25, 'bookingsTotal');
+    const sources = RES_SOURCE_KEYS.map(src => {
+      const v26 = sumField(map26, src.key);
+      const v25 = sumField(map25, src.key);
+      return { ...src, v25, v26, delta: v26 - v25 };
+    });
     return {
       id: rest.id,
       label: rest.label,
@@ -6262,6 +6276,7 @@ function matchedReservationByLocation(restFilterId) {
       b26,
       b25,
       delta: b26 - b25,
+      sources,
       matchedWeeks,
       weekFrom: matchedWeeks[0] ?? null,
       weekTo: matchedWeeks.length ? matchedWeeks[matchedWeeks.length - 1] : null,
@@ -6283,34 +6298,34 @@ function reservationDataCoverageNote() {
   return {
     has25,
     has26,
-    html: `Data check: <b>2025</b> ${has25 ? `present (W${w25[0]}–W${w25[w25.length - 1]}, ${(D.rows25 || []).length} rows)` : '<span class="dn">MISSING</span>'} · ` +
-      `<b>2026</b> ${has26 ? `present (W${w26[0]}–W${w26[w26.length - 1]}, ${(D.rows26 || []).length} rows)` : '<span class="dn">MISSING</span>'} · ` +
-      `Compare uses <b>matched weeks only</b> per location (same week # in both years within W${F.wkFrom}–W${F.wkTo}). ${thinTxt}.`,
+    html: `Data check: <b>2025 is not full-year</b> — OpenTable weekly rows for <b>W${w25[0] || '—'}–W${w25[w25.length - 1] || '—'}</b> (${(D.rows25 || []).length} rows). ` +
+      `<b>2026</b> W${w26[0] || '—'}–W${w26[w26.length - 1] || '—'}. ` +
+      `Waterfall uses the header filter <b>W${F.wkFrom}–W${F.wkTo}</b> (analysis YTD from W${ANALYSIS_START_WEEK}), and only <b>matched week #s</b> present in both years per location — same calendar weeks, apples-to-apples. ${thinTxt}.`,
   };
 }
 
-function paintReservationWaterfall(canvasId, locs) {
-  const total25 = locs.reduce((s, l) => s + l.b25, 0);
-  const total26 = locs.reduce((s, l) => s + l.b26, 0);
-  const labels = ['2025 (PY)', ...locs.map(l => l.label), '2026'];
+function paintWaterfallBridge(canvasId, steps) {
+  // steps: [{ label, value, kind: 'total'|'delta', color? }]
+  const labels = steps.map(s => s.label);
   const floats = [];
   const colors = [];
   const tipDelta = [];
-  floats.push([0, total25]);
-  colors.push('rgba(255,159,46,.85)');
-  tipDelta.push(total25);
-  let run = total25;
-  locs.forEach(l => {
-    const next = run + l.delta;
-    if (l.delta >= 0) floats.push([run, next]);
-    else floats.push([next, run]);
-    colors.push(l.delta >= 0 ? 'rgba(34,217,142,.85)' : 'rgba(244,63,142,.85)');
-    tipDelta.push(l.delta);
-    run = next;
+  let run = 0;
+  steps.forEach((step, i) => {
+    if (step.kind === 'total') {
+      floats.push([0, step.value]);
+      colors.push(step.color || (i === 0 ? 'rgba(255,159,46,.85)' : 'rgba(61,142,248,.9)'));
+      tipDelta.push(step.value);
+      run = step.value;
+    } else {
+      const next = run + step.value;
+      if (step.value >= 0) floats.push([run, next]);
+      else floats.push([next, run]);
+      colors.push(step.color || (step.value >= 0 ? 'rgba(34,217,142,.85)' : 'rgba(244,63,142,.85)'));
+      tipDelta.push(step.value);
+      run = next;
+    }
   });
-  floats.push([0, total26]);
-  colors.push('rgba(61,142,248,.9)');
-  tipDelta.push(total26);
 
   mkChart(canvasId, 'bar', {
     labels,
@@ -6341,7 +6356,8 @@ function paintReservationWaterfall(canvasId, locs) {
         formatter: (val, ctx) => {
           const i = ctx.dataIndex;
           const n = tipDelta[i];
-          if (i === 0 || i === tipDelta.length - 1) return Number(n).toLocaleString();
+          const step = steps[i];
+          if (step.kind === 'total') return Number(n).toLocaleString();
           return (n >= 0 ? '+' : '') + Number(n).toLocaleString();
         },
       },
@@ -6350,14 +6366,47 @@ function paintReservationWaterfall(canvasId, locs) {
           label: (ctx) => {
             const i = ctx.dataIndex;
             const n = tipDelta[i];
-            if (i === 0) return ` PY total: ${Number(n).toLocaleString()}`;
-            if (i === tipDelta.length - 1) return ` 2026 total: ${Number(n).toLocaleString()}`;
-            return ` YoY Δ: ${(n >= 0 ? '+' : '') + Number(n).toLocaleString()}`;
+            const step = steps[i];
+            if (step.kind === 'total') return ` ${step.label}: ${Number(n).toLocaleString()}`;
+            return ` ${step.label} YoY Δ: ${(n >= 0 ? '+' : '') + Number(n).toLocaleString()}`;
           },
         },
       },
     },
   });
+}
+
+/** Location bridge when multiple sites; source bridge when one site. */
+function paintReservationWaterfall(canvasId, locs) {
+  if (!locs?.length) return;
+  if (locs.length === 1 && locs[0].sources?.length) {
+    const loc = locs[0];
+    const steps = [
+      { label: '2025 (PY)', value: loc.b25, kind: 'total', color: 'rgba(255,159,46,.85)' },
+      ...loc.sources.map(s => ({
+        label: s.label,
+        value: s.delta,
+        kind: 'delta',
+        color: s.delta >= 0 ? s.color : 'rgba(244,63,142,.85)',
+      })),
+      { label: '2026', value: loc.b26, kind: 'total', color: 'rgba(61,142,248,.9)' },
+    ];
+    paintWaterfallBridge(canvasId, steps);
+    return;
+  }
+  const total25 = locs.reduce((s, l) => s + l.b25, 0);
+  const total26 = locs.reduce((s, l) => s + l.b26, 0);
+  const steps = [
+    { label: '2025 (PY)', value: total25, kind: 'total', color: 'rgba(255,159,46,.85)' },
+    ...locs.map(l => ({
+      label: l.label,
+      value: l.delta,
+      kind: 'delta',
+      color: l.delta >= 0 ? 'rgba(34,217,142,.85)' : 'rgba(244,63,142,.85)',
+    })),
+    { label: '2026', value: total26, kind: 'total', color: 'rgba(61,142,248,.9)' },
+  ];
+  paintWaterfallBridge(canvasId, steps);
 }
 
 function renderResAllSites() {
@@ -6399,17 +6448,47 @@ function renderResAllSites() {
       <div class="kpi"><div class="kpi-label">Phone/AI 2026</div><div class="kpi-value" style="color:var(--ai)">${fmt(ai26)}</div><div class="kpi-sub">In-House ${fmt(ph26)} · PY phone ${fmt(ph25)}</div></div>
     </div>
 
-    <div class="section-head">Where are we vs PY — waterfall by location</div>
+    <div class="section-head">Where are we vs PY — waterfall</div>
     <div class="rest-selector" style="margin:0 0 10px">${wfChips}
       <button type="button" class="rest-btn" onclick="selectResWfAll()">All in waterfall</button>
     </div>
     <div class="chart-row cols-1">
       <div class="chart-card">
-        <h3>Reservation bridge · 2025 → location Δ → 2026</h3>
-        <p>Toggle restaurants above · green = winning vs PY · pink = losing · matched weeks only</p>
+        <h3>${locs.length === 1
+          ? `${escHtml(locs[0].label)} · 2025 → source Δ → 2026`
+          : 'Reservation bridge · 2025 → location Δ → 2026'}</h3>
+        <p>${locs.length === 1
+          ? 'Source mix change vs PY (OT Network, Phone/In-House, Phone/AI, Your Network, Walk-in) · matched weeks only · not full-year 2025'
+          : 'Select one restaurant for source break · multi = location bridge · matched weeks W' + F.wkFrom + '–W' + F.wkTo + ' only (not full-year 2025)'}</p>
         <div class="chart-wrap" style="height:320px"><canvas id="res-waterfall"></canvas></div>
       </div>
     </div>
+    ${locs.length === 1 ? `
+    <div class="table-card" style="margin-bottom:16px">
+      <h3>${escHtml(locs[0].label)} — source vs PY (matched weeks)</h3>
+      <table>
+        <thead><tr><th>Source</th><th>2025 (PY)</th><th>2026</th><th>Δ #</th><th>Δ %</th></tr></thead>
+        <tbody>
+          ${locs[0].sources.map(s => {
+            const pct = s.v25 > 0 ? ((s.delta / s.v25) * 100).toFixed(1) : '—';
+            return `<tr>
+              <td>${escHtml(s.label)}</td>
+              <td>${s.v25.toLocaleString()}</td>
+              <td>${s.v26.toLocaleString()}</td>
+              <td class="${s.delta>=0?'up':'dn'}">${s.delta>=0?'+':''}${s.delta.toLocaleString()}</td>
+              <td class="${s.delta>=0?'up':'dn'}">${pct}%</td>
+            </tr>`;
+          }).join('')}
+          <tr class="total-row">
+            <td><b>Total</b></td>
+            <td><b>${locs[0].b25.toLocaleString()}</b></td>
+            <td><b>${locs[0].b26.toLocaleString()}</b></td>
+            <td class="${locs[0].delta>=0?'up':'dn'}"><b>${locs[0].delta>=0?'+':''}${locs[0].delta.toLocaleString()}</b></td>
+            <td class="${locs[0].delta>=0?'up':'dn'}"><b>${locs[0].b25>0?((locs[0].delta/locs[0].b25)*100).toFixed(1):'—'}%</b></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>` : ''}
     <div class="table-card" style="margin-bottom:16px">
       <h3>Location scorecard — matched weeks only</h3>
       <table>
@@ -6635,13 +6714,31 @@ function renderResDetail(restId) {
       <div class="kpi"><div class="kpi-label">OT Network</div><div class="kpi-value" style="color:#3d8ef8">${fmt(ot26)}</div><div class="kpi-sub">${b26>0?(ot26/b26*100).toFixed(1):0}% of total</div></div>
     </div>
 
-    <div class="section-head">Where vs PY — waterfall</div>
+    <div class="section-head">Where vs PY — waterfall by source</div>
     <div class="chart-row cols-1">
       <div class="chart-card">
-        <h3>${escHtml(rest.label)} · 2025 → Δ → 2026</h3>
-        <p>Matched weeks only · green win / pink loss</p>
-        <div class="chart-wrap" style="height:260px"><canvas id="res-waterfall"></canvas></div>
+        <h3>${escHtml(rest.label)} · 2025 → source Δ → 2026</h3>
+        <p>OT Network · Phone/In-House · Phone/AI · Your Network · Walk-in · matched weeks W${F.wkFrom}–W${F.wkTo} (not full-year 2025)</p>
+        <div class="chart-wrap" style="height:280px"><canvas id="res-waterfall"></canvas></div>
       </div>
+    </div>
+    <div class="table-card" style="margin-bottom:16px">
+      <h3>Source vs PY</h3>
+      <table>
+        <thead><tr><th>Source</th><th>2025 (PY)</th><th>2026</th><th>Δ #</th><th>Δ %</th></tr></thead>
+        <tbody>
+          ${(matched.sources || []).map(s => {
+            const pct = s.v25 > 0 ? ((s.delta / s.v25) * 100).toFixed(1) : '—';
+            return `<tr>
+              <td>${escHtml(s.label)}</td>
+              <td>${s.v25.toLocaleString()}</td>
+              <td>${s.v26.toLocaleString()}</td>
+              <td class="${s.delta>=0?'up':'dn'}">${s.delta>=0?'+':''}${s.delta.toLocaleString()}</td>
+              <td class="${s.delta>=0?'up':'dn'}">${pct}%</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
     </div>
 
     <div class="section-head">Reservation Trends</div>
