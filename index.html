@@ -668,8 +668,8 @@ let F = {};            // current filter state
 const CHARTS = {};     // chart instances keyed by canvas id
 /** Sankey (mounted under Details). */
 let SANKEY_SEL = { restaurantId: 'mila', week: 39 };
-/** Details waterfall range: 'week' (selected week) | 'ytd'. */
-let DETAILS_WF_RANGE = 'ytd';
+/** Details waterfall range: 'week' (selected week) | 'ytd'. Default week so the dropdown is the primary control. */
+let DETAILS_WF_RANGE = 'week';
 /** Selected single week for Details waterfall (defaults to cutoff / previous week). */
 let DETAILS_WF_WEEK = null;
 /** Canonical year colors — always use these for 2025 vs 2026 series. */
@@ -801,6 +801,8 @@ function applyFilters() {
   F.wkFrom = ANALYSIS_START_WEEK;
   F.wkTo = through;
   F.year = 'both'; // always 2025 vs 2026
+  // Keep Details week picker in sync with header Through week
+  DETAILS_WF_WEEK = through;
   renderAll();
 }
 
@@ -4042,8 +4044,9 @@ function renderDetailsShell(opts) {
 
     <h2 class="details-section-title">1 · Reservations waterfall — 2025 vs 2026</h2>
     <div class="rest-selector no-print" style="margin:0 0 10px;gap:8px;align-items:center">
+      <span class="filter-label" style="margin:0">Week</span>
       <select id="details-wf-week" class="wf-range-btn${DETAILS_WF_RANGE === 'week' ? ' active' : ''}" data-wf-range="week"
-        title="Pick a week" onfocus="setDetailsWfRange('week')" onchange="onDetailsWfWeekChange()">${detailsWeekOptionsHtml(detailsSelectedWeek())}</select>
+        title="Click to pick another week" onmousedown="setDetailsWfRange('week')" onchange="onDetailsWfWeekChange()">${detailsWeekOptionsHtml(detailsSelectedWeek())}</select>
       <button type="button" class="wf-range-btn${DETAILS_WF_RANGE === 'ytd' ? ' active' : ''}" data-wf-range="ytd" onclick="setDetailsWfRange('ytd')">YTD (W${ANALYSIS_START_WEEK}–W${D.cutoff})</button>
     </div>
     <div class="chart-row cols-1">
