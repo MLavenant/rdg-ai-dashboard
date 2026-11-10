@@ -32,31 +32,43 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-s
 
 /* ── APP SHELL (left sidebar) ── */
 .sidebar{
-  width:220px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);
-  display:flex;flex-direction:column;padding:16px 12px;position:sticky;top:0;height:100vh;z-index:120;
-  transition:width .2s ease,padding .2s ease,margin .2s ease;
+  width:268px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;padding:18px 14px;position:sticky;top:0;height:100vh;z-index:120;
+  transition:width .2s ease,padding .2s ease,margin .2s ease,opacity .15s ease;
 }
-.sidebar.collapsed{width:0;padding:0;margin:0;border:0;overflow:hidden}
-.sidebar-brand{font-weight:700;font-size:14px;color:var(--text);padding:4px 10px 16px;white-space:nowrap}
+.sidebar.collapsed{width:0;padding:0;margin:0;border:0;overflow:hidden;opacity:0;pointer-events:none}
+.sidebar-top{display:flex;align-items:center;gap:10px;padding:2px 4px 20px}
+.sidebar-brand{font-weight:700;font-size:15px;color:var(--text);white-space:nowrap;line-height:1.25}
 .sidebar-brand span{color:var(--ai);margin-right:6px}
-.sidebar-tabs{display:flex;flex-direction:column;gap:4px;flex:1}
+.sidebar-tabs{display:flex;flex-direction:column;gap:10px;flex:1}
+.sidebar-foot{margin-top:auto;padding-top:16px;border-top:1px solid var(--border)}
 .tab-btn{
-  width:100%;text-align:left;padding:10px 12px;border:none;background:none;color:var(--muted);
-  cursor:pointer;font-size:13px;border-radius:8px;transition:.15s;white-space:nowrap;
+  width:100%;text-align:left;padding:14px 14px;border:none;background:none;color:var(--muted);
+  cursor:pointer;font-size:14px;border-radius:10px;transition:.15s;white-space:nowrap;letter-spacing:.01em;
 }
 .tab-btn:hover{background:var(--surface2);color:var(--text)}
 .tab-btn.active{background:var(--surface2);color:var(--y26);font-weight:600}
 .sidebar-toggle{
-  position:fixed;top:12px;left:12px;z-index:130;width:36px;height:36px;border-radius:8px;
+  flex-shrink:0;width:36px;height:36px;border-radius:8px;
   border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;font-size:16px;
 }
-body:not(.nav-collapsed) .sidebar-toggle{left:232px}
+.sidebar-toggle.floating{
+  position:fixed;top:12px;left:12px;z-index:130;display:none;
+}
+body.nav-collapsed .sidebar-toggle.floating{display:inline-flex;align-items:center;justify-content:center}
 .app-main{flex:1;min-width:0;display:flex;flex-direction:column}
 .nav-brand{display:none}
+.page-title-bar{
+  display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  padding:16px 24px 0;max-width:1600px;margin:0 auto;width:100%;
+}
+body.nav-collapsed .page-title-bar{padding-left:56px}
+.page-title{font-size:18px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text);margin:0}
+.page-title-sub{font-size:12px;color:var(--muted);margin:0}
 
 /* ── FILTERS ── */
-.filters{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 24px 10px 56px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-body:not(.nav-collapsed) .filters{padding-left:24px}
+.filters{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+body.nav-collapsed .filters{padding-left:56px}
 .filter-group{display:flex;align-items:center;gap:8px}
 .filter-label{color:var(--muted);font-size:12px;font-weight:500;white-space:nowrap}
 select,input[type=number]{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:6px;font-size:13px;outline:none}
@@ -65,10 +77,15 @@ select:focus,input:focus{border-color:var(--y26)}
 .last-update{margin-left:auto;color:var(--muted);font-size:11px}
 .wf-range-btn{padding:5px 12px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);border-radius:6px;cursor:pointer;font-size:12px}
 .wf-range-btn.active{background:var(--y26);border-color:var(--y26);color:#fff;font-weight:600}
+select.wf-range-btn{appearance:auto;-webkit-appearance:menulist;min-width:118px;padding-right:8px}
+select.wf-range-btn.active{color:#fff}
+select.wf-range-btn.active option{color:#111}
+.people-week-bar select#people-week{min-width:120px;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;cursor:pointer}
 
 /* ── LAYOUT ── */
-.page{display:none;padding:20px 24px;max-width:1600px;margin:0 auto;width:100%}
+.page{display:none;padding:16px 24px 24px;max-width:1600px;margin:0 auto;width:100%}
 .page.active{display:block}
+body.nav-collapsed .page{padding-left:56px}
 
 /* ── KPI CARDS ── */
 .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px}
@@ -254,6 +271,8 @@ tbody tr.total-row td{font-weight:700;color:var(--text)}
 /* ── SECTION HEADING ── */
 .section-head{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin:20px 0 12px;display:flex;align-items:center;gap:8px}
 .section-head::after{content:'';flex:1;height:1px;background:var(--border)}
+.details-section-title{font-size:18px;font-weight:700;color:var(--text);margin:22px 0 12px;padding:0;letter-spacing:-.01em;line-height:1.25}
+.details-section-title:first-of-type{margin-top:10px}
 
 /* ── PERIOD SUMMARY (below charts) ── */
 .period-summary{margin-top:12px;border-top:1px solid var(--border);padding-top:12px}
@@ -319,6 +338,23 @@ tbody tr.total-row td{font-weight:700;color:var(--text)}
 .pdf-compact #sankey-pdf-root .chart-row{margin:0!important}
 .pdf-compact #sankey-pdf-root h3{margin:0 0 6px!important;font-size:13px!important}
 .pdf-compact .coverage-evidence{display:none!important}
+.details-pdf-page.pdf-compact .details-section-title{font-size:12px!important;margin:8px 0 4px!important}
+.details-pdf-page.pdf-compact .chart-wrap{height:120px!important}
+.details-pdf-page.pdf-compact .sankey-chart-wrap{height:200px!important}
+.details-pdf-page.pdf-compact .chart-card{padding:8px!important;margin-bottom:4px!important}
+.details-pdf-page.pdf-compact .period-summary{font-size:9px!important}
+.details-pdf-page.pdf-compact .insight-banner{padding:8px 10px!important;margin-bottom:8px!important}
+.details-pdf-page.pdf-compact .insight-text{font-size:10px!important;line-height:1.35!important}
+.details-pdf-page.pdf-compact .kpi-row{margin-bottom:6px!important}
+.details-pdf-page.pdf-compact .kpi{padding:8px!important}
+.details-pdf-page.pdf-compact .kpi-value{font-size:16px!important}
+.details-pdf-page.pdf-compact h2{font-size:14px!important;margin:0!important}
+.details-pdf-page.pdf-compact h3{font-size:11px!important;margin:0 0 2px!important}
+.details-pdf-page.pdf-compact p{font-size:9px!important;margin:0 0 4px!important}
+.details-pdf-page.pdf-compact .chart-row{margin:0 0 4px!important}
+.details-pdf-page.pdf-compact .rest-selector,
+.details-pdf-page.pdf-compact .sankey-controls,
+.details-pdf-page.pdf-compact .no-print{display:none!important}
 .overview-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
 .overview-toolbar .section-head{margin:0}
 .insight-banner{background:linear-gradient(135deg,rgba(61,142,248,.12),rgba(176,110,245,.10));border:1px solid rgba(61,142,248,.28);border-radius:var(--radius);padding:14px 18px;margin-bottom:18px;display:flex;gap:12px;align-items:flex-start}
@@ -574,17 +610,27 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
 </head>
 <body>
 
-<button type="button" class="sidebar-toggle" id="sidebar-toggle" title="Show / hide menu" aria-label="Toggle menu">☰</button>
+<button type="button" class="sidebar-toggle floating" id="sidebar-toggle-open" title="Show menu" aria-label="Show menu">☰</button>
 <aside class="sidebar" id="app-sidebar">
-  <div class="sidebar-brand"><span>◆</span>RDG AI Impact</div>
+  <div class="sidebar-top">
+    <button type="button" class="sidebar-toggle" id="sidebar-toggle" title="Hide menu" aria-label="Hide menu">☰</button>
+    <div class="sidebar-brand"><span>◆</span>RDG AI Impact</div>
+  </div>
   <div class="sidebar-tabs">
     <button class="tab-btn active" data-tab="overview" onclick="showTab('overview')">Overview</button>
     <button class="tab-btn" data-tab="byrest" onclick="showTab('byrest')">Details</button>
     <button class="tab-btn" data-tab="people" onclick="showTab('people')">Call Center Dashboard</button>
   </div>
+  <div class="sidebar-foot">
+    <button class="tab-btn" data-tab="settings" onclick="showTab('settings')">Settings</button>
+  </div>
 </aside>
 
 <div class="app-main">
+<div class="page-title-bar">
+  <h1 class="page-title" id="page-title">Overview</h1>
+  <p class="page-title-sub" id="page-title-sub"></p>
+</div>
 <!-- FILTERS -->
 <div class="filters">
   <div class="filter-group">
@@ -600,27 +646,16 @@ code.cmd{font-size:11px;background:var(--surface2);padding:2px 6px;border-radius
   </div>
   <div class="filter-sep"></div>
   <div class="filter-group">
-    <span class="filter-label">Week</span>
-    <input type="number" id="f-wk-from" min="11" max="52" value="11" style="width:60px" onchange="applyFilters()"/>
-    <span class="filter-label">→</span>
-    <input type="number" id="f-wk-to" min="1" max="52" value="28" style="width:60px" onchange="applyFilters()"/>
+    <span class="filter-label">Through week</span>
+    <select id="f-week" onchange="applyFilters()" style="min-width:88px"></select>
   </div>
-  <div class="filter-sep"></div>
-  <div class="filter-group">
-    <span class="filter-label">Compare</span>
-    <select id="f-year" onchange="applyFilters()">
-      <option value="both">2025 vs 2026</option>
-      <option value="2026">2026 only</option>
-      <option value="2025">2025 only</option>
-    </select>
-  </div>
-  <div class="last-update" id="last-update">Loading…</div>
 </div>
 
 <!-- PAGES -->
 <div id="page-overview" class="page active"><div class="loading">Loading data…</div></div>
 <div id="page-byrest"   class="page"><div class="loading">Loading data…</div></div>
 <div id="page-people"   class="page"><div class="loading">Loading call center data…</div></div>
+<div id="page-settings" class="page"><div class="loading">Loading…</div></div>
 <div id="page-sankey"   class="page" style="display:none"></div>
 </div><!-- /.app-main -->
 
@@ -633,8 +668,10 @@ let F = {};            // current filter state
 const CHARTS = {};     // chart instances keyed by canvas id
 /** Sankey (mounted under Details). */
 let SANKEY_SEL = { restaurantId: 'mila', week: 39 };
-/** Details waterfall range: 'week' (last week) | 'ytd'. */
-let DETAILS_WF_RANGE = 'ytd';
+/** Details waterfall range: 'week' (selected week) | 'ytd'. Default week so the dropdown is the primary control. */
+let DETAILS_WF_RANGE = 'week';
+/** Selected single week for Details waterfall (defaults to cutoff / previous week). */
+let DETAILS_WF_WEEK = null;
 /** Canonical year colors — always use these for 2025 vs 2026 series. */
 const Y25 = '#ff9f2e';
 const Y26 = '#3d8ef8';
@@ -716,13 +753,41 @@ async function loadCompare() {
   return r2.json();
 }
 
+/** Latest complete data week (previous week vs “this week in progress”). */
+function defaultThroughWeek() {
+  return D?.cutoff || ANALYSIS_START_WEEK;
+}
+
+function populateWeekSelect(selectedWeek) {
+  const sel = document.getElementById('f-week');
+  if (!sel || !D) return;
+  const maxW = D.cutoff || ANALYSIS_START_WEEK;
+  const pick = Math.min(Math.max(selectedWeek || maxW, ANALYSIS_START_WEEK), maxW);
+  // Newest first — open the list and scroll down for earlier weeks
+  sel.innerHTML = Array.from({ length: maxW - ANALYSIS_START_WEEK + 1 }, (_, i) => {
+    const w = maxW - i;
+    const label = w === maxW ? `W${w} (previous week)` : `W${w}`;
+    return `<option value="${w}"${w === pick ? ' selected' : ''}>${label}</option>`;
+  }).join('');
+}
+
+function peopleWeekOptionsHtml(selectedWeek) {
+  const maxW = D?.cutoff || 53;
+  const pick = Math.min(Math.max(selectedWeek || maxW, 1), maxW);
+  return Array.from({ length: maxW }, (_, i) => {
+    const w = maxW - i;
+    const label = w === (D?.cutoff || maxW) ? `W${w} (previous week)` : `W${w}`;
+    return `<option value="${w}"${w === pick ? ' selected' : ''}>${label}</option>`;
+  }).join('');
+}
+
 async function init() {
   try {
     D = await loadCompare();
-    document.getElementById('f-wk-from').value = ANALYSIS_START_WEEK;
-    document.getElementById('f-wk-to').value = D.cutoff;
-    document.getElementById('last-update').textContent = `Updated W${D.cutoff} · ${fiscalMtdHeader(D.cutoff)} · Analysis from W${ANALYSIS_START_WEEK}`;
-    F = { location:'all', wkFrom:ANALYSIS_START_WEEK, wkTo:D.cutoff, year:'both' };
+    const through = defaultThroughWeek();
+    populateWeekSelect(through);
+    F = { location: 'all', wkFrom: ANALYSIS_START_WEEK, wkTo: through, year: 'both' };
+    updatePageTitle('overview');
     renderAll();
   } catch(e) {
     document.querySelectorAll('.page').forEach(p => p.innerHTML = `<div class="error">Error loading data: ${e.message}</div>`);
@@ -731,10 +796,42 @@ async function init() {
 
 function applyFilters() {
   F.location = document.getElementById('f-location').value;
-  F.wkFrom   = Math.max(ANALYSIS_START_WEEK, +document.getElementById('f-wk-from').value || ANALYSIS_START_WEEK);
-  F.wkTo     = +document.getElementById('f-wk-to').value || D.cutoff;
-  F.year     = document.getElementById('f-year').value;
+  const maxW = D?.cutoff || ANALYSIS_START_WEEK;
+  const through = Math.min(maxW, Math.max(ANALYSIS_START_WEEK, +document.getElementById('f-week')?.value || maxW));
+  F.wkFrom = ANALYSIS_START_WEEK;
+  F.wkTo = through;
+  F.year = 'both'; // always 2025 vs 2026
+  // Keep Details week picker in sync with header Through week
+  DETAILS_WF_WEEK = through;
   renderAll();
+}
+
+function callCenterSubtabLabel(panel) {
+  if (panel === 'ring') return 'Ring Groups';
+  if (panel === 'peak') return 'Peak Times';
+  if (panel === 'agents') return 'Agents';
+  return 'Staffing vs AI';
+}
+
+function updatePageTitle(tab, peoplePanel) {
+  const titleEl = document.getElementById('page-title');
+  const subEl = document.getElementById('page-title-sub');
+  if (!titleEl) return;
+  const cutoff = D?.cutoff;
+  const from = F.wkFrom || ANALYSIS_START_WEEK;
+  const to = F.wkTo || cutoff;
+  const range = cutoff != null ? `Data W${from}–W${to} · previous week W${cutoff}` : '';
+  if (tab === 'people') {
+    const sub = callCenterSubtabLabel(peoplePanel || _peopleActivePanel || 'coverage');
+    titleEl.textContent = `Call Center Dashboard : ${sub}`;
+  } else if (tab === 'byrest') {
+    titleEl.textContent = 'Details';
+  } else if (tab === 'settings') {
+    titleEl.textContent = 'Settings';
+  } else {
+    titleEl.textContent = 'Overview';
+  }
+  if (subEl) subEl.textContent = range;
 }
 
 function renderAll() {
@@ -742,6 +839,9 @@ function renderAll() {
   renderSankey(); // init SANKEY_SEL defaults only
   renderByRest();
   renderPeople();
+  renderSettings();
+  const active = document.querySelector('.sidebar .tab-btn.active')?.dataset?.tab || 'overview';
+  updatePageTitle(active);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1470,7 +1570,7 @@ function buildCallsSummaryTable(r26, r25) {
   </div>`;
 }
 
-/** Same period strip as Call Volume, but unique BH inbound last-leg sessions (callsInbound). */
+/** Unique BH volume (callsTotal = inbound last-leg + abandoned) — same as Sankey total. */
 function buildInboundCallsSummaryTable(r26, r25) {
   const periods = [
     { key:'lw', label:`Last Week (W${D.lastWeek})` },
@@ -1479,7 +1579,7 @@ function buildInboundCallsSummaryTable(r26, r25) {
   ];
   const rows = periods.map(p => {
     const s26 = periodRows(r26, p.key), s25 = periodRows(r25, p.key);
-    const t25 = sum(s25, 'callsInbound'), t26 = sum(s26, 'callsInbound');
+    const t25 = sum(s25, 'callsTotal'), t26 = sum(s26, 'callsTotal');
     const delta = t25 > 0 ? ((t26 - t25) / t25 * 100) : 0;
     const cls = delta >= 0 ? 'heat-good' : 'heat-bad';
     return `<tr>
@@ -1492,11 +1592,11 @@ function buildInboundCallsSummaryTable(r26, r25) {
   return `<div class="period-summary">
     <table>
       <thead><tr>
-        <th></th><th>Inbound 2025</th><th>Inbound 2026</th><th>YoY %</th>
+        <th></th><th>Unique calls 2025</th><th>Unique calls 2026</th><th>YoY %</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <div class="stat-note">Unique inbound last-leg sessions · business hours only · Customer Phone ≤90s gap = 1 call · excludes abandoned-ending sessions, after-hours, outbound, VIP/Membership</div>
+    <div class="stat-note">Unique BH calls = inbound + abandoned last-leg sessions (same as Sankey total) · Customer Phone ≤90s gap = 1 call · excludes after-hours, outbound, VIP/Membership</div>
   </div>`;
 }
 
@@ -1513,7 +1613,7 @@ function buildInboundCallsByLocationTable(r26, r25) {
     const cells = periods.map(p => {
       const s26 = periodRows(r26.filter(r => r.restaurantId === rest.id), p.key);
       const s25 = periodRows(r25.filter(r => r.restaurantId === rest.id), p.key);
-      const t25 = sum(s25, 'callsInbound'), t26 = sum(s26, 'callsInbound');
+      const t25 = sum(s25, 'callsTotal'), t26 = sum(s26, 'callsTotal');
       const delta = t25 > 0 ? ((t26 - t25) / t25 * 100) : null;
       const cls = delta == null ? '' : delta >= 0 ? 'up' : 'dn';
       return `<td>${t25.toLocaleString()}</td><td><b>${t26.toLocaleString()}</b></td><td class="${cls}">${delta == null ? '—' : (delta >= 0 ? '+' : '') + delta.toFixed(1) + '%'}</td>`;
@@ -1522,17 +1622,18 @@ function buildInboundCallsByLocationTable(r26, r25) {
   }).join('');
   const tot = periods.map(p => {
     const s26 = periodRows(r26, p.key), s25 = periodRows(r25, p.key);
-    const t25 = sum(s25, 'callsInbound'), t26 = sum(s26, 'callsInbound');
+    const t25 = sum(s25, 'callsTotal'), t26 = sum(s26, 'callsTotal');
     const delta = t25 > 0 ? ((t26 - t25) / t25 * 100) : null;
     const cls = delta == null ? '' : delta >= 0 ? 'up' : 'dn';
     return `<td><b>${t25.toLocaleString()}</b></td><td><b>${t26.toLocaleString()}</b></td><td class="${cls}"><b>${delta == null ? '—' : (delta >= 0 ? '+' : '') + delta.toFixed(1) + '%'}</b></td>`;
   }).join('');
   return `<div class="table-card" style="margin-top:12px">
-    <h3>Inbound calls vs PY — by location</h3>
+    <h3>Unique calls vs PY — by location</h3>
     <table>
       <thead><tr><th>Location</th>${head}</tr></thead>
       <tbody>${body}<tr class="total-row"><td><b>All</b></td>${tot}</tr></tbody>
     </table>
+    <div class="stat-note">Same unique BH volume as Sankey (inbound + abandoned).</div>
   </div>`;
 }
 
@@ -1558,8 +1659,126 @@ function buildAbnSummaryTable(r26, r25) {
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <div class="stat-note">Abandoned % = abandoned calls ÷ total TalkDesk calls (inbound + abandoned + outbound)</div>
+    <div class="stat-note">Abandoned % = unique BH abandoned ÷ unique BH calls (inbound + abandoned · same as Sankey)</div>
   </div>`;
+}
+
+/** Phone/In-House ÷ unique BH volume (inbound + abandoned; same as Sankey T). */
+function humanConvOfInboundAgg(rows) {
+  const books = sum(rows, 'bookingsPhoneHuman');
+  const vol = sum(rows, 'callsTotal');
+  return vol > 0 ? convPctRaw(books / vol * 100) : null;
+}
+/** Phone/AI ÷ unique BH volume (inbound + abandoned; same as Sankey T). */
+function aiConvOfInboundAgg(rows) {
+  const books = sum(rows, 'bookingsPhoneAI');
+  const vol = sum(rows, 'callsTotal');
+  return vol > 0 ? convPctRaw(books / vol * 100) : null;
+}
+function humanAnswerPctAgg(rows) {
+  const tot = sum(rows, 'callsTotal');
+  const h = sum(rows, 'callsHuman');
+  return tot > 0 ? h / tot * 100 : null;
+}
+function trailingWeeksRows(rows, endWeek, n) {
+  const from = Math.max(1, endWeek - n + 1);
+  return rows.filter(r => r.week >= from && r.week <= endWeek);
+}
+
+function buildConvOfInboundSummaryTable(r26, r25, kind) {
+  const isHuman = kind === 'human';
+  const label = isHuman ? 'Human Conv %' : 'AI Conv %';
+  const note = isHuman
+    ? 'Human Conv % = Phone/In-House ÷ unique BH calls (inbound + abandoned · same as Sankey)'
+    : 'AI Conv % = Phone/AI ÷ unique BH calls (inbound + abandoned · same as Sankey)';
+  const rateFn = isHuman ? humanConvOfInboundAgg : aiConvOfInboundAgg;
+  const periods = [
+    { key: 'lw', label: `Last Week (W${D.lastWeek})` },
+    { key: 'mtd', label: fiscalMtdHeader(D.cutoff) },
+    { key: 'ytd', label: `YTD (W${ANALYSIS_START_WEEK}–W${D.cutoff})` },
+  ];
+  const rows = periods.map(p => {
+    const s26 = periodRows(r26, p.key), s25 = periodRows(r25, p.key);
+    const v25 = rateFn(s25), v26 = rateFn(s26);
+    return `<tr>
+      <td class="period-label">${p.label}</td>
+      <td>${heatConv(v25)}</td>
+      <td>${heatYoY(v26, v25, true)}</td>
+    </tr>`;
+  }).join('');
+  return `<div class="period-summary">
+    <table>
+      <thead><tr>
+        <th></th><th>${label} 2025</th><th>${label} 2026</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="stat-note">${note}</div>
+  </div>`;
+}
+
+/** CEO BRIEF — last-week picture for Details (unique BH volume = Sankey total). */
+function buildDetailsLastWeekBrief(r26, r25) {
+  const w = D.lastWeek || D.cutoff;
+  const lw26 = r26.filter(r => r.week === w);
+  const lw25 = r25.filter(r => r.week === w);
+  const trail26 = trailingWeeksRows(r26, w, 3);
+
+  const b26 = sum(lw26, 'bookingsTotal'), b25 = sum(lw25, 'bookingsTotal');
+  const bVar = signedPct(b26, b25);
+  const ih26 = sum(lw26, 'bookingsPhoneHuman'), ai26 = sum(lw26, 'bookingsPhoneAI');
+  const ih25 = sum(lw25, 'bookingsPhoneHuman');
+  const ai25 = sum(lw25, 'bookingsPhoneAI');
+  const signYoY = (cur, prior) => (cur == null || prior == null) ? '—' : (cur > prior ? '+' : cur < prior ? '−' : '=');
+  const phoneLeg = (label, cur, prior) =>
+    `${label} <b>${(cur || 0).toLocaleString()}</b> vs ${(prior || 0).toLocaleString()} PY (<b>${signYoY(cur, prior)}</b>)`;
+
+  const calls26 = sum(lw26, 'callsTotal'), calls25 = sum(lw25, 'callsTotal');
+  const callsVar = signedPct(calls26, calls25);
+
+  const hum26 = humanAnswerPctAgg(lw26);
+  const hum25 = humanAnswerPctAgg(lw25);
+  const hum3 = humanAnswerPctAgg(trail26);
+
+  const abn26 = abnRate(lw26);
+  const abn25 = abnRate(lw25);
+  const hConv = humanConvOfInboundAgg(lw26);
+  const hConv25 = humanConvOfInboundAgg(lw25);
+
+  const callsPhrase = callsVar == null
+    ? 'call volume vs prior year is unclear'
+    : (callsVar >= 0
+      ? `we took <b>more</b> unique calls than prior year (<b>${fmtSigned(callsVar)}</b>, ${calls26.toLocaleString()} vs ${calls25.toLocaleString()})`
+      : `we took <b>fewer</b> unique calls than prior year (<b>${fmtSigned(callsVar)}</b>, ${calls26.toLocaleString()} vs ${calls25.toLocaleString()})`);
+
+  const bookPhrase = bVar == null
+    ? 'reservations vs prior year are unclear'
+    : (bVar >= 0
+      ? `total reservations are <b>up ${Math.abs(bVar).toFixed(1)}%</b> vs prior year (${phoneLeg('Phone/In-House', ih26, ih25)}, ${phoneLeg('Phone/AI', ai26, ai25)})`
+      : `total reservations are <b>down ${Math.abs(bVar).toFixed(1)}%</b> vs prior year (${phoneLeg('Phone/In-House', ih26, ih25)}, ${phoneLeg('Phone/AI', ai26, ai25)})`);
+
+  const humPhrase = hum26 == null
+    ? 'human answer rate is unavailable'
+    : `<b>${hum26.toFixed(1)}%</b> of unique calls reached a human`
+      + (hum25 != null ? ` vs ${hum25.toFixed(1)}% prior year` : '')
+      + (hum3 != null ? ` (3-week avg ${hum3.toFixed(1)}%)` : '');
+
+  const abnPhrase = abn26 == null
+    ? 'abandon rate unavailable'
+    : `abandon rate sat at <b>${abn26.toFixed(1)}%</b>`
+      + (abn25 != null ? ` vs ${abn25.toFixed(1)}% PY` : '');
+
+  const convPhrase = hConv == null
+    ? 'human conversion unavailable'
+    : `In-House books converted at <b>${hConv.toFixed(1)}%</b> of unique calls`
+      + (hConv25 != null ? ` vs ${hConv25.toFixed(1)}% PY` : '');
+
+  const text = `Last week (W${w}), ${callsPhrase}. ${bookPhrase}. ${humPhrase}; ${abnPhrase}; ${convPhrase}.`;
+
+  return `<div class="insight-banner" style="margin:0 0 16px"><div class="insight-mark">◆</div><div>
+    <div class="insight-label">BRIEF · W${w}</div>
+    <div class="insight-text">${text}</div>
+  </div></div>`;
 }
 
 function buildPhoneSummaryTable(r26, r25) {
@@ -1818,9 +2037,10 @@ function overviewPeriodMetrics(restId, period) {
   const calls = sum(r26, 'callsTotal');
   const calls25 = sum(r25, 'callsTotal');
   const callsYoY = signedPct(calls, calls25);
-  const inbound = sum(r26, 'callsInbound');
-  const inbound25 = sum(r25, 'callsInbound');
-  const inboundYoY = signedPct(inbound, inbound25);
+  // Inbound column = unique BH volume (inbound + abandoned), same as Sankey / callsTotal
+  const inbound = calls;
+  const inbound25 = calls25;
+  const inboundYoY = callsYoY;
   const phoneBooked = phoneBooks(r26);
   const phoneBooked25 = phoneBooks(r25);
   const phoneBookedYoY = signedPct(phoneBooked, phoneBooked25);
@@ -1894,17 +2114,16 @@ function buildOverviewUnifiedTableHtml() {
     const r25 = locSummaryScope(D.rows25, p).filter(r => ids.has(r.restaurantId));
     const calls = sum(r26, 'callsTotal');
     const calls25 = sum(r25, 'callsTotal');
-    const inbound = sum(r26, 'callsInbound');
-    const inbound25 = sum(r25, 'callsInbound');
+    const callsYoY = signedPct(calls, calls25);
     const phoneBooked = phoneBooks(r26);
     const phoneBooked25 = phoneBooks(r25);
     return overviewPeriodCells({
       calls,
       calls25,
-      callsYoY: signedPct(calls, calls25),
-      inbound,
-      inbound25,
-      inboundYoY: signedPct(inbound, inbound25),
+      callsYoY,
+      inbound: calls,
+      inbound25: calls25,
+      inboundYoY: callsYoY,
       phoneBooked,
       phoneBooked25,
       phoneBookedYoY: signedPct(phoneBooked, phoneBooked25),
@@ -1925,7 +2144,7 @@ function buildOverviewUnifiedTableHtml() {
   return `<div class="table-card overview-scorecard">
     <h3>Locations · Last week · Period (4-4-5) · YTD · vs PY</h3>
     <p class="report-blurb">This scorecard compares each restaurant to the same weeks last year (vs PY) across three windows — last week, current fiscal period-to-date (4-4-5), and year-to-date. Each Calls / Inbound / Phone booked / Conv cell shows 2026, the PY numerical value, and the YoY delta.</p>
-    <p class="loc-summary-note">Calls / Inbound = <b>unique BH inbound</b> (In Business Hours? = TRUE · Customer Phone ≤90s gap · last leg; VIP/Membership out) vs PY · Phone booked: 2026 + PY + YoY · Transfer % = Hostie transferred ÷ Hostie AI calls · AI-only % of calls = (Hostie phoneCalls − transferred) ÷ total calls · Human / AI Conv: 2026 vs PY · Last week W${D.cutoff} · ${fiscalMtdHeader(D.cutoff)} (4-4-5) · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
+    <p class="loc-summary-note">Calls / Inbound = <b>unique BH volume</b> (inbound + abandoned · same as Sankey · In Business Hours? = TRUE · Customer Phone ≤90s gap; VIP/Membership out) vs PY · Phone booked: 2026 + PY + YoY · Transfer % = Hostie transferred ÷ Hostie AI calls · AI-only % of calls = (Hostie phoneCalls − transferred) ÷ total calls · Human / AI Conv: 2026 vs PY · Last week W${D.cutoff} · ${fiscalMtdHeader(D.cutoff)} (4-4-5) · YTD W${ANALYSIS_START_WEEK}–W${D.cutoff}</p>
     <table class="exec-kpi-table">
       <thead>
         <tr class="group-row">
@@ -2089,10 +2308,7 @@ function renderOverview() {
   const paint = () => {
     root.innerHTML = `
   <div class="overview-toolbar no-print">
-    <div>
-      <div class="section-head" style="margin-top:0">Executive overview · vs prior year</div>
-      <p class="loc-summary-note" style="margin:4px 0 0">YTD W${ANALYSIS_START_WEEK}–W${D.cutoff} · data through <b>W${D.cutoff}</b></p>
-    </div>
+    <div></div>
     <button type="button" class="btn-export" id="overview-pdf-btn" onclick="exportOverviewPdf()">Export PDF</button>
   </div>
 
@@ -2182,6 +2398,20 @@ function aggregateAgentProdWindow(fromWeek, toWeek) {
   const calls25 = sumF('calls25');
   const bookings26 = sumF('bookings26');
   const bookings25 = sumF('bookings25');
+  const uniqueInbound26 = sumF('uniqueInbound26') || sumF('callsTotal26') || 0;
+  const uniqueInbound25 = sumF('uniqueInbound25') || 0;
+  // Fallback: if export predates workload fields, derive unique from compare rows
+  let u26 = uniqueInbound26, u25 = uniqueInbound25;
+  if (!u26 && D?.rows26) {
+    u26 = (D.rows26 || []).filter(r => r.week >= fromWeek && r.week <= toWeek)
+      .reduce((s, r) => s + (Number(r.callsTotal) || 0), 0);
+    u25 = (D.rows25 || []).filter(r => r.week >= fromWeek && r.week <= toWeek)
+      .reduce((s, r) => s + (Number(r.callsTotal) || 0), 0);
+  }
+  const outbound26 = sumF('outbound26');
+  const outbound25 = sumF('outbound25');
+  const workload26 = sumF('workload26') || (u26 + outbound26);
+  const workload25 = sumF('workload25') || (u25 + outbound25);
   const agents26 = avgAgents('agents26');
   const agents25 = avgAgents('agents25');
   const hoursWeeks = weeksWithWorkedHours(fromWeek, toWeek, 2026);
@@ -2208,18 +2438,98 @@ function aggregateAgentProdWindow(fromWeek, toWeek) {
     calls25,
     bookings26,
     bookings25,
+    uniqueInbound26: u26,
+    uniqueInbound25: u25,
+    outbound26,
+    outbound25,
+    workload26,
+    workload25,
     hours26: hoursExact,
     hoursWeeks,
     callsForHours,
     callsPerHour26,
     callsPerAgent26: per(calls26, agents26),
     callsPerAgent25: per(calls25, agents25),
+    workloadPerAgent26: per(workload26, agents26),
+    workloadPerAgent25: per(workload25, agents25),
     bookingsPerAgent26: per(bookings26, agents26),
     bookingsPerAgent25: per(bookings25, agents25),
     callsYoY: signedPct(calls26, calls25),
     callsPerYoY: signedPct(per(calls26, agents26), per(calls25, agents25)),
+    workloadYoY: signedPct(workload26, workload25),
+    workloadPerYoY: signedPct(per(workload26, agents26), per(workload25, agents25)),
     bookingsPerYoY: signedPct(per(bookings26, agents26), per(bookings25, agents25)),
   };
+}
+
+function buildAgentsSummaryHtml(selectedWeek) {
+  const lw = selectedWeek || D.cutoff;
+  const mtdFrom = fiscalPtdFrom(lw);
+  const ytdFrom = ANALYSIS_START_WEEK;
+  const last = aggregateAgentProdWindow(lw, lw);
+  const mtd = aggregateAgentProdWindow(mtdFrom, lw);
+  const ytd = aggregateAgentProdWindow(ytdFrom, lw);
+
+  const card = (title, sub, pack) => {
+    if (!pack) {
+      return `<div class="ov-cc-card"><h3>${title}</h3><p class="ov-cc-sub">${sub}</p><p class="loc-summary-note">No agent productivity data for this window.</p></div>`;
+    }
+    const agLabel = pack.fromWeek === pack.toWeek ? '0' : '1';
+    return `<div class="ov-cc-card">
+      <h3>${title}</h3>
+      <p class="ov-cc-sub">${sub}</p>
+      <div class="ov-cc-metrics">
+        ${ovCcMetricHtml('Calls / agent', pack.workloadPerAgent26, pack.workloadPerAgent25, pack.workloadPerYoY, { decimals: 1 })}
+        ${ovCcMetricHtml('Unique inbound', pack.uniqueInbound26, pack.uniqueInbound25, signedPct(pack.uniqueInbound26, pack.uniqueInbound25), { int: true })}
+        ${ovCcMetricHtml('Outbound', pack.outbound26, pack.outbound25, signedPct(pack.outbound26, pack.outbound25), { int: true })}
+        ${ovCcMetricHtml('Workload (in+out)', pack.workload26, pack.workload25, pack.workloadYoY, { int: true })}
+      </div>
+      <div class="ov-cc-agents">Active agents: <b>${pack.agents26 ? pack.agents26.toFixed(+agLabel) : '—'}</b>
+        <span style="opacity:.7">(PY ${pack.agents25 ? pack.agents25.toFixed(+agLabel) : '—'})</span>
+        · Calls/agent = (unique BH inbound + outbound) ÷ active agents</div>
+    </div>`;
+  };
+
+  const series = D?.agentProductivity?.series || [];
+  const lastN = series.filter(p => p.week >= Math.max(ytdFrom, lw - 9) && p.week <= lw);
+  const trendNote = lastN.length
+    ? `<p class="people-note" style="margin:12px 0 0">Weekly calls/agent (unique inbound + outbound) · last ${lastN.length} weeks vs PY</p>
+       <div class="chart-wrap" style="height:260px;margin-top:8px"><canvas id="agents-cpa-trend"></canvas></div>`
+    : '';
+
+  return `<div class="table-card">
+    <h3>Summary — Agents</h3>
+    <p class="people-note">Average calls per active human agent vs prior year. Workload = <b>unique BH inbound</b> (same as Sankey / Details) <b>+ outbound</b> TalkDesk legs.</p>
+    <div class="ov-cc-summary" style="margin-top:12px">
+      ${card(`Last week · W${lw}`, '2026 vs prior year (same week)', last)}
+      ${card(`MTD · ${fiscalMtdHeader(lw)}`, '2026 vs prior year (same weeks)', mtd)}
+      ${card(`YTD · W${ytdFrom}–W${lw}`, '2026 vs prior year (same weeks)', ytd)}
+    </div>
+    ${trendNote}
+  </div>`;
+}
+
+function paintAgentsCpaTrend(selectedWeek) {
+  const canvas = document.getElementById('agents-cpa-trend');
+  if (!canvas || !D?.agentProductivity?.series) return;
+  const lw = selectedWeek || D.cutoff;
+  const from = Math.max(ANALYSIS_START_WEEK, lw - 9);
+  const pts = D.agentProductivity.series.filter(p => p.week >= from && p.week <= lw);
+  if (!pts.length) return;
+  const per = (p, year) => {
+    if (year === 26) return p.workloadPerAgent26 ?? (p.agents26 > 0 ? (p.workload26 ?? ((p.uniqueInbound26 || 0) + (p.outbound26 || 0))) / p.agents26 : null);
+    return p.workloadPerAgent25 ?? (p.agents25 > 0 ? (p.workload25 ?? ((p.uniqueInbound25 || 0) + (p.outbound25 || 0))) / p.agents25 : null);
+  };
+  mkChart('agents-cpa-trend', 'line', {
+    labels: pts.map(p => 'W' + p.week),
+    datasets: [
+      { label: '2025 calls/agent', data: pts.map(p => per(p, 25)), borderColor: Y25, tension: .3, fill: false, borderWidth: 2.5, spanGaps: true, pointRadius: 3, pointHoverRadius: 5 },
+      { label: '2026 calls/agent', data: pts.map(p => per(p, 26)), borderColor: Y26, tension: .3, fill: false, borderWidth: 2.5, spanGaps: true, pointRadius: 3, pointHoverRadius: 5 },
+    ],
+  }, {
+    scales: { y: { beginAtZero: true, ticks: { callback: v => Number(v).toFixed(0) } } },
+    plugins: { legend: YEAR_LEGEND },
+  });
 }
 
 function ovCcDeltaHtml(yoy) {
@@ -2536,6 +2846,131 @@ async function exportSankeyPdf() {
   });
 }
 
+async function waitForDetailsChartsReady(timeoutMs = 10000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    await new Promise((r) => setTimeout(r, 120));
+    const hasWaterfall = !!CHARTS['details-waterfall'];
+    const hasInbound = !!CHARTS['details-inbound-trend'];
+    const sankeyRoot = document.getElementById('details-sankey-root');
+    const sankeyReady = !sankeyRoot
+      || !!CHARTS['sankey-inbound']
+      || /No call-flow|not available/i.test(sankeyRoot.textContent || '');
+    if (hasWaterfall && hasInbound && sankeyReady) break;
+  }
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  // Let Chart.js / Sankey finish paint
+  await new Promise((r) => setTimeout(r, 250));
+}
+
+/**
+ * Details PDF: one landscape page per location covering sections 1–6.
+ * Respects Location filter (single site → one page; All → every restaurant).
+ */
+async function exportDetailsPdf() {
+  const btn = document.getElementById('details-pdf-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Preparing PDF…'; }
+
+  let JsPDF;
+  let html2canvas;
+  try {
+    ({ JsPDF } = await ensurePdfLibs());
+    html2canvas = await ensureHtml2Canvas();
+  } catch (e) {
+    console.error(e);
+    alert('PDF libraries failed to load. Check network/CDN, refresh, and try again.');
+    if (btn) { btn.disabled = false; btn.textContent = 'Export PDF'; }
+    return;
+  }
+
+  const prevActive = activeRest;
+  const targets = (F.location && F.location !== 'all' && RESTS.some(r => r.id === F.location))
+    ? RESTS.filter(r => r.id === F.location)
+    : RESTS.slice();
+
+  if (!targets.length) {
+    alert('No locations to export.');
+    if (btn) { btn.disabled = false; btn.textContent = 'Export PDF'; }
+    return;
+  }
+
+  // Ensure Details shell exists
+  if (!document.getElementById('rest-content')) renderByRest();
+
+  const pdf = new JsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const m = 5;
+
+  try {
+    for (let i = 0; i < targets.length; i++) {
+      const rest = targets[i];
+      if (btn) btn.textContent = `PDF ${i + 1}/${targets.length} · ${rest.label}…`;
+      activeRest = rest.id;
+      renderRestDetail(rest.id);
+      await waitForDetailsChartsReady();
+
+      const el = document.getElementById('rest-content');
+      if (!el) throw new Error('Details content missing');
+
+      el.classList.add('pdf-compact', 'details-pdf-page');
+      const restoreCanvases = swapCanvasesForCapture(el);
+      try {
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const canvas = await html2canvas(el, {
+          backgroundColor: '#0d0f18',
+          scale: Math.min(2, window.devicePixelRatio || 1.5),
+          useCORS: true,
+          logging: false,
+          ignoreElements: (node) => {
+            if (!node || node.nodeType !== 1) return false;
+            if (node.hasAttribute && node.hasAttribute('data-pdf-omit')) return true;
+            if (node.classList && (node.classList.contains('no-print') || node.classList.contains('pdf-omit'))) return true;
+            return false;
+          },
+        });
+
+        if (i > 0) pdf.addPage();
+        pdf.setFillColor(13, 15, 24);
+        pdf.rect(0, 0, pageW, pageH, 'F');
+
+        const title = `RDG AI Impact · Details · ${rest.label} · through W${D.cutoff} · §§1–6`;
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(10);
+        pdf.setTextColor(238, 240, 251);
+        pdf.text(title, m, m + 3);
+
+        const titleH = 7;
+        const maxW = pageW - m * 2;
+        const maxH = pageH - m * 2 - titleH;
+        const aspect = canvas.width / canvas.height;
+        let imgW = maxW;
+        let imgH = imgW / aspect;
+        if (imgH > maxH) {
+          imgH = maxH;
+          imgW = imgH * aspect;
+        }
+        const left = m + (maxW - imgW) / 2;
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', left, m + titleH, imgW, imgH);
+      } finally {
+        el.classList.remove('pdf-compact', 'details-pdf-page');
+        restoreCanvases();
+      }
+    }
+
+    const through = D?.cutoff || F.wkTo || '';
+    const scope = targets.length === 1 ? targets[0].label.replace(/\s+/g, '-') : 'All-Locations';
+    pdf.save(`RDG-Details-${scope}-W${through}.pdf`);
+  } catch (e) {
+    console.error(e);
+    alert('Details PDF export failed: ' + (e.message || e));
+  } finally {
+    activeRest = prevActive;
+    renderByRest();
+    if (btn) { btn.disabled = false; btn.textContent = 'Export PDF'; }
+  }
+}
+
 function hexToRgb(hex) {
   const h = String(hex || '#eef0fb').replace('#', '');
   return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
@@ -2655,10 +3090,14 @@ function collectOverviewScorecardRows() {
     const calls25 = sum(r25, 'callsTotal');
     const phoneBooked = phoneBooks(r26);
     const phoneBooked25 = phoneBooks(r25);
+    const callsYoY = signedPct(calls, calls25);
     return {
       calls,
       calls25,
-      callsYoY: signedPct(calls, calls25),
+      callsYoY,
+      inbound: calls,
+      inbound25: calls25,
+      inboundYoY: callsYoY,
       phoneBooked,
       phoneBooked25,
       phoneBookedYoY: signedPct(phoneBooked, phoneBooked25),
@@ -3474,7 +3913,10 @@ function renderByRest() {
   }
 
   pg.innerHTML = `
-    <div class="rest-selector" id="rest-btns"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:4px">
+      <div class="rest-selector" id="rest-btns" style="margin:0"></div>
+      <button type="button" class="btn-export" id="details-pdf-btn" onclick="exportDetailsPdf()">Export PDF</button>
+    </div>
     <div id="rest-content"></div>
   `;
   const btns = document.getElementById('rest-btns');
@@ -3503,10 +3945,27 @@ function renderByRest() {
   else renderRestDetail(activeRest);
 }
 
+function detailsSelectedWeek() {
+  const maxW = D?.cutoff || ANALYSIS_START_WEEK;
+  const w = DETAILS_WF_WEEK != null ? DETAILS_WF_WEEK : maxW;
+  return Math.min(maxW, Math.max(ANALYSIS_START_WEEK, w));
+}
+
+function detailsWeekOptionsHtml(selectedWeek) {
+  const maxW = D?.cutoff || ANALYSIS_START_WEEK;
+  const pick = Math.min(Math.max(selectedWeek || maxW, ANALYSIS_START_WEEK), maxW);
+  // Newest first so the open list “goes down” into earlier weeks
+  return Array.from({ length: maxW - ANALYSIS_START_WEEK + 1 }, (_, i) => {
+    const w = maxW - i;
+    const label = w === maxW ? `W${w} (previous week)` : `W${w}`;
+    return `<option value="${w}"${w === pick ? ' selected' : ''}>${label}</option>`;
+  }).join('');
+}
+
 function detailsWaterfallRange() {
   if (DETAILS_WF_RANGE === 'week') {
-    const w = D.cutoff || F.wkTo;
-    return { from: w, to: w, label: `Last week (W${w})` };
+    const w = detailsSelectedWeek();
+    return { from: w, to: w, label: `Week W${w}` };
   }
   const from = ANALYSIS_START_WEEK;
   const to = D.cutoff || F.wkTo;
@@ -3521,8 +3980,7 @@ function matchedReservationByLocationRange(restFilterId, from, to) {
   return locs;
 }
 
-function setDetailsWfRange(mode) {
-  DETAILS_WF_RANGE = mode === 'week' ? 'week' : 'ytd';
+function refreshDetailsWaterfall() {
   const restId = activeRest === 'all' ? 'all' : activeRest;
   const range = detailsWaterfallRange();
   const locs = matchedReservationByLocationRange(restId, range.from, range.to);
@@ -3540,6 +3998,23 @@ function setDetailsWfRange(mode) {
       : 'Reservation bridge · 2025 → location Δ → 2026';
   }
   paintReservationWaterfall('details-waterfall', locs);
+}
+
+function setDetailsWfRange(mode) {
+  DETAILS_WF_RANGE = mode === 'week' ? 'week' : 'ytd';
+  if (DETAILS_WF_RANGE === 'week' && DETAILS_WF_WEEK == null) {
+    DETAILS_WF_WEEK = detailsSelectedWeek();
+  }
+  refreshDetailsWaterfall();
+}
+
+function onDetailsWfWeekChange() {
+  const sel = document.getElementById('details-wf-week');
+  const maxW = D?.cutoff || ANALYSIS_START_WEEK;
+  const w = Math.min(maxW, Math.max(ANALYSIS_START_WEEK, +(sel?.value) || maxW));
+  DETAILS_WF_WEEK = w;
+  DETAILS_WF_RANGE = 'week';
+  refreshDetailsWaterfall();
 }
 
 /** Details · shared body: waterfall → unique inbound → Sankey → abandoned + human %. */
@@ -3561,15 +4036,17 @@ function renderDetailsShell(opts) {
   }).join('');
 
   document.getElementById('rest-content').innerHTML = `
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
       <h2 style="font-size:20px;font-weight:700;${titleColor ? `color:${titleColor}` : 'background:linear-gradient(90deg,#3d8ef8,#b06ef5);-webkit-background-clip:text;-webkit-text-fill-color:transparent'}">${title}</h2>
       ${rest ? `<div class="golive-badge">◆ AI Live W${rest.goLive} · 2026</div>` : ''}
     </div>
-    <p class="people-note" style="margin:0 0 14px">Details: waterfall · unique BH inbound · Sankey · abandoned % · human-answer % · W${F.wkFrom}–W${F.wkTo}.</p>
+    ${buildDetailsLastWeekBrief(r26, r25)}
 
-    <div class="section-head">1 · Reservations waterfall — 2025 vs 2026</div>
-    <div class="rest-selector" style="margin:0 0 10px;gap:8px">
-      <button type="button" class="wf-range-btn${DETAILS_WF_RANGE === 'week' ? ' active' : ''}" data-wf-range="week" onclick="setDetailsWfRange('week')">Week (W${D.cutoff})</button>
+    <h2 class="details-section-title">1 · Reservations waterfall — 2025 vs 2026</h2>
+    <div class="rest-selector no-print" style="margin:0 0 10px;gap:8px;align-items:center">
+      <span class="filter-label" style="margin:0">Week</span>
+      <select id="details-wf-week" class="wf-range-btn${DETAILS_WF_RANGE === 'week' ? ' active' : ''}" data-wf-range="week"
+        title="Click to pick another week" onmousedown="setDetailsWfRange('week')" onchange="onDetailsWfWeekChange()">${detailsWeekOptionsHtml(detailsSelectedWeek())}</select>
       <button type="button" class="wf-range-btn${DETAILS_WF_RANGE === 'ytd' ? ' active' : ''}" data-wf-range="ytd" onclick="setDetailsWfRange('ytd')">YTD (W${ANALYSIS_START_WEEK}–W${D.cutoff})</button>
     </div>
     <div class="chart-row cols-1">
@@ -3586,11 +4063,11 @@ function renderDetailsShell(opts) {
       </div>
     </div>
 
-    <div class="section-head">2 · Unique inbound calls</div>
+    <h2 class="details-section-title">2 · Unique inbound calls</h2>
     <div class="chart-row cols-1">
       <div class="chart-card">
-        <h3>Inbound Calls — Weekly${restId === 'all' ? ' (all restaurants)' : ''}</h3>
-        <p>Unique BH inbound (Customer Phone ≤90s · In Business Hours? = TRUE)${rest ? ' · vertical line = AI go-live' : ''}</p>
+        <h3>Unique Calls — Weekly${restId === 'all' ? ' (all restaurants)' : ''}</h3>
+        <p>Unique BH volume = inbound + abandoned (same as Sankey · Customer Phone ≤90s · In Business Hours? = TRUE)${rest ? ' · vertical line = AI go-live' : ''}</p>
         <div class="legend" style="margin-bottom:8px">
           <div class="legend-item"><div class="legend-line" style="background:${Y25}"></div>2025</div>
           <div class="legend-item"><div class="legend-line" style="background:${Y26}"></div>2026</div>
@@ -3602,15 +4079,15 @@ function renderDetailsShell(opts) {
     ${restId === 'all' ? `
     <div class="chart-row cols-1">
       <div class="chart-card">
-        <h3>Inbound Calls — by restaurant 2026</h3>
-        <p>Each location · unique BH inbound</p>
+        <h3>Unique Calls — by restaurant 2026</h3>
+        <p>Each location · unique BH volume (inbound + abandoned)</p>
         <div class="legend">${RESTS.map(r => `<div class="legend-item"><div class="legend-line" style="background:${r.color}"></div>${r.label}</div>`).join('')}</div>
         <div class="chart-wrap" style="height:260px"><canvas id="details-inbound-by-rest"></canvas></div>
       </div>
     </div>
     ${buildInboundCallsByLocationTable(r26, r25)}` : ''}
 
-    <div class="section-head">3 · Sankey</div>
+    <h2 class="details-section-title">3 · Sankey</h2>
     <div class="sankey-controls no-print" style="margin-bottom:10px">
       ${restId === 'all' ? `<div class="filter-group"><span class="filter-label">Location</span>
         <select id="details-sankey-loc" onchange="onDetailsSankeyFilterChange()">${sankeyLocOpts}</select></div>` : ''}
@@ -3619,7 +4096,7 @@ function renderDetailsShell(opts) {
     </div>
     <div id="details-sankey-root"><div class="loading">Loading Sankey…</div></div>
 
-    <div class="section-head">4 · Abandoned rate &amp; human answer %</div>
+    <h2 class="details-section-title">4 · Abandoned rate &amp; human answer %</h2>
     <div id="details-bounce-kpis" class="kpi-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:12px"></div>
     <div class="chart-row cols-2">
       <div class="chart-card">
@@ -3642,6 +4119,34 @@ function renderDetailsShell(opts) {
         <div class="chart-wrap" style="height:240px"><canvas id="details-human-pct"></canvas></div>
       </div>
     </div>
+
+    <h2 class="details-section-title">5 · Human conversion</h2>
+    <div class="chart-row cols-1">
+      <div class="chart-card">
+        <h3>Human Conversion — Weekly</h3>
+        <p>Phone/In-House ÷ unique BH calls (inbound + abandoned · same as Sankey) · higher is better</p>
+        <div class="legend" style="margin-bottom:8px">
+          <div class="legend-item"><div class="legend-line" style="background:${Y25}"></div>2025</div>
+          <div class="legend-item"><div class="legend-line" style="background:${Y26}"></div>2026</div>
+        </div>
+        <div class="chart-wrap" style="height:240px"><canvas id="details-human-conv"></canvas></div>
+        ${buildConvOfInboundSummaryTable(r26, r25, 'human')}
+      </div>
+    </div>
+
+    <h2 class="details-section-title">6 · AI conversion</h2>
+    <div class="chart-row cols-1">
+      <div class="chart-card">
+        <h3>AI Conversion — Weekly</h3>
+        <p>Phone/AI ÷ unique BH calls (inbound + abandoned · same as Sankey) · higher is better</p>
+        <div class="legend" style="margin-bottom:8px">
+          <div class="legend-item"><div class="legend-line" style="background:${Y25}"></div>2025</div>
+          <div class="legend-item"><div class="legend-line" style="background:${Y26}"></div>2026</div>
+        </div>
+        <div class="chart-wrap" style="height:240px"><canvas id="details-ai-conv"></canvas></div>
+        ${buildConvOfInboundSummaryTable(r26, r25, 'ai')}
+      </div>
+    </div>
   `;
 
   SANKEY_SEL.restaurantId = sankeyRestId;
@@ -3656,7 +4161,7 @@ function renderDetailsShell(opts) {
         labels: weeks.map(w => 'W' + w),
         datasets: RESTS.map(r => ({
           label: r.label,
-          data: weeks.map(w => r26.find(x => x.restaurantId === r.id && x.week === w)?.callsInbound || 0),
+          data: weeks.map(w => r26.find(x => x.restaurantId === r.id && x.week === w)?.callsTotal || 0),
           borderColor: r.color,
           tension: .3, fill: false, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4,
         })),
@@ -3664,6 +4169,8 @@ function renderDetailsShell(opts) {
     }
     paintDetailsAbnTrend('details-abn-trend', weeks, r26, r25, rest);
     paintDetailsHumanAnswerPct('details-human-pct', weeks, r26, r25, rest);
+    paintDetailsConvOfInboundTrend('details-human-conv', weeks, r26, r25, rest, 'human');
+    paintDetailsConvOfInboundTrend('details-ai-conv', weeks, r26, r25, rest, 'ai');
     mountDetailsSankey();
     paintDetailsBounceKpis(sankeyRestId, sankeyWeek);
   });
@@ -3680,8 +4187,9 @@ function renderDetailsAllSites() {
 }
 
 function paintDetailsInboundTrend(canvasId, weeks, r26, r25, rest) {
-  const m26 = aggByWeek(r26, 'callsInbound');
-  const m25 = aggByWeek(r25, 'callsInbound');
+  // callsTotal = unique BH (inbound + abandoned) — matches Sankey totalVolume
+  const m26 = aggByWeek(r26, 'callsTotal');
+  const m25 = aggByWeek(r25, 'callsTotal');
   mkChart(canvasId, 'line', {
     labels: weeks.map(w => 'W' + w),
     datasets: [
@@ -3731,6 +4239,29 @@ function paintDetailsHumanAnswerPct(canvasId, weeks, r26, r25, rest) {
     ],
   }, {
     scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => v?.toFixed?.(1) + '%' } } },
+    plugins: {
+      legend: YEAR_LEGEND,
+      ...(rest ? { annotation: { annotations: goLiveAnno(rest, weeks) } } : {}),
+    },
+  });
+}
+
+function paintDetailsConvOfInboundTrend(canvasId, weeks, r26, r25, rest, kind) {
+  const bookKey = kind === 'human' ? 'bookingsPhoneHuman' : 'bookingsPhoneAI';
+  const label = kind === 'human' ? 'Human Conv %' : 'AI Conv %';
+  const pct = (rs, w) => {
+    const vol = aggByWeek(rs, 'callsTotal')[w] || 0;
+    const books = aggByWeek(rs, bookKey)[w] || 0;
+    return vol > 0 ? convPctRaw(books / vol * 100) : null;
+  };
+  mkChart(canvasId, 'line', {
+    labels: weeks.map(w => 'W' + w),
+    datasets: [
+      { label: `2025 ${label}`, data: weeks.map(w => pct(r25, w)), borderColor: Y25, tension: .3, fill: false, borderWidth: 2.5, spanGaps: true, pointRadius: 0, pointHoverRadius: 4 },
+      { label: `2026 ${label}`, data: weeks.map(w => pct(r26, w)), borderColor: Y26, tension: .3, fill: false, borderWidth: 2.5, spanGaps: true, pointRadius: 0, pointHoverRadius: 4 },
+    ],
+  }, {
+    scales: { y: { beginAtZero: true, ticks: { callback: v => v?.toFixed?.(1) + '%' } } },
     plugins: {
       legend: YEAR_LEGEND,
       ...(rest ? { annotation: { annotations: goLiveAnno(rest, weeks) } } : {}),
@@ -4008,13 +4539,14 @@ function buildRcCalls(id, rest, weeks, r26, r25) {
 }
 
 function buildRcInboundCalls(id, rest, weeks, r26, r25) {
-  const m26 = aggByWeek(r26, 'callsInbound');
-  const m25 = aggByWeek(r25, 'callsInbound');
+  // Unique BH volume (inbound + abandoned) — same denominator as Sankey
+  const m26 = aggByWeek(r26, 'callsTotal');
+  const m25 = aggByWeek(r25, 'callsTotal');
   mkChart(`rc-inbound-${id}`, 'line', {
     labels: weeks.map(w => 'W' + w),
     datasets: [
-      { label: '2025 inbound', data: weeks.map(w => m25[w] || 0), borderColor: '#ff9f2e', backgroundColor: 'rgba(255,159,46,.10)', tension: .3, fill: true, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4 },
-      { label: '2026 inbound', data: weeks.map(w => m26[w] || 0), borderColor: rest.color, backgroundColor: rest.color + '18', tension: .3, fill: true, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4 },
+      { label: '2025 unique', data: weeks.map(w => m25[w] || 0), borderColor: '#ff9f2e', backgroundColor: 'rgba(255,159,46,.10)', tension: .3, fill: true, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4 },
+      { label: '2026 unique', data: weeks.map(w => m26[w] || 0), borderColor: rest.color, backgroundColor: rest.color + '18', tension: .3, fill: true, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4 },
     ],
   }, { plugins: { annotation: { annotations: goLiveAnno(rest, weeks) } } });
 }
@@ -4910,9 +5442,11 @@ function applyPeopleWeek(week, opts = {}) {
   if (inp) inp.value = String(w);
   const hoursInp = document.getElementById('hours-week');
   if (hoursInp) hoursInp.value = String(w);
-  if (document.getElementById('f-wk-to')) {
-    document.getElementById('f-wk-to').value = w;
-    F.wkTo = w;
+  const weekSel = document.getElementById('f-week');
+  if (weekSel && D) {
+    populateWeekSelect(w);
+    F.wkFrom = ANALYSIS_START_WEEK;
+    F.wkTo = Math.min(D.cutoff || w, Math.max(ANALYSIS_START_WEEK, w));
   }
   renderPeople();
 }
@@ -5075,14 +5609,18 @@ async function renderPeople() {
       ${insightBanner(`Agent ops + location call KPIs. Week <b>W${j.selectedWeek}</b> · Fiscal <b>P${j.fiscalPeriod || fiscalPeriodForWeek(j.selectedWeek).period}</b> PTD = <b>W${j.mtdFromWeek}–W${j.mtdToWeek}</b> (${j.fiscalPeriodLength || fiscalPeriodForWeek(j.selectedWeek).length}-wk period through W${j.fiscalPeriodToWeek || fiscalPeriodForWeek(j.selectedWeek).toWeek}). ${_peopleReadOnly ? '<b>Worked Hours</b> are view-only (Hours API not configured).' : '<b>Worked Hours</b> are editable here — changes sync for everyone.'}`)}
       <div class="people-week-bar">
         <label>Report week</label>
-        <input type="number" id="people-week" min="1" max="53" value="${j.selectedWeek}">
-        <button class="rest-btn" id="people-week-go" style="padding:6px 12px">Apply</button>
+        <select id="people-week" onchange="applyPeopleWeek(this.value)">${peopleWeekOptionsHtml(j.selectedWeek)}</select>
         <span class="people-note">Source: ${j.sources?.csv || '—'} · Generated ${j.generatedAt ? new Date(j.generatedAt).toLocaleString() : '—'} · through W${D.cutoff}<span id="people-save-hint"></span></span>
       </div>
       <div class="people-subtabs" id="people-subtabs">
         <button class="people-subtab active" data-people-panel="coverage">Staffing vs AI</button>
+        <button class="people-subtab" data-people-panel="agents">Summary — Agents</button>
         <button class="people-subtab" data-people-panel="ring">Summary — Ring Groups</button>
         <button class="people-subtab" data-people-panel="peak">Summary — Peak Times</button>
+      </div>
+
+      <div id="people-panel-agents" style="display:none">
+        ${buildAgentsSummaryHtml(j.selectedWeek)}
       </div>
 
       <div id="people-panel-ring" style="display:none">
@@ -5148,15 +5686,6 @@ async function renderPeople() {
     // stash report for chart renderers when panels open
     window._peopleReport = j;
 
-    const goPeopleWeek = () => {
-      const w = +document.getElementById('people-week').value;
-      if (w >= 1 && w <= 53) applyPeopleWeek(w);
-    };
-    document.getElementById('people-week-go')?.addEventListener('click', goPeopleWeek);
-    document.getElementById('people-week')?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); goPeopleWeek(); }
-    });
-
     const goCoverageWeek = () => {
       const w = +document.getElementById('coverage-week').value;
       if (w >= 1 && w <= 53) applyPeopleWeek(w, { panel: 'coverage' });
@@ -5179,16 +5708,18 @@ async function renderPeople() {
         _peopleActivePanel = panel;
         document.querySelectorAll('.people-subtab').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        ['ring', 'peak', 'coverage'].forEach(p => {
+        ['ring', 'peak', 'coverage', 'agents'].forEach(p => {
           const node = document.getElementById('people-panel-' + p);
           if (node) node.style.display = p === panel ? '' : 'none';
         });
+        updatePageTitle('people', panel);
         if (panel === 'peak') requestAnimationFrame(() => renderPeoplePeakCharts(window._peopleReport));
         if (panel === 'coverage') requestAnimationFrame(() => renderCoverageLabPanel(window._peopleReport));
+        if (panel === 'agents') requestAnimationFrame(() => paintAgentsCpaTrend(window._peopleReport?.selectedWeek));
       });
     });
 
-    const restore = ['coverage', 'ring', 'peak'].includes(_peopleActivePanel) ? _peopleActivePanel : 'coverage';
+    const restore = ['coverage', 'ring', 'peak', 'agents'].includes(_peopleActivePanel) ? _peopleActivePanel : 'coverage';
     const restoreBtn = document.querySelector(`.people-subtab[data-people-panel="${restore}"]`);
     if (restoreBtn && restore !== 'coverage') {
       restoreBtn.click();
@@ -7148,7 +7679,7 @@ async function renderSettings() {
 // ═══════════════════════════════════════════════════════════════
 function showTab(name) {
   if (name === 'report' || name === 'calls') name = name === 'calls' ? 'people' : 'overview';
-  if (name === 'sankey' || name === 'reservations' || name === 'conversation' || name === 'settings') name = 'byrest';
+  if (name === 'sankey' || name === 'reservations' || name === 'conversation') name = 'byrest';
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.sidebar .tab-btn').forEach(b => b.classList.remove('active'));
   const page = document.getElementById('page-' + name);
@@ -7156,12 +7687,15 @@ function showTab(name) {
   const btn = document.querySelector(`.sidebar .tab-btn[data-tab="${name}"]`);
   if (btn) btn.classList.add('active');
   try { history.replaceState(null, '', name === 'overview' ? location.pathname + location.search : '#' + name); } catch (_) {}
+  updatePageTitle(name);
   if (name === 'people') {
-    const panel = document.querySelector('.people-subtab.active')?.dataset?.peoplePanel;
+    const panel = document.querySelector('.people-subtab.active')?.dataset?.peoplePanel || _peopleActivePanel || 'coverage';
+    updatePageTitle('people', panel);
     if (panel === 'coverage') requestAnimationFrame(() => renderCoverageLabPanel(window._peopleReport));
     if (panel === 'peak') requestAnimationFrame(() => renderPeoplePeakCharts(window._peopleReport));
   }
   if (name === 'byrest') requestAnimationFrame(() => { if (document.getElementById('details-sankey-root')) mountDetailsSankey(); });
+  if (name === 'settings') renderSettings();
 }
 
 function toggleSidebar() {
@@ -7651,9 +8185,11 @@ function paintSankeyChart() {
 // ─── START ───────────────────────────────────────────────────
 init().then(() => {
   const hash = (location.hash || '').replace('#', '');
-  const allowed = ['overview', 'byrest', 'people'];
+  const allowed = ['overview', 'byrest', 'people', 'settings'];
   if (hash && allowed.includes(hash) && document.getElementById('page-' + hash)) showTab(hash);
+  else updatePageTitle('overview');
   document.getElementById('sidebar-toggle')?.addEventListener('click', toggleSidebar);
+  document.getElementById('sidebar-toggle-open')?.addEventListener('click', toggleSidebar);
   try {
     if (localStorage.getItem('rdg-nav-collapsed') === '1') {
       document.getElementById('app-sidebar')?.classList.add('collapsed');
